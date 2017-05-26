@@ -1,0 +1,28 @@
+PRO w_gentran,shot=shot
+
+	user=logname()
+	loadct,12,/silent
+	base=widget_base(title='GENTRAN PROFILE ANALYSIS',/row,tlb_size_events=1)
+	A=widget_base(base,/column)
+	B=widget_base(base,/column)
+	space=widget_base(base,/row,xsize=2)	
+	C=widget_base(base,/column)
+	space=widget_base(base,/row,xsize=2)	
+	D=widget_base(base,/column)
+	
+	ysize=800
+	dum = widget_label(A,value='RADIAL PROFILES')
+	A1=widget_base(A,frame=5)
+	draw1=widget_draw(A1,xsize=500,ysize=ysize)
+
+	dum = widget_label(B,value='SETUP/CONFIGURATION')
+	B1=widget_base(B,frame=5)
+	draw1=widget_draw(B1,xsize=300,ysize=ysize)
+
+	dum = widget_label(C,value='BRIGHTNESS')
+	C1=widget_base(C,frame=5)
+	draw1=widget_draw(C1,xsize=300,ysize=ysize)
+
+	dum = widget_label(D,value='PLASMA')
+	D1=widget_base(D,frame=5)
+	draw1=widget_draw(D1,xsize=300,ysize=ysize)

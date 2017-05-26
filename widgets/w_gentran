@@ -1,0 +1,175 @@
+PRO w_gentran_event,event
+	widget_control,event.top,get_uvalue=u
+	id = u.id
+	tag = tag_names(event,/st)
+	button=' '
+	idtags=tag_names(id)
+	FOR i=0,n(idtags) DO IF id.(i) EQ event.id THEN ename=idtags[i]
+	CASE tag OF
+		"WIDGET_BASE" : BEGIN
+
+		END
+		"WIDGET_BUTTON": BEGIN
+			widget_control,event.id,get_value=button,get_uvalue=uvalue
+			IF NOT keyword_set(uvalue) THEN uvalue='none'
+			CASE ename OF
+	 			"QUIT": BEGIN
+					widget_control,event.top,/destroy
+					!except=1
+				
+				END
+				"SAVE" : BEGIN
+					save_profiles,u
+					widget_control,u.id.message,set_value='LINE='+num2str(u.stat.line)+' PROFILES and VOXELS saved to THT-'+num2str(u.tht,1),/app
+				END
+				"LOAD" : BEGIN
+					load_profile_data,u
+					IF u.stat.dat THEN BEGIN
+						update_temporal_text,u
+						plot_profiles,u
+						plot_moments,u
+						tmp=where(u.dat.tau GT 0)
+						widget_control,u.id.ntpt,set_value=num2str(n(tmp),1)
+					ENDIF
+				END
+				"PRINT" : BEGIN
+					IF u.stat.dat THEN wprofiles2ps,u
+				END
+				"STOP" : BEGIN
+					stop
+				END
+		
+				ELSE:
+			ENDCASE
+		END
+		"WIDGET_SLIDER": BEGIN
+			widget_control,event.id,get_value=slider
+			IF NOT keyword_set(uvalue) THEN uvalue='none'
+			CASE ename OF 
+				'CH_SLIDER' : BEGIN
+					u.ch=slider
+					IF u.ch LE u.stat.nch THEN BEGIN
+						IF u.stat.dat THEN BEGIN
+							igood=*u.dat.good[u.index]
+							IF igood[u.ch-1] THEN widget_control,u.id.chgood,set_button=1 ELSE widget_control,u.id.chgood,set_button=0
+							plot_moments,u
+							plot_profiles,u
+						ENDIF
+						update_ch_text,u
+					ENDIF ELSE u.ch=u.stat.nch			
+				END
+	
+
+				'T_SLIDER' : BEGIN
+					IF u.stat.dat THEN BEGIN
+						index=ipt(u.dat.tau,slider/1.0e3)
+						tmp=where(u.dat.tau GT 0)
+						IF slider/1.0e3 GE max(u.dat.tau[tmp]) THEN index=n(tmp)
+						IF slider/1.0e3 LE min(u.dat.tau[tmp]) THEN index=0
+						IF u.stat.time NE u.dat.tau[index] THEN BEGIN
+							u.stat.time=u.dat.tau[index]
+							u.index=index
+							update_temporal_text,u
+							update_ch_text,u
+							widget_control,u.id.time,set_value=num2str(u.stat.time,dp=2)
+							plot_profiles,u
+							plot_moments,u
+							IF u.dat.tgood[u.index] THEN widget_control,u.id.tgood,set_button=1 ELSE widget_control,u.id.tgood,set_button=0
+							igood=*u.dat.good[u.index]
+							IF igood[u.ch-1] THEN widget_control,u.id.chgood,set_button=1 ELSE widget_control,u.id.chgood,set_button=0
+						ENDIF
+					ENDIF
+				END
+
+				ELSE:
+			ENDCASE
+		END
+   		"WIDGET_TEXT_CH": BEGIN
+			CASE event.id OF 
+				u.id.shotid : BEGIN
+					widget_control,u.id.shotid,get_value=shot
+					u.shot=shot
+				END
+				ELSE :
+			ENDCASE
+		END
+		ELSE:
+	ENDCASE
+	IF button NE 'QUIT' THEN widget_control,event.top,set_uvalue=u		
+END
+
+PRO w_gentran,shot=shot
+	
+	user=logname()
+	loadct,12,/silent
+	base=widget_base(title='GENTRAN PROFILE ANALYSIS',/row,tlb_size_events=1)
+	A=widget_base(base,/column)
+	B=widget_base(base,/column)	
+	C=widget_base(base,/column)	
+	D=widget_base(base,/column)
+	
+	ysize=1000
+	dum = widget_label(A,value='RADIAL PROFILES')
+	A1=widget_base(A,frame=5)
+	draw1=widget_draw(A1,xsize=450,ysize=ysize)
+
+	xsize=350
+	dum = widget_label(B,value='CONFIGURATION')
+	Bx=widget_base(B,frame=5,xsize=xsize,ysize=320,/column)
+	Bta=widget_tab(B,location=3)
+	Bta1=widget_base(Bta,title=' SETUP ',/column,group_leader=base,/frame)
+	Bta2=widget_base(Bta,title=' TRANSPORT ',/column,group_leader=base,/frame)
+	Bta3=widget_base(Bta,title=' PLOTTING ',/column,group_leader=base,/frame)
+	B1=widget_base(Bta1,frame=5,xsize=xsize,ysize=ysize-10-320)
+	B2=widget_base(Bta2,frame=5,xsize=xsize,ysize=ysize-10-320)
+	B3=widget_base(Bta3,frame=5,xsize=xsize,ysize=ysize-10-320)
+
+	xsize=325
+	dum = widget_label(C,value='BRIGHTNESS')
+	C1=widget_base(C,frame=5)
+	draw2=widget_draw(C1,xsize=xsize,ysize=ysize)
+
+	dum = widget_label(D,value='PLASMA')
+	D1=widget_base(D,frame=5)
+	draw3=widget_draw(D1,xsize=xsize,ysize=ysize)
+
+	dum=widget_label(Bx,value='Tree I/O')
+	Bxp1=widget_base(Bx,/row)
+	dum = widget_label(Bxp1,value='SHOT: ')
+	shotid = widget_text(Bxp1,xsize=10,ysize=1,/edit)
+	dum = widget_label(Bxp1,value='')
+	load= widget_button(Bxp1,value='LOAD')
+	save= widget_button(Bxp1,value='SAVE')
+	quit= widget_button(Bxp1,value='QUIT')
+	Bxp2=widget_base(Bx,/row)
+	dum = widget_label(Bxp2,value='NOTE: ')
+	note = widget_text(Bxp2,xsize=17,ysize=1,/edit)
+	print= widget_button(Bxp2,value='PRINT')
+	stop= widget_button(Bxp2,value='STOP')
+	Bxp3=widget_base(Bx,/row)
+	message = widget_text(Bxp3,xsize=50,ysize=3,/scroll)
+	Bxp4=widget_base(Bx,/row)
+	dum=widget_label(Bxp4,value=' Te, ne from: ')
+	Bxp4b=widget_base(Bxp4,/row,/nonexclusive)
+	tene_tree=widget_button(Bxp4b,value=' TREE ')
+	tene_fits=widget_button(Bxp4b,value=' fiTS ')
+	tene_qfits=widget_button(Bxp4b,value=' QFIT ')
+	Bxp5=widget_base(Bx,/row)
+	dum=widget_label(Bxp5,value='fiTS PATH: ')
+	fitspath = widget_text(Bxp5,xsize=45,ysize=1,/edit)
+	Bxp6=widget_base(Bx,/row)
+	dum=widget_label(Bxp6,value='TREE PATH: ')
+	treepath = widget_text(Bxp6,xsize=45,ysize=1,/edit)
+
+	IF NOT keyword_set(shot) THEN shot=1120613012
+
+	id={base:base,draw1:draw1,draw2:draw2,draw3:draw3,$
+		shotid:shotid,save:save,load:load,quit:quit,print:print, stop:stop,message:message,note:note}
+
+	stat={plot:0}
+	u={id:id,shot:shot,stat:stat}
+	widget_control,u.id.base,set_uvalue=u
+	widget_control,base,/realize
+	xmanager,'w_gentran',base
+
+END

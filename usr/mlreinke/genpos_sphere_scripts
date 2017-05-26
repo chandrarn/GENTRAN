@@ -1,0 +1,657 @@
+
+PRO test_refl
+
+	R=1.0
+	x=make(0,0.1,5)
+	y=sqrt(x*(2.0*R-x))
+	x=[x,x]
+	y=[y,-1.0*y]
+	z=fltarr(10)
+
+	th=make(0,2.0*!pi,100)
+	plot,[0],[0],xr=[-0.1,R],yr=[-0.5,0.5],/xsty,/ysty
+	oplot,r*cos(th)+R,r*sin(th),color=200
+
+	FOR i=0,9 DO BEGIN
+		xs=[x[i],y[i],z[i]]
+		n_vec=[R,0,0]-xs
+		n_mag=sqrt(total(n_vec*n_vec))
+		n=n_vec/n_mag
+		x1=[R,y[i],z[i]]
+		x2=genpos_refl(x1,xs,n)
+		oplot, [x1[0],xs[0]],[x1[1],xs[1]],color=100
+		oplot, [x2[0],xs[0]],[x2[1],xs[1]],color=30
+	ENDFOR
+	
+
+END
+
+PRO test_focus,pt=pt,ny=ny,nz=nz,lam=lam,det=det
+	IF NOT keyword_set(ny) THEN ny=3
+	IF NOT keyword_set(nz) THEN nz=3
+	IF NOT keyword_set(det) THEN det=2
+	IF NOT keyword_set(pt) THEN pt=0
+	info=hirexsr_load_info(det)		;center He-like detector
+	IF NOT keyword_set(lam) THEN lam=4.2
+	info.m.vec[0]=3.0			;R_crys at 3.0 [m]
+	info.m.vec[2]=0.0			
+	info.m.rot[2]=!pi-asin(lam/4.56) ; wavelength should be on a poloidal plane
+	device,window_state=var
+
+	upos=genpos_spherical2upos(info,/corn,bigXYZ=bigXYZ,ny=ny,nz=nz)
+	n_lines=n(upos[0,*])+1	
+	line_path_plots,upos[*,indgen(ny*nz)*4+pt],/thick
+
+	IF var[0] EQ 0 THEN openwin,0,xsize=600,ysize=932 ELSE wset,0
+	
+	plot,[0],[0],xr=[-1.5,1.5],yr=[-1.5,3.5],/xsty,/ysty
+	phi=make(0.0,2.0,100)*!pi
+	oplot,0.44*cos(phi),0.44*sin(phi)
+	oplot,1.06*cos(phi),1.06*sin(phi)
+	r=[1.06,1.2]
+	FOR i=0,9 DO oplot,r*dcos(i*36.0-18.0),r*dsin(i*36.0-18.0),color=200,linestyle=2.0
+	oplot, [0],[0],psym=8
+	FOR j=0,ny-1 DO BEGIN
+		i=j*4*ny+pt
+		oplot,[bigXYZ[0,i,0],bigXYZ[0,i,1]],[bigXYZ[1,i,0],bigXYZ[1,i,1]]
+		th_o=atan(-1.0*bigXYZ[0,i,1]/bigXYZ[1,i,1])
+		;print, th_o*180/!pi
+		oplot,[bigXYZ[0,i,1],bigXYZ[0,i,2]],[bigXYZ[1,i,1],bigXYZ[1,i,2]],color=100
+		s=0.0	
+		th=line_th(s,upos[*,i])+!pi/2.0+th_o
+		r=line_r(s,upos[*,i])
+		x1=r*cos(th)
+		y1=r*sin(th)
+		;print, th*180/!pi
+		s=1.0	
+		th=line_th(s,upos[*,i],/neg)+!pi/2.0+th_o
+		r=line_r(s,upos[*,i])
+		x2=r*cos(th)
+		y2=r*sin(th)
+		;print,th*180/!pi
+		oplot,[x1,x2],[y1,y2]
+	ENDFOR
+
+	IF var[1] EQ 0 THEN openwin,1,xsize=900,ysize=432 ELSE wset,1
+	plot,[0],[0],xr=[0.35,3.5],yr=[-0.7,0.7],/xsty,/ysty
+	restore, "/home/labombard/minicad/vv_tiles_cryo_2007_s.vctr"
+	x_offset=0.0
+	y_offset=0.0
+	for i=0,252-1 do oplot,xvctr(0:lvctr(i)-1,i)+x_offset,yvctr(0:lvctr(i)-1,i)+y_offset,color=color,thick=thick
+	for i=548,nvctr-1 do oplot,xvctr(0:lvctr(i)-1,i)+x_offset,yvctr(0:lvctr(i)-1,i)+y_offset,color=color,thick=thick
+
+	FOR j=0,ny-1 DO BEGIN
+		i=j*4.0+pt
+		oplot,[bigXYZ[1,i,0],bigXYZ[1,i,1]],[bigXYZ[2,i,0],bigXYZ[2,i,1]]
+		th_o=atan(-1.0*bigXYZ[0,i,1]/bigXYZ[1,i,1])
+
+		oplot,[bigXYZ[1,i,1],bigXYZ[1,i,2]],[bigXYZ[2,i,1],bigXYZ[2,i,2]],color=100
+		s=0.0	
+		th=line_th(s,upos[*,i])+!pi/2.0+th_o
+		r=line_r(s,upos[*,i])
+		z1=line_z(s,upos[*,i])
+		y1=r*sin(th)
+		
+		s=1.0	
+		th=line_th(s,upos[*,i])+!pi/2.0+th_o
+		r=line_r(s,upos[*,i])
+		z2=line_z(s,upos[*,i])
+		y2=r*sin(th)
+		oplot,[y1,y2],[z1,z2]
+	ENDFOR
+	stop
+END
+
+
+PRO test_int
+	l=[[0,0,0],$
+	   [0,2.0,1.0]]
+	p=[[0.5,1.0,0.5],$
+	   [-0.5,1.0,0.5],$
+	   [0.5,1.0,-0.5]]
+	out=line_plane_int(l,p)
+	stop
+END
+
+PRO test_vignetting
+	
+	;setup detector points
+	color=[0,30,100,200]
+	info=hirexsr_load_info(4)
+	x0=info.det.x0
+	x1=info.det.x1
+	x2=info.det.x2
+	xi=[0,195,195,0]
+	zeta=[0,486,0,486]
+	n_det=n(xi)+1
+	det_pos=[transpose([xi]),transpose([zeta])]*172.0e-6
+	d_pts=genpos_det2xyz(x0,x1,x2,det_pos)
+	
+	;setup mirror points
+	ny=3
+	nz=1
+	m_pts=genpos_grid_sphere(info,ny=ny,nz=nz)
+	n_mir=ny*nz
+	sym=[4,5,6]
+	
+	;define reflected points
+	r_pts=fltarr(3,n_det,n_mir)
+	FOR i=0,n_mir-1 DO BEGIN
+		xs=m_pts[*,i]
+		FOR j=0,n_det-1 DO BEGIN
+			x1=d_pts[*,j]
+			n_vec=[info.m.rad,0,0]-xs
+			n_mag=sqrt(total(n_vec*n_vec))
+			n=n_vec/n_mag
+			r_pts[*,j,i]=genpos_spherical_refl(x1,xs,n)
+		ENDFOR
+	ENDFOR
+
+	;he-like points
+	hemount=[[72.11,9.88,-11.38],$
+		 [65.09,104.87,-11.38],$
+		 [72.11,9.88,-43.13]]
+	hemount/=1.0e3
+
+	;make puncture plot on the hemount plane
+	openwin,0
+	plot, [0],[0],xr=[-2,2],yr=[-2,2],/xsty,/ysty
+	FOR i=0,n_mir-1 DO BEGIN
+		FOR j=0,n_det-1 DO BEGIN
+			l=[[m_pts[*,i]],$
+			   [r_pts[*,j,i]]]
+			out=line_plane_int(l,hemount)
+			oplot, [out[1]],[out[2]],color=color[j],psym=sym[i]
+		ENDFOR
+	ENDFOR
+	oplot, [0,1,1,0,0],[0,0,1,1,0]
+
+	;filter points
+	fpts=[[193.31,138.04,-19.65],$
+	      [220.99,98.35,-19.65],$
+	      [193.31,138.04,28.74]]
+	fpts/=1.0e3
+	
+	
+	;make puncture plot on the hemount plane
+	openwin,1
+	plot, [0],[0],xr=[-2,2],yr=[-2,2],/xsty,/ysty
+	FOR i=0,n_mir-1 DO BEGIN
+		FOR j=0,n_det-1 DO BEGIN
+			l=[[m_pts[*,i]],$
+			   [r_pts[*,j,i]]]
+			out=line_plane_int(l,fpts)
+			oplot, [out[1]],[out[2]],color=color[j],psym=sym[i]
+		ENDFOR
+	ENDFOR
+	th=make(0,2.0*!pi,100)
+	oplot, cos(th),sin(th)
+
+	stop
+
+END
+
+
+PRO hlike_ar_vignetting,xi,zeta,reducer=reducer,hecrys=hecrys
+	
+	;setup detector points
+	info=hirexsr_load_info(4)
+	x0=info.det.x0
+	x1=info.det.x1
+	x2=info.det.x2
+	det_pos=[xi[0],zeta[0]]*172.0e-6
+	d_pt=genpos_det2xyz(x0,x1,x2,det_pos)
+	
+	;setup mirror points
+	ny=80
+	nz=80
+	m_pts=genpos_grid_sphere(info,ny=ny,nz=nz,/circ)
+	n_mir=n(m_pts[0,*])
+	
+	;define reflected points
+	r_pts=fltarr(3,n_mir)
+	FOR i=0L,n_mir-1 DO BEGIN
+		xs=m_pts[*,i]
+		x1=d_pt
+		n_vec=[info.m.rad,0,0]-xs
+		n_mag=sqrt(total(n_vec*n_vec))
+		n=n_vec/n_mag
+		r_pts[*,i]=genpos_spherical_refl(x1,xs,n)
+	ENDFOR
+
+	;he-like points
+	hemount=[[72.11,9.88,-11.38],$
+		 [65.09,104.87,-11.38],$
+		 [72.11,9.88,-43.13]]
+	hemount/=1.0e3
+	a=hemount
+	dx=-1.0*sqrt((a[0,0]-a[0,1])^2+(a[1,0]-a[1,1])^2+(a[2,0]-a[2,1])^2)
+	dy=-1.0*sqrt((a[0,2]-a[0,1])^2+(a[1,2]-a[1,1])^2+(a[2,2]-a[2,1])^2)
+
+	;make puncture plot on the hemount plane
+	openwin,0
+	plot, [0],[0],xr=[-0.1,0.05],yr=[-0.2,0.2],/xsty,/ysty,tit='He-like Crystal Mount'
+	uvloc=fltarr(2,n_mir)
+	FOR i=0L,n_mir-1 DO BEGIN
+		l=[[m_pts[*,i]],$
+		   [r_pts[*,i]]]
+		out=line_plane_int(l,hemount)
+		uvloc[*,i]=out[1:2]
+		oplot, [out[1]]*dx,[out[2]]*dy,psym=3,color=200
+	ENDFOR
+	tmp=where(uvloc[1,*] GE 0)
+	IF tmp[0] EQ -1 THEN frac=0.0 ELSE frac=(n(tmp)+1.0)/n_mir
+	print, 'Vignetted Fraction from He-like Crystal Mount: '+num2str(frac,dp=2)
+	hecrys=frac	
+	
+	oplot, [0,1,1,0,0]*dx,[0,0,1,1,0]*dy
+
+	;reducer points
+	redpts=[[256.76,182.29,-19.65],$
+		[285.82,140.62,-19.65],$
+		[256.76,182.29,31.15]]
+	redpts/=1.0e3
+	a=redpts
+	dx=sqrt((a[0,0]-a[0,1])^2+(a[1,0]-a[1,1])^2+(a[2,0]-a[2,1])^2)
+	dy=sqrt((a[0,2]-a[0,1])^2+(a[1,2]-a[1,1])^2+(a[2,2]-a[2,1])^2)
+		
+	;make puncture plot on the reducer flange plane
+	openwin,1
+	plot, [0],[0],xr=[-1.5,1.5]*dx,yr=[-1.5,1.5]*dy,/xsty,/ysty,tit='Reducer Flange'
+	uvloc=fltarr(2,n_mir)
+	FOR i=0L,n_mir-1 DO BEGIN
+		l=[[m_pts[*,i]],$
+		   [r_pts[*,i]]]
+		out=line_plane_int(l,redpts)
+		uvloc[*,i]=out[1:2]
+		oplot, [out[1]]*dx,[out[2]]*dy,psym=3,color=200
+	ENDFOR
+	tmp=where(uvloc[0,*]^2+uvloc[1,*]^2 GE 1)
+	IF tmp[0] EQ -1 THEN frac=0.0 ELSE frac=(n(tmp)+1.0)/n_mir
+	print, 'Vignetted Fraction from Reducer Flange: '+num2str(frac,dp=2)
+	th=make(0,2.0*!pi,100)
+	oplot, cos(th)*dx,sin(th)*dy
+	reducer=frac	
+
+
+	;b-port points
+	bpts=[[1630.41,1140.2,-19.65],$
+	      [1650.71,1100.17,-19.61],$
+	      [1630.32,1140.33,164.5]]	
+	bpts/=1.0e3
+	a=bpts
+	dx=sqrt((a[0,0]-a[0,1])^2+(a[1,0]-a[1,1])^2+(a[2,0]-a[2,1])^2)
+	dy=sqrt((a[0,2]-a[0,1])^2+(a[1,2]-a[1,1])^2+(a[2,2]-a[2,1])^2)
+		
+	;make puncture plot on the b-port plane
+	openwin,2
+	plot, [0],[0],xr=[-0.25,0.25],yr=[-0.25,0.25],/xsty,/ysty,tit='B-Port Flange'
+	uvloc=fltarr(2,n_mir)
+	FOR i=0L,n_mir-1 DO BEGIN
+		l=[[m_pts[*,i]],$
+		   [r_pts[*,i]]]
+		out=line_plane_int(l,bpts)
+		uvloc[*,i]=out[1:2]
+		oplot, [out[1]]*dx,[out[2]]*dy,psym=3,color=200
+	ENDFOR
+	wid=89.77/1.0e3
+	ht=279.40/1.0e3
+	oplot,wid/2*[1.0,1.0],ht/2.0*[-1.0,1.0]
+	oplot,wid/2*[-1.0,-1.0],ht/2.0*[-1.0,1.0]
+	th=make(0,!pi,50)
+	oplot,wid/2.0*cos(th),ht/2.0+wid/2.0*sin(th)
+	oplot,wid/2.0*cos(th),-1.0*ht/2.0-wid/2.0*sin(th)
+
+	;vessel points
+	vpts=[[2261.93,1521.82,-19.61],$
+	      [2307.88,1431.2,-19.61],$
+	      [2261.9,1521.79,294.72]]  		
+	vpts/=1.0e3
+	a=vpts
+	dx=sqrt((a[0,0]-a[0,1])^2+(a[1,0]-a[1,1])^2+(a[2,0]-a[2,1])^2)
+	dy=sqrt((a[0,2]-a[0,1])^2+(a[1,2]-a[1,1])^2+(a[2,2]-a[2,1])^2)
+		
+	;make puncture plot on the vacuum plane
+	openwin,3
+	plot, [0],[0],xr=[-0.4,0.4],yr=[-0.4,0.4],/xsty,/ysty,tit='Vaccum Vessel'
+	uvloc=fltarr(2,n_mir)
+	FOR i=0L,n_mir-1 DO BEGIN
+		l=[[m_pts[*,i]],$
+		   [r_pts[*,i]]]
+		out=line_plane_int(l,vpts)
+		uvloc[*,i]=out[1:2]
+		oplot, [out[1]]*dx,[out[2]]*dy,psym=3,color=200
+	ENDFOR
+	wid=203.20/1.0e3
+	ht=425.45/1.0e3
+	oplot,wid/2*[1.0,1.0],ht/2.0*[-1.0,1.0]
+	oplot,wid/2*[-1.0,-1.0],ht/2.0*[-1.0,1.0]
+	th=make(0,!pi,50)
+	oplot,wid/2.0*cos(th),ht/2.0+wid/2.0*sin(th)
+	oplot,wid/2.0*cos(th),-1.0*ht/2.0-wid/2.0*sin(th)
+
+	;filter rib#3
+	r3pts=[[230.41,163.91,-5.68],$
+		[258.72,123.31,-5.68],$
+		[236.76,168.34,-5.68]]
+	r3pts/=1.0e3
+	a=r3pts
+	dx=sqrt((a[0,0]-a[0,1])^2+(a[1,0]-a[1,1])^2+(a[2,0]-a[2,1])^2)
+	dy=sqrt((a[0,2]-a[0,1])^2+(a[1,2]-a[1,1])^2+(a[2,2]-a[2,1])^2)
+		
+	;make puncture plot on the rib4 plane
+	openwin,4
+	plot, [0],[0],xr=[-0.5,0.5],yr=[-0.5,0.5],/xsty,/ysty,tit='Filter Rib#3'
+	uvloc=fltarr(2,n_mir)
+	FOR i=0L,n_mir-1 DO BEGIN
+		l=[[m_pts[*,i]],$
+		   [r_pts[*,i]]]
+		out=line_plane_int(l,r3pts)
+		uvloc[*,i]=out[1:2]
+		oplot, [out[1]]*dx,[out[2]]*dy,psym=3,color=200
+
+	ENDFOR
+	wid=36.87/1.0e3*2.0
+	ht=7.75/1.0e3*2.0
+	oplot,wid*[1.0,-1.0,-1.0,1.0,1.0],ht*[1.0,1.0,-1.0,-1.0,1.0]
+	tmp=where(uvloc[0,*] GE -1.0 AND uvloc[0,*] LE 1.0 AND uvloc[1,*] GE -1.0 AND uvloc[1,*] LE 1.0)
+	IF tmp[0] EQ -1 THEN frac=0.0 ELSE frac=(n(tmp)+1.0)/n_mir
+	print, 'Vignetted Fraction from Rib3: '+num2str(frac,dp=2)
+
+	;filter rib#4
+	r4pts=[[230.41,163.91,16.21],$
+		[251.5,133.67,16.21],$
+		[236.76,168.34,16.21]]
+	r4pts/=1.0e3
+	a=r4pts
+	dx=sqrt((a[0,0]-a[0,1])^2+(a[1,0]-a[1,1])^2+(a[2,0]-a[2,1])^2)
+	dy=sqrt((a[0,2]-a[0,1])^2+(a[1,2]-a[1,1])^2+(a[2,2]-a[2,1])^2)
+		
+	;make puncture plot on the rib4 plane
+	openwin,5
+	plot, [0],[0],xr=[-0.5,0.5],yr=[-0.5,0.5],/xsty,/ysty,tit='Filter Rib#4'
+	uvloc=fltarr(2,n_mir)
+	FOR i=0L,n_mir-1 DO BEGIN
+		l=[[m_pts[*,i]],$
+		   [r_pts[*,i]]]
+		out=line_plane_int(l,r4pts)
+		uvloc[*,i]=out[1:2]
+		oplot, [out[1]]*dx,[out[2]]*dy,psym=3,color=200
+
+	ENDFOR
+	wid=36.87/1.0e3*2.0
+	ht=7.75/1.0e3*2.0
+	oplot,wid*[1.0,-1.0,-1.0,1.0,1.0],ht*[1.0,1.0,-1.0,-1.0,1.0]
+	tmp=where(uvloc[0,*] GE -1.0 AND uvloc[0,*] LE 1.0 AND uvloc[1,*] GE -1.0 AND uvloc[1,*] LE 1.0)
+	IF tmp[0] EQ -1 THEN frac=0.0 ELSE frac=(n(tmp)+1.0)/n_mir
+	print, 'Vignetted Fraction from Rib4: '+num2str(frac,dp=2)
+
+
+END
+
+PRO helike_ca_vignetting,xi,zeta,top=top,bot=bot,reducer=reducer,hecrys=hecrys
+	
+	;setup detector points
+	info=hirexsr_load_info(4,/ca)
+	x0=info.det.x0
+	x1=info.det.x1
+	x2=info.det.x2
+	det_pos=[xi[0],zeta[0]]*172.0e-6
+	d_pt=genpos_det2xyz(x0,x1,x2,det_pos)
+	
+	;setup mirror points
+	ny=80
+	nz=80
+	m_pts=genpos_grid_sphere(info,ny=ny,nz=nz,/circ)
+	IF keyword_set(top) THEN BEGIN
+		tmp=where(m_pts[2,*] LE 0)
+		m_pts=m_pts[*,tmp]
+	ENDIF
+	IF keyword_set(bot) THEN BEGIN
+		tmp=where(m_pts[2,*] GE 0)
+		m_pts=m_pts[*,tmp]
+	ENDIF
+	n_mir=n(m_pts[0,*])+1
+	
+	;define reflected points
+	r_pts=fltarr(3,n_mir)
+	FOR i=0,n_mir-1 DO BEGIN
+		xs=m_pts[*,i]
+		x1=d_pt
+		n_vec=[info.m.rad,0,0]-xs
+		n_mag=sqrt(total(n_vec*n_vec))
+		n=n_vec/n_mag
+		r_pts[*,i]=genpos_spherical_refl(x1,xs,n)
+	ENDFOR
+
+	;he-like points
+	hemount=[[78.18,12.13,-11.38],$
+		 [69.01,106.94,-11.38],$
+		 [78.18,12.13,-43.13]]
+	hemount/=1.0e3
+	a=hemount
+	dx=-1.0*sqrt((a[0,0]-a[0,1])^2+(a[1,0]-a[1,1])^2+(a[2,0]-a[2,1])^2)
+	dy=-1.0*sqrt((a[0,2]-a[0,1])^2+(a[1,2]-a[1,1])^2+(a[2,2]-a[2,1])^2)
+
+	;make puncture plot on the hemount plane
+	openwin,0
+	plot, [0],[0],xr=[-0.1,0.05],yr=[-0.2,0.2],/xsty,/ysty,tit='He-like Crystal Mount'
+	uvloc=fltarr(2,n_mir)
+	FOR i=0,n_mir-1 DO BEGIN
+		l=[[m_pts[*,i]],$
+		   [r_pts[*,i]]]
+		out=line_plane_int(l,hemount)
+		uvloc[*,i]=out[1:2]
+		oplot, [out[1]]*dx,[out[2]]*dy,psym=3,color=200
+	ENDFOR
+	tmp=where(uvloc[1,*] GE 0)
+	IF tmp[0] EQ -1 THEN frac=0.0 ELSE frac=(n(tmp)+1.0)/n_mir
+	print, 'Vignetted Fraction from He-like Crystal Mount: '+num2str(frac,dp=3)
+	hecrys=frac	
+
+	oplot, [0,1,1,0,0]*dx,[0,0,1,1,0]*dy
+
+	;reducer points
+	redpts=[[261.01,188.07,-19.65],$
+		[282.56,147.07,-19.65],$
+		[252.56,188.07,31.15]]
+	redpts/=1.0e3
+	a=redpts
+	dx=sqrt((a[0,0]-a[0,1])^2+(a[1,0]-a[1,1])^2+(a[2,0]-a[2,1])^2)
+	dy=sqrt((a[0,2]-a[0,1])^2+(a[1,2]-a[1,1])^2+(a[2,2]-a[2,1])^2)
+		
+	;make puncture plot on the reducer flange plane
+	openwin,1
+	plot, [0],[0],xr=[-1.5,1.5]*dx,yr=[-1.5,1.5]*dy,/xsty,/ysty,tit='Reducer Flange'
+	uvloc=fltarr(2,n_mir)
+	FOR i=0,n_mir-1 DO BEGIN
+		l=[[m_pts[*,i]],$
+		   [r_pts[*,i]]]
+		out=line_plane_int(l,redpts)
+		uvloc[*,i]=out[1:2]
+		oplot, [out[1]]*dx,[out[2]]*dy,psym=3,color=200
+	ENDFOR
+	tmp=where(uvloc[0,*]^2+uvloc[1,*]^2 GE 1)
+	IF tmp[0] EQ -1 THEN frac=0.0 ELSE frac=(n(tmp)+1.0)/n_mir
+	print, 'Vignetted Fraction from Reducer Flange: '+num2str(frac,dp=3)
+	th=make(0,2.0*!pi,100)
+	oplot, cos(th)*dx,sin(th)*dy
+	reducer=frac
+
+
+	;b-port points
+	bpts=[[1604.12,1176.9,-19.65],$
+	      [1625.32,1137.34,-19.61],$
+	      [1604.03,1177.02,164.5]]
+	bpts/=1.0e3
+	a=bpts
+	dx=sqrt((a[0,0]-a[0,1])^2+(a[1,0]-a[1,1])^2+(a[2,0]-a[2,1])^2)
+	dy=sqrt((a[0,2]-a[0,1])^2+(a[1,2]-a[1,1])^2+(a[2,2]-a[2,1])^2)
+		
+	;make puncture plot on the b-port plane
+	openwin,2
+	plot, [0],[0],xr=[-0.25,0.25],yr=[-0.25,0.25],/xsty,/ysty,tit='B-Port Flange'
+	uvloc=fltarr(2,n_mir)
+	FOR i=0,n_mir-1 DO BEGIN
+		l=[[m_pts[*,i]],$
+		   [r_pts[*,i]]]
+		out=line_plane_int(l,bpts)
+		uvloc[*,i]=out[1:2]
+		oplot, [out[1]]*dx,[out[2]]*dy,psym=3,color=200
+	ENDFOR
+	wid=89.77/1.0e3
+	ht=279.40/1.0e3
+	oplot,wid/2*[1.0,1.0],ht/2.0*[-1.0,1.0]
+	oplot,wid/2*[-1.0,-1.0],ht/2.0*[-1.0,1.0]
+	th=make(0,!pi,50)
+	oplot,wid/2.0*cos(th),ht/2.0+wid/2.0*sin(th)
+	oplot,wid/2.0*cos(th),-1.0*ht/2.0-wid/2.0*sin(th)
+
+	;vessel points
+	vpts=[[2226.82,1572.74,-19.61],$
+	      [2274.82,1483.19,-19.61],$
+	      [2226.79,1572.72,294.72]]		
+	vpts/=1.0e3
+	a=vpts
+	dx=sqrt((a[0,0]-a[0,1])^2+(a[1,0]-a[1,1])^2+(a[2,0]-a[2,1])^2)
+	dy=sqrt((a[0,2]-a[0,1])^2+(a[1,2]-a[1,1])^2+(a[2,2]-a[2,1])^2)
+		
+	;make puncture plot on the vacuum plane
+	openwin,3
+	plot, [0],[0],xr=[-0.4,0.4],yr=[-0.4,0.4],/xsty,/ysty,tit='Vaccum Vessel'
+	uvloc=fltarr(2,n_mir)
+	FOR i=0,n_mir-1 DO BEGIN
+		l=[[m_pts[*,i]],$
+		   [r_pts[*,i]]]
+		out=line_plane_int(l,vpts)
+		uvloc[*,i]=out[1:2]
+		oplot, [out[1]]*dx,[out[2]]*dy,psym=3,color=200
+	ENDFOR
+	wid=203.20/1.0e3
+	ht=425.45/1.0e3
+	oplot,wid/2*[1.0,1.0],ht/2.0*[-1.0,1.0]
+	oplot,wid/2*[-1.0,-1.0],ht/2.0*[-1.0,1.0]
+	th=make(0,!pi,50)
+	oplot,wid/2.0*cos(th),ht/2.0+wid/2.0*sin(th)
+	oplot,wid/2.0*cos(th),-1.0*ht/2.0-wid/2.0*sin(th)
+
+END
+
+PRO helike_ar_vignetting,xi,zeta,det=det,shot=shot
+	IF NOT keyword_set(det) THEN det=2	
+
+	;setup detector points
+	IF keyword_set(shot) THEN info=hirexsr_read_treeinfo(shot,det) ELSE info=hirexsr_load_info(det)
+	x0=info.det.x0
+	x1=info.det.x1
+	x2=info.det.x2
+	det_pos=[xi[0],zeta[0]]*172.0e-6
+	d_pt=genpos_det2xyz(x0,x1,x2,det_pos)
+	
+	;setup mirror points
+	ny=50
+	nz=50
+	m_pts=genpos_grid_sphere(info,ny=ny,nz=nz)
+	n_mir=ny*nz
+	
+	;define reflected points
+	r_pts=fltarr(3,n_mir)
+	FOR i=0,n_mir-1 DO BEGIN
+		xs=m_pts[*,i]
+		x1=d_pt
+		n_vec=[info.m.rad,0,0]-xs
+		n_mag=sqrt(total(n_vec*n_vec))
+		n=n_vec/n_mag
+		r_pts[*,i]=genpos_spherical_refl(x1,xs,n)
+	ENDFOR
+
+	;reducer points
+	redpts=[[191.07,107.2,6.7],$
+		[216.09,62.99,6.7],$
+		[191.07,107.2,57.5]]
+	redpts/=1.0e3
+	a=redpts
+	dx=sqrt((a[0,0]-a[0,1])^2+(a[1,0]-a[1,1])^2+(a[2,0]-a[2,1])^2)
+	dy=sqrt((a[0,2]-a[0,1])^2+(a[1,2]-a[1,1])^2+(a[2,2]-a[2,1])^2)
+		
+	;make puncture plot on the reducer flange plane
+	openwin,1
+	plot, [0],[0],xr=[-1.5,1.5]*dx,yr=[-1.5,1.5]*dy,/xsty,/ysty,tit='Reducer Flange'
+	uvloc=fltarr(2,n_mir)
+	FOR i=0,n_mir-1 DO BEGIN
+		l=[[m_pts[*,i]],$
+		   [r_pts[*,i]]]
+		out=line_plane_int(l,redpts)
+		uvloc[*,i]=out[1:2]
+		oplot, [out[1]]*dx,[out[2]]*dy,psym=3,color=200
+	ENDFOR
+	tmp=where(uvloc[0,*]^2+uvloc[1,*]^2 GE 1)
+	IF tmp[0] EQ -1 THEN frac=0.0 ELSE frac=(n(tmp)+1.0)/n_mir
+	print, 'Vignetted Fraction from Reducer Flange: '+num2str(frac,dp=2)
+	th=make(0,2.0*!pi,100)
+	oplot, cos(th)*dx,sin(th)*dy
+	ribs=[-1.412,-0.55,0.45,1.312]/2.0
+	dribs=0.1/2.0
+	FOR i=0,n(ribs) DO BEGIN
+		oplot,dx*[-1,1],ribs[i]*[1,1]*dy
+		oplot,dx*[-1,1],(ribs[i]+dribs)*[1,1]*dy
+	ENDFOR
+
+
+	;b-port points
+	bpts=[[1648.44,932.16,6.7],$
+	      [1664.9,890.4,6.74],$
+	      [1648.36,932.3,190.85]]
+	bpts/=1.0e3
+	a=bpts
+	dx=sqrt((a[0,0]-a[0,1])^2+(a[1,0]-a[1,1])^2+(a[2,0]-a[2,1])^2)
+	dy=sqrt((a[0,2]-a[0,1])^2+(a[1,2]-a[1,1])^2+(a[2,2]-a[2,1])^2)
+		
+	;make puncture plot on the b-port plane
+	openwin,2
+	plot, [0],[0],xr=[-0.25,0.25],yr=[-0.25,0.25],/xsty,/ysty,tit='B-Port Flange'
+	uvloc=fltarr(2,n_mir)
+	FOR i=0,n_mir-1 DO BEGIN
+		l=[[m_pts[*,i]],$
+		   [r_pts[*,i]]]
+		out=line_plane_int(l,bpts)
+		uvloc[*,i]=out[1:2]
+		oplot, [out[1]]*dx,[out[2]]*dy,psym=3,color=200
+	ENDFOR
+	wid=89.77/1.0e3
+	ht=279.40/1.0e3
+	oplot,wid/2*[1.0,1.0],ht/2.0*[-1.0,1.0]
+	oplot,wid/2*[-1.0,-1.0],ht/2.0*[-1.0,1.0]
+	th=make(0,!pi,50)
+	oplot,wid/2.0*cos(th),ht/2.0+wid/2.0*sin(th)
+	oplot,wid/2.0*cos(th),-1.0*ht/2.0-wid/2.0*sin(th)
+
+	;vessel points
+	vpts=[[2312.94,1252.91,6.74],$
+	      [2350.2,1158.39,6.74],$
+	      [2312.91,1252.89,321.07]]	
+	vpts/=1.0e3
+	a=vpts
+	dx=sqrt((a[0,0]-a[0,1])^2+(a[1,0]-a[1,1])^2+(a[2,0]-a[2,1])^2)
+	dy=sqrt((a[0,2]-a[0,1])^2+(a[1,2]-a[1,1])^2+(a[2,2]-a[2,1])^2)
+		
+	;make puncture plot on the vacuum plane
+	openwin,3
+	plot, [0],[0],xr=[-0.4,0.4],yr=[-0.4,0.4],/xsty,/ysty,tit='Vaccum Vessel'
+	uvloc=fltarr(2,n_mir)
+	FOR i=0,n_mir-1 DO BEGIN
+		l=[[m_pts[*,i]],$
+		   [r_pts[*,i]]]
+		out=line_plane_int(l,vpts)
+		uvloc[*,i]=out[1:2]
+		oplot, [out[1]]*dx,[out[2]]*dy,psym=3,color=200
+	ENDFOR
+	wid=203.20/1.0e3
+	ht=425.45/1.0e3
+	oplot,wid/2*[1.0,1.0],ht/2.0*[-1.0,1.0]
+	oplot,wid/2*[-1.0,-1.0],ht/2.0*[-1.0,1.0]
+	th=make(0,!pi,50)
+	oplot,wid/2.0*cos(th),ht/2.0+wid/2.0*sin(th)
+	oplot,wid/2.0*cos(th),-1.0*ht/2.0-wid/2.0*sin(th)
+
+END

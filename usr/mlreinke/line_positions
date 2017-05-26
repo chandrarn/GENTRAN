@@ -1,0 +1,602 @@
+FUNCTION hirexjr_pos
+	pos=[1.1,0.0,0.67,0.0]
+	RETURN, pos
+END
+
+FUNCTION hirex_pos,shot
+	output=0
+	RETURN,output
+END
+
+FUNCTION mcp_pos,shot,jack=jack
+	IF NOT keyword_set(jack) THEN BEGIN
+		mdsopen, 'spectroscopy',(shot)
+		jack=mdsvalue('\SPECTROSCOPY::TOP.VUV:JACK_POS')
+	        mdsclose, 'spectroscopy',(shot)
+	ENDIF
+
+	ang=ACOS((72.375*72.375+87.5*87.5-(.9536*jack+27.457)*(.9536*jack+27.457))/(2.0*72.375*87.5))-.280392
+	pivot=[3.738,.3315]
+	;adjust z0 so that r0 = 1.1.  This will make it so that the default n_s will work
+	zo=pivot[1]+tan(-1*ang)*(pivot[0]-1.1)
+
+	output=[1.1,zo,0.0,ang]
+	RETURN, output
+END
+
+FUNCTION axuv_pos
+	mdsopen, 'spectroscopy', (-1)
+	rtang=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:R_TANG')
+	rph=fltarr(n(rtang)+1)+mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:R_PH')
+	mdsclose, 'spectroscopy'
+	pos=fltarr(4,n(rtang)+1)
+	pos[0,*]=rph
+	pos[1,*]=fltarr(n(rtang)+1)
+	pos[2,*]=rtang
+	pos[3,*]=fltarr(n(rtang)+1)
+	RETURN,pos
+END
+
+FUNCTION foil_pos
+	mdsopen, 'spectroscopy', (-1)
+	rtang=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.CALIBRATIONS:ARRAY_RADII')
+	rph=fltarr(n(rtang)+1)+mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:R_PH')
+	mdsclose, 'spectroscopy'
+	pos=fltarr(4,n(rtang)+1)
+	pos[0,*]=rph
+	pos[1,*]=fltarr(n(rtang)+1)
+	pos[2,*]=rtang
+	pos[3,*]=fltarr(n(rtang)+1)
+	RETURN,pos
+END
+	
+
+
+FUNCTION nesoxs_pos, pixel=pixel, R_cry= R_cry, Z_cry= Z_cry, R_ccd, thz=thz, status = status,fy08=fy08
+	;R_cry:  Machine axis to cyrstal,m (horizontal)
+	;Z_cry:  Midplane to crystal,m (vertical, positive up)
+	;R_ccd:  distance from crystal to ccd ,m (all ways positive)
+	;theta:  incline of dectector, radians (positive down)
+	;pixel:  pixel# counted from the top of the CCD
+
+
+	IF NOT keyword_set(fy08) THEN BEGIN
+		IF NOT keyword_set(R_cry) THEN R_cry = 3.2218 ; [m]
+		IF NOT keyword_set(Z_cry) THEN Z_cry = -0.215  ; [m]
+		IF NOT keyword_set(R_ccd) THEN R_ccd =  1.04  ; [m]
+		IF NOT keyword_set(thz)   THEN thz   = 0.0    ; [radians]
+		ph =  22.5e-6  ; height of each pixel [m]
+		pixel_num =  1152     ; height of ccd in pixels
+		IF NOT keyword_set(pixel) THEN pixel=576 ;middle of the chip
+	ENDIF ELSE BEGIN
+		IF NOT keyword_set(R_cry) THEN R_cry = 2.87 ; [m]
+		IF NOT keyword_set(Z_cry) THEN Z_cry = 0.20  ; [m]
+		IF NOT keyword_set(R_ccd) THEN R_ccd =  1.04  ; [m]
+		IF NOT keyword_set(thz)   THEN thz   = 1.836/180*!pi    ; [radians]
+		ph =  20.0e-6  ; height of each pixel [m]
+		pixel_num =  1300     ; height of ccd in pixels
+		IF NOT keyword_set(pixel) THEN pixel=650 ;middle of the chip
+	ENDELSE
+
+	IF (pixel LT 0) OR (pixel GT pixel_num-1) THEN BEGIN
+	; pixel must be in range 0<=pixel<1152
+		status = -1
+		return, [0,0,0,0]
+	ENDIF
+
+	; location of crystal
+	x1 = R_cry    ; point1, x
+	y1 = z_cry    ; point1, y
+
+	;location of pixel wrt to crystal
+	x   = R_ccd
+	y   = ((pixel_num-1.)/2.-pixel)*ph
+	dtheta = atan(y/x)
+	x_r =  cos(thz)*x - y*sin(thz) ; rotated x
+	y_r =  sin(thz)*x + y*cos(thz) ; rotated y
+
+	;location of pixel in RZ coordinates
+	x2 = x_r + R_cry
+	y2 = y_r + Z_cry
+
+	;Equation of line for a given row of pixels
+	m = (y2-y1)/(x2-x1)
+	b = y2 - m*x2
+
+	;Generate outputs
+	R_t = 0        ; tangential radius (zero for a radial view)
+	R_o = 1.0      ; Convenient radius
+	Z_o = m*R_o +b ; Z value for the line of sight at R_o
+
+	RETURN, [R_o, Z_o, R_t, thz+dtheta]
+END
+
+
+
+;I can recreate the AXUV r_tang, etendue from the new GENPOS tools
+PRO genpos_axuv
+	
+	mdsopen, 'spectroscopy', (-1)
+	pos=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:POS')
+	rt_ph=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:R_PERP')
+	r_ph=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:R_PH')
+	x_ch=mdsvalue('	\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:X_CH')
+	a_ap=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:A_APE')
+	a_det=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:A_DET')
+	axuvU=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:U')
+	mdsclose,'spectroscopy',(-1)
+
+	ap_vec=[r_ph,0.0,0.0]
+	ap_rot=[0.0,0.0,acos(rt_ph/r_ph)]
+	x0=[-pos[0],pos[2],0.0]
+	x1=[-pos[0],pos[2],1.0]
+	x2=[-pos[0],pos[2]+1.0,0.0]
+	dydz=fltarr(2,16)
+	FOR i=0,15 DO dydz[*,i]=[(-7.5+i)*x_ch,0.0]
+	
+	genpos=genpos(ap_vec,ap_rot,x0,x1,x2,dydz)
+	axuvpos=axuv_pos()
+	
+	wreset,0
+	wset,0
+	plot,genpos[2,*],xtit='Channel #', ytit='rtang (m)',tit='RTANG Comparison (LINE=GENPOS)',chars=1.5
+	oplot,axuvpos[2,*],color=100,psym=5
+
+	genU=fltarr(16)
+	FOR i=0,15 DO genU[i]=genpos_det2U(x0,x1,x2,dydz[*,i],a_det=a_det,a_ap=a_ap)
+
+
+	wset,1
+	plot,genU,xtit='Channel #', ytit='m!u2!nstr',tit='Etendue Comparison (LINE=GENPOS)',chars=1.5
+	oplot,axuvU,color=100,psym=5
+	
+END
+
+FUNCTION genpos_new,rph=rph,beta=beta,gamma=gamma,x0=x0,x1=x1,x2=x2,rot1=rot1,rad=rad
+	mdsopen, 'spectroscopy', (-1)
+	IF NOT keyword_set(rph) THEN rph=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:R_PH')
+	IF NOT keyword_set(gamma) THEN gamma=acos(mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:R_PERP')/rph)
+	IF NOT keyword_set(beta) THEN beta=0.0
+	pos=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:POS')
+	mdsclose,'spectroscopy',(-1)
+	IF NOT keyword_set(rot1) THEN rot1=0.0
+	IF NOT keyword_set(rad) THEN rad=pos[0]/2.0
+	IF NOT keyword_set(x0) THEN x0=[rad,0.0,0.0]
+	IF NOT keyword_set(x1) THEN x1=[rad,sin(rot1),cos(rot1)]
+	IF NOT keyword_set(x2) THEN x2=[rad,cos(rot1),sin(rot1)]
+	x_ch=0.75e-3
+	dydz=fltarr(2,20)
+	FOR i=0,19 DO dydz[*,i]=[(-9.5+i)*x_ch,0.0]
+	ap_vec=[rph,0.0,0.0]
+	ap_rot=[0.0,beta,gamma]
+	
+	pos=genpos(ap_vec,ap_rot,x0,x1,x2,dydz)
+	RETURN,pos
+END
+
+PRO genpos_full,thick=thick
+	pos1=genpos_new(psi=-!pi/18,alph=!pi/4.0,rot1=!pi/1.5,rad=0.04)
+	pos2=genpos_new(psi=-!pi/20.0,alph=!pi/3.0,rot1=!pi/2.0,rad=0.05)
+	pos3=genpos_new(psi=!pi/18,alph=!pi/4.0,rot1=-!pi/1.5,rad=0.04)
+	pos4=genpos_new(psi=!pi/20.0,alph=!pi/3.0,rot1=!pi/2.0,rad=0.05)
+	pos5=genpos_new(psi=!pi/9,alph=!pi*0.285,rot1=!pi/10.0,rad=0.04)
+	pos6=genpos_new(psi=-!pi/9,alph=!pi*0.285,rot1=-!pi/10.0,rad=0.04)
+
+	;pos=[[pos1],[pos2],[pos3]]
+	pos=[[pos1],[pos2],[pos3],[pos4],[pos5],[pos6]]
+	line_path_plots,pos,thick=thick
+END
+
+PRO genpos_div,thick=thick,div=div,ps=ps
+	x=0.09
+	dydz=fltarr(2,20)
+	x_ch=0.75e-3
+	FOR i=0,19 DO dydz[*,i]=[0.0,(-9.5+i)*x_ch]
+	pos0=genpos([1.0,0.0,-0.16],[0.0,!pi/6.0,!pi/2.0],[x,0.0,0.0],[x,0.0,1.0],[x,1.0,0.0],dydz)
+	pos1=genpos([1.0,0.0,-0.30],[0.0,0.08,!pi/2.0],[x-0.02,0.0,0.0],[x-0.02,0.0,1.0],[x-0.02,1.0,0.0],dydz)
+	pos2=genpos_new(beta=!pi/6.0,gamma=!pi*0.245,rot1=!pi/8.0,rad=0.09)
+	pos3=genpos_new(beta=!pi/6.2,gamma=!pi*0.33,rot1=0.0,rad=0.09)
+	pos5=genpos_new(beta=!pi/9.0,gamma=!pi*0.26,rot1=!pi/10.0,rad=0.11)
+	pos6=genpos_new(beta=!pi/8.5,gamma=!pi*0.308,rot1=!pi/11.0,rad=0.10)
+	pos7=genpos_new(beta=!pi/6.0,gamma=!pi*0.29,rot1=!pi/10,rad=0.19)
+
+	pos=[[pos5],[pos6],[pos3],[pos2],[pos1],[pos0]];,[pos7]]
+	line_path_plots,pos,thick=thick,div=div,ps=ps
+END
+
+;	ro=-[6.25,6.25,6.25,6.25,3.0,3.0,3.0,3.0]*1.0e-2
+;	zo= [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]*1.0e-2
+;	th=[1.2,-1.2,0.0,0.0,26.0,16.,-26.0,-16.0]*!pi/180.0
+;	ph=[18.0,18.0,-14.0,-14.0,15.0,10.0,15.0,10.0]*!pi/180.0
+;	ang=[-20.0,20.0,-70.0,70.0,0.0,-20,0.0,20.0]*!pi/180.0
+;	off=[-3,-3,0,0,-7,-3,-7,-3]
+
+
+;	ro=-[7.25,7.25,7.0,3.0,3.0,3.0,3.0]*1.0e-2
+;	zo= [0.0,0.0,0.0,0.0,0.0,0.0,0.0]*1.0e-2
+;	th=[-2.5,2.5,1.75,26.0,16.,-26.0,-16.0]*!pi/180.0
+;	ph=[22.0,22.0,5.0,15.0,10.0,15.0,10.0]*!pi/180.0
+;	ang=[90,90.0,90.0,0.0,-20,0.0,20.0]*!pi/180.0
+;	off=[0,0,0,-7,-3,-7,-3]
+
+
+;	ro=-[6.5,3.0,3.0,3.0,3.0]*1.0e-2
+;	zo= [0.0,0.0,0.0,0.0,0.0,0.0,0.0]*1.0e-2
+;	th=[0.0,26.0,16.,-26.0,-16.0]*!pi/180.0
+;	ph=[-20.0,5.0,2.0,5.0,2.0]*!pi/180.0
+;	ang=[0.0,0.0,-20,0.0,20.0]*!pi/180.0
+;	off=[3,-7,-3,-7,-3]
+
+;	ro=-[5.75,5.75,5.75,5.75,5.75,5.75,5.75]*1.0e-2
+;	zo= [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]*1.0e-2
+;	th=[0,0,-3.5,3.5,3.5,3.5,-3.5]*!pi/180.0
+;	ph=[-5.0,10.0,-9.75,-15.0,0.0,15.0,5.25]*!pi/180.0
+;	ang=[90.0,90.0,90.0,90.0,90,90.0,90.0]*!pi/180.0
+;	off=[0,0,0,0,0,0,0]
+;	del_ro=0.025
+
+
+;	ro=-[6.0,3.0,3.5,3.5,3.0]*1.0e-2
+;	zo= [0.0,0.0,0.0,0.0,0.0,0.0,0.0]*1.0e-2
+;	th=[-2.0,26.0,14.,-21.5,-16.0]*!pi/180.0
+;	ph=[10.0,8.0,-10.0,-2.0,-2.0]*!pi/180.0
+;	ang=[20.0,0.0,-20,0.0,20.0]*!pi/180.0
+;	off=[-5,-7,-3,-7,-3]
+;	del_ro=0.025
+
+
+
+
+
+
+
+
+
+
+
+
+	
+
+
+
+PRO test_genpos,debug=debug,pinhole=pinhole,full=full,n=n
+	debug=1
+	IF NOT keyword_set(n) THEN n=5
+	;array looking tangent at pinhole radius
+	ap_vec=[.93,0.0,0.0]
+	ap_rot=[0.0,0.0,45.0]*!pi/180.0
+	x=-0.05
+	x0=[x,0.0,0.0]
+	x1=[x,0.0,1.0]
+	x2=[x,1.0,0.0]
+
+	;properties of the AXUV22-EL
+	x_ch=0.002 ;spacing in meters between channels
+	a_det=4.0e-6 ;area of detector element in m^2
+	w_det=1.0e-3 ;detector width
+	h_det=4.0e-3; detector height
+	w_ap=1.0e-3 ;width of aperture
+	h_ap=3.0e-3 ;height of aperature
+
+	IF keyword_set(pinhole) THEN a_ap=[sqrt(w_ap*h_ap/!pi),0] ELSE a_ap=[w_ap,h_ap]
+
+	dydz=fltarr(2,22)
+	FOR i=0,21 DO dydz[*,i]=[(-10.5+i)*x_ch,0.0]
+
+	out=genpos(ap_vec,ap_rot,x0,x1,x2,dydz,debug=debug,a_ap=a_ap,a_det=[w_det,h_det],full=full,etendue=etendue)
+
+	det_grid=genpos_grid(w_det,h_det,n)
+	ap_grid=genpos_grid(w_ap,h_ap,n)
+	
+	out_u=genpos_upos(ap_vec,ap_rot,x0,x1,x2,ap_grid,det_grid,debug=debug)
+	
+	
+	IF keyword_set(debug) THEN stop
+END
+
+
+
+PRO test_genpos_vol,n=n,x=x,y=y,plots=plots,q=q,ps=ps,debug=debug,loop_debug=loop_debug,det=det,ap=ap
+	IF NOT keyword_set(det) THEN det=1.0
+	IF NOT keyword_set(ap) THEN ap=1.0
+	IF NOT keyword_set(y) THEN y=10
+	IF NOT keyword_set(x) THEN x=10
+	IF NOT keyword_set(q) THEN q=5
+	restore, '/home/mlreinke/idl/genie/data/upos_n.sav'
+	IF NOT keyword_set(n) THEN upos=upos_10 ELSE BEGIN
+		IF n EQ 15 THEN upos=upos_15
+		IF n EQ 20 THEN upos=upos_20
+		IF n EQ 25 THEN upos=upos_25
+		IF n EQ 5 THEN upos=genpos_upos([1.0,0.0,0.05],[0.0,0.0,!pi/4.0],[-0.05,0.0,0.0],[-0.05,0.0,1.0],[-0.05,1.0,0.0],$
+					genpos_grid(0.01*ap,0.01*ap,q,/center),genpos_grid(0.01*det,0.01*det,q,/center))
+			
+	ENDELSE
+	ves_grid=genpos_grid(0.52,0.76,[x,y],xo=0.69)
+	stop
+	out=genpos_vol_coefs(ves_grid,upos.upos,upos.du,/contour,plots=plots,ps=ps,debug=debug,loop_debug=loop_debug,vol2d=vol2d)
+	stop
+END
+
+PRO test_gpv_conv,x=x,y=y,det=det,ap=ap,q=q,loop_debug=loop_debug,plots=plots,ps=ps
+	start=systime(/seconds)
+	IF NOT keyword_set(y) THEN y=10
+	IF NOT keyword_set(x) THEN x=10	
+	IF NOT keyword_set(det) THEN det=1.0
+	IF NOT keyword_set(ap) THEN ap=1.0
+	ves_grid=genpos_grid(0.52,0.76,[x,y],xo=0.69)
+	sum=fltarr(n(q)+1,x)
+	FOR i=0,n(q) DO BEGIN
+		upos=genpos_upos([1.0,0.0,0.05],[0.0,0.0,!pi/2.0],[-0.05,0.0,0.0],[-0.05,0.0,1.0],[-0.05,1.0,0.0],$
+			genpos_grid(0.01*ap,0.01*ap,q[i],/center),genpos_grid(0.01*det,0.01*det,q[i],/center))
+		out=genpos_vol_coefs(ves_grid,upos.upos,upos.du,/contour,plots=plots,ps=ps,debug=debug,loop_debug=loop_debug,vol2d=vol2d)
+		rad=reform(vol2d.r)
+		sum[i,*]=sum_array(vol2d.vol,/i)
+	ENDFOR
+	print, systime(/seconds)-start
+	stop
+END
+
+PRO test_gpv_time,restore=restore,io=io,jo=jo,cct=cct,ps=ps,debug=debug
+
+	IF NOT keyword_set(restore) THEN BEGIN
+
+		x=[10,15,20,25,30,35,40]
+		q=[2,4,6,8,10,12,14,16]
+		ctime=fltarr(n(q)+1,n(x)+1)
+	
+		FOR i=0,n(q) DO BEGIN
+			FOR j=0, n(x) DO BEGIN
+				ves_grid=genpos_grid(0.52,0.76,[x[j],x[j]],xo=0.69)
+				upos=genpos_upos([1.0,0.0,0.05],[0.0,0.0,!pi/2.0],[-0.05,0.0,0.0],[-0.05,0.0,1.0],[-0.05,1.0,0.0],$
+					genpos_grid(0.01,0.01,q[i],/center),genpos_grid(0.01,0.01,q[i],/center))
+				vol=genpos_vol_coefs(ves_grid,upos.upos,upos.du,ctime=time)
+				ctime[i,j]=time
+				print, q[i],x[j],time
+			ENDFOR
+		ENDFOR
+
+		out={vgrid:x,ugrid:q,ctime:ctime} 
+	ENDIF ELSE restore, '/home/mlreinke/idl/data/test_gpv_time.dat', /verb
+	prefix='gpv_time_'
+	IF NOT keyword_set(jo) THEN jo=[10.0001,20.0,30.0,39.99999]^2.0
+	labels={ilab:'Number of POS', jlab:'Number of Grids', klab:'Comp. Time (sec)',$
+		ctit:'Computation Time Contours', itit:'Less Than Linear With # Grids',jtit:'Linear Growth With # POS'}
+
+	genplt,out.ctime,out.ugrid^4.0,out.vgrid^2.0,prefix=prefix,labels=labels,io=io,jo=jo,ps=ps,cct=cct,debug=debug
+	
+END
+
+PRO test_gpv_axuv,i,ndet=ndet,nap=nap,vx=vx,vy=vy,ap=ap,det=det,plots=plots,ps=ps
+	IF NOT keyword_set(det) THEN det=1.0
+	IF NOT keyword_set(ap) THEN ap=1.0
+	IF NOT keyword_set(ndet) THEN ndet=5
+	IF NOT keyword_set(nap) THEN nap=5
+	IF NOT keyword_set(vx) THEN vx=20
+	IF NOT keyword_set(vy) THEN vy=20
+	
+	;create vessel grid
+	ves_grid=genpos_grid(0.52,0.76,[vx,vy],xo=0.69)
+	tmp=where(ves_grid.pnts[0,*] EQ ves_grid.pnts[0,0])
+	ny=tmp[n(tmp)]+1
+	nx=int((n(ves_grid.pnts[0,*])+1)/ny)
+	rgr=reform(ves_grid.pnts[0,*])
+	rgr=rgr[int(make(0,nx-1,nx))*ny]
+	zgr=reform(ves_grid.pnts[1,*])
+	zgr=zgr[0:ny-1]
+
+	;load AXUV location
+	mdsopen,'spectroscopy',-1
+	u=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:U')
+	r_ph=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:R_PH')
+	r_tang=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:R_tang')
+	r_perp=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:R_PERP')
+	mdsclose,'spectroscopy'
+	x=-0.05908
+	y=-0.01043
+	x_ch=0.00236
+
+	;setup input variables
+	ap_vec=[r_ph,0.0,0.05]
+	ap_rot=[0.0,0.0,acos(r_perp/r_ph)]
+	x0=[x,y,0.0]
+	x1=[x,y,1.0]
+	x2=[x,y+1.0,0.0]
+	a_det=[2.0,5.0]*1.0e-3*det
+	dydz=fltarr(2,16)
+	FOR j=0,15 DO dydz[*,j]=[(-7.5+j)*x_ch,0.0]
+	a_ap=[0.04,0.118]*2.54/100.0*ap
+
+	;create aperture grid
+	ap_grid=genpos_grid(a_ap[0],a_ap[1],nap, /center)
+
+	;create detector grid
+	det_grid=genpos_grid(a_det[0],a_det[1],ndet,xo=dydz[0,i], /center)
+
+	;generate UPOS
+	upos=genpos_upos(ap_vec,ap_rot,x0,x1,x2,ap_grid,det_grid)
+
+	;generate vol coefs
+	vol_coefs=genpos_vol_coefs(ves_grid,upos.upos,upos.du, /contour, vol2d=vol2d,ps=ps,plots=plots)
+
+	;generate SHELL vol coefs
+	pos=genpos(ap_vec,ap_rot,x0,x1,x2,dydz[*,i],a_det=a_det[0]*a_det[1],a_ap=a_ap[0]*a_ap[1],etendue=etendue)
+	tmp=where(rgr GE pos[2])
+	rpts=[rgr[tmp[0]-1],rgr[tmp]]
+	rt=fltarr(n(rpts))
+	FOR j=0,n(rpts)-1 DO rt[j]=(rpts[j]+rpts[j+1])/2.0
+	L=fltarr(n(rpts))
+	L[0]=2.0*sqrt(rpts[1]^2-pos[2]^2)
+	FOR j=1,n(L) DO L[j]=2.0*(sqrt(rpts[j+1]^2-pos[2]^2)-sqrt(rpts[j]^2-pos[2]^2))
+
+	IF NOT keyword_set(ps) THEN BEGIN
+		device, window_state=var
+		IF var[0] EQ 0 THEN window,0 ELSE wset,0
+	ENDIF
+	makesym,10
+	vol_r=vol2d.r
+	vol=sum_array(vol2d.vol,/i)
+	vol_axuv=L*U[i]/(4.0*!pi)*ap^2*det^2
+	plot,rt,vol_axuv,psym=8,yr=[0,max(vol_axuv) > max(vol)]
+	oplot,vol_r,vol,color=100,psym=8
+	print, 'U/total(dU)'
+	print, U[i]/total(upos.du)
+	print, 'Total GENPOS VOL'
+	print, total(vol)
+	print, 'Total AXUV VOL'
+	print, total(vol_axuv)
+	stop
+
+END
+	
+PRO test_gpv_array,ndet=ndet,nap=nap,vx=vx,vy=vy,ap=ap,det=det,plots=plots,ps=ps,contour=contour
+	IF NOT keyword_set(det) THEN det=1.0
+	IF NOT keyword_set(ap) THEN ap=1.0
+	IF NOT keyword_set(ndet) THEN ndet=5
+	IF NOT keyword_set(nap) THEN nap=5
+	IF NOT keyword_set(vx) THEN vx=20
+	IF NOT keyword_set(vy) THEN vy=20
+	
+	;create vessel grid
+	ves_grid=genpos_grid(0.52,0.76,[vx,vy],xo=0.69)
+	tmp=where(ves_grid.pnts[0,*] EQ ves_grid.pnts[0,0])
+	ny=tmp[n(tmp)]+1
+	nx=int((n(ves_grid.pnts[0,*])+1)/ny)
+	rgr=reform(ves_grid.pnts[0,*])
+	rgr=rgr[int(make(0,nx-1,nx))*ny]
+	zgr=reform(ves_grid.pnts[1,*])
+	zgr=zgr[0:ny-1]
+
+	;load AXUV location
+	mdsopen,'spectroscopy',-1
+	u=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:U')
+	r_ph=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:R_PH')
+	r_tang=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:R_tang')
+	r_perp=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.AXUV_CALIB:R_PERP')
+	mdsclose,'spectroscopy'
+	x=-0.05908
+	y=-0.01043
+	x_ch=0.00236
+
+	;setup input variables
+	ap_vec=[r_ph,0.0,0.05]
+	ap_rot=[0.0,0.0,acos(r_perp/r_ph)]
+	x0=[x,y,0.0]
+	x1=[x,y,1.0]
+	x2=[x,y+1.0,0.0]
+	a_det=[2.0,5.0]*1.0e-3*det
+	dydz=fltarr(2,16)
+	FOR j=0,15 DO dydz[*,j]=[(-7.5+j)*x_ch,0.0]
+	a_ap=[0.04,0.118]*2.54/100.0*ap
+
+	;create aperture grid
+	ap_grid=genpos_grid(a_ap[0],a_ap[1],nap, /center)
+
+	gpv_vol=fltarr(16,nx-1)
+	shell_vol=fltarr(16,nx-1)
+
+	FOR i=0,15 DO BEGIN
+		print, 'detector - '+num2str(i,1)
+		;create detector grid
+		det_grid=genpos_grid(a_det[0],a_det[1],ndet,xo=dydz[0,i], /center)
+
+		;generate UPOS
+		upos=genpos_upos(ap_vec,ap_rot,x0,x1,x2,ap_grid,det_grid)
+
+		;generate vol coefs
+		vol2d=1.0
+		vol=genpos_vol_coefs(ves_grid,upos.upos,upos.du, contour=contour, vol2d=vol2d,ps=ps,plots=plots)
+		gpv_vol[i,*]=sum_array(vol2d.vol, /i)
+
+		;generate SHELL vol coefs
+		pos=genpos(ap_vec,ap_rot,x0,x1,x2,dydz[*,i],a_det=a_det[0]*a_det[1],a_ap=a_ap[0]*a_ap[1],etendue=etendue)
+		tmp=where(rgr GE pos[2])
+		rpts=[rgr[tmp[0]-1],rgr[tmp]]
+		L=fltarr(n(rpts))
+		L[0]=2.0*sqrt(rpts[1]^2-pos[2]^2)
+		FOR j=1,n(L) DO L[j]=2.0*(sqrt(rpts[j+1]^2-pos[2]^2)-sqrt(rpts[j]^2-pos[2]^2))
+		shell_vol[i,tmp-1]=L*U[i]/(4.0*!pi)*ap^2*det^2
+
+	ENDFOR
+
+	rt=vol2d.r
+
+	IF NOT keyword_set(ps) THEN BEGIN
+		device, window_state=var
+		IF var[0] EQ 0 THEN window,0 ELSE wset,0
+	ENDIF
+
+	maxplot=max(gpv_vol) > max(shell_vol)
+	plot,[0],[0],xr=[0.5,0.92],yr=[0,maxplot]
+	FOR i=0,15 DO oplot, rt, gpv_vol[i,*],color=100
+	FOR i=0,15 DO oplot, rt, shell_vol[i,*],color=200
+
+END
+
+
+PRO axuv_compare,ch=ch,n_ap=n_ap,n_det=n_det,nx=nx,ny=ny,gpv_contour=gpv_contour,load=load,debug=debug
+	IF NOT keyword_set(nx) THEN nx=100
+	IF NOT keyword_set(ny) THEN ny=50
+	IF NOT keyword_set(ch) THEN ch=15
+
+	path='/home/mlreinke/idl/genie/data/info/axuv/axuv_FY06.info'
+	save_path='/home/mlreinke/idl/genie/data/gpv/axuv/gpv_FY06.dat'
+	info=genpos_planar_info(path)
+	pos=genpos_planar2pos(info,etendue=etendue)
+	ves_grid=genpos_grid(0.38,0.2,[nx,ny],xo=0.75)
+	ves_cent=genpos_grid(0.38,0.2,[nx,ny],xo=0.75,/center)
+	IF keyword_set(load) THEN restore, save_path, /verb ELSE $
+		gpv=genpos_planar2gpv(info,ves_grid,n_ap=n_ap,n_det=n_det,gpv_contour=gpv_contour,path=save_path)
+	
+	IF keyword_set(debug) THEN stop
+	
+	num_det=n(info.det.xi)+1
+	gpv_vol=fltarr(num_det,nx)
+	shell_vol=fltarr(num_det,nx)
+	efit_vol=fltarr(num_det,nx)
+	
+	rgr=reform(ves_grid.pnts[0,indgen(nx+1)*(ny+1)])
+	rmaj=reform(ves_cent.pnts[0,indgen(nx)*ny])
+	efit_rad=genpos_grid2rmid(ves_cent,1050426022,tpts=[1.0])
+
+	FOR i=0,num_det-1 DO BEGIN
+		print, 'detector - '+num2str(i,1)
+		
+		FOR j=0,nx-1 DO gpv_vol[i,j]=total(gpv[i,ny*j:ny*(j+1)-1])
+		FOR j=0,nx-1 DO BEGIN
+			tmp=where(efit_rad GE rgr[j] AND efit_rad LT rgr[j+1])
+			IF tmp[0] NE -1 THEN efit_vol[i,j]=total(gpv[i,tmp])
+		ENDFOR
+
+		;generate SHELL vol coefs
+		tmp=where(rgr GE pos[2,i])
+		rpts=[rgr[tmp[0]-1],rgr[tmp]]
+		L=fltarr(n(rpts))
+		L[0]=2.0*sqrt(rpts[1]^2-pos[2,i]^2)
+		FOR j=1,n(L) DO L[j]=2.0*(sqrt(rpts[j+1]^2-pos[2,i]^2)-sqrt(rpts[j]^2-pos[2,i]^2))
+		shell_vol[i,tmp-1]=L*etendue[i]/(4.0*!pi)
+	ENDFOR
+
+	IF keyword_set(debug) THEN stop
+
+	tmp=where(gpv_vol[ch,*] NE 0)
+	plot, rmaj[tmp],shell_vol[ch,tmp],/nodata,xtit='Major Radius (m)',ytit='Volume (m!u-3!n)',chars=1.3
+	oplot, rmaj[tmp],shell_vol[ch,tmp],color=100
+	oplot, rmaj[tmp],gpv_vol[ch,tmp],color=200
+	oplot, rmaj[tmp],efit_vol[ch,tmp],color=30,psym=5
+END
+	
+
+
+
+
+
+
+
+
+
+	
+
+
+
+
+

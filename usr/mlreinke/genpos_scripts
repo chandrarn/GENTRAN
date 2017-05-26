@@ -1,0 +1,689 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;UTILITY SCRIPTS;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;sum in the z-direction all of the 
+FUNCTION genpos_gpv_zsum,gpv,ves_cent,rpts=rpts
+	index=indgen(ves_cent.n[0])*ves_cent.n[1]	
+	rpts=ves_cent.pnts[0,index]
+	gpv_radial=fltarr(ves_cent.n[0])
+	FOR i=0,ves_cent.n[0]-1 DO gpv_radial[i]=total(gpv[i*ves_cent.n[1]:(i+1)*(ves_cent.n[1])-1])
+	RETURN,gpv_radial
+END
+
+;sum in the r-direction all of the 
+FUNCTION genpos_gpv_rsum,gpv,ves_cent,zpts=zpts		
+	zpts=reform(ves_cent.pnts[1,0:ves_cent.n[1]-1])
+	gpv_vertical=fltarr(ves_cent.n[1])
+	FOR i=0,ves_cent.n[0]-1 DO gpv_vertical[*]+=gpv[i*ves_cent.n[1]:(i+1)*(ves_cent.n[1])-1]
+	RETURN,gpv_vertical
+END
+
+;uses an [xo,yo,alpha] of array center to calculate the x0,x1,x2 vectors needed
+;for a planar arrays specification in INFO
+PRO xya2pos,x,y,a
+	a_pos=[x/100.0,y/100.0,a*!pi/180.0]
+	print, 'x0=',-a_pos[0]*100,a_pos[1]*100,0.0
+	print, 'x1=',-a_pos[0]*100,a_pos[1]*100,1.0
+	print, 'x2=',-a_pos[0]*100-1.0*sin(a_pos[2]),a_pos[1]*100+1.0*cos(a_pos[2]),0.0
+	print, ''
+END
+
+;return a vertical slice from the gpv at a given ro
+FUNCTION genpos_gpv_zslice,gpv,ves_cent,ro,zpts=zpts,dr=dr
+	index=indgen(ves_cent.n[0])*ves_cent.n[1]	
+	rpts=reform(ves_cent.pnts[0,index])
+	ro_i=ipt(rpts,ro)
+	zpts=reform(ves_cent.pnts[1,0:ves_cent.n[1]-1])
+	gpv_vert=gpv[ro_i*ves_cent.n[1]:(ro_i+1)*ves_cent.n[1]-1]
+	IF keyword_set(dr) THEN BEGIN
+		IF ro-dr GT min(rpts) THEN rm_i=ipt(rpts,ro-dr) ELSE rm_i=minloc(rpts)
+		IF ro+dr LT max(rpts) THEN rp_i=ipt(rpts,ro+dr) ELSE rp_i=maxloc(rpts)
+		FOR i=rm_i,rp_i DO gpv_vert+=gpv[i*ves_cent.n[1]:(i+1)*ves_cent.n[1]-1]
+		gpv_vert-=gpv[ro_i*ves_cent.n[1]:(ro_i+1)*ves_cent.n[1]-1]
+		gpv_vert/=(rp_i-rm_i+1)
+	ENDIF		 
+	
+	
+	RETURN, gpv_vert
+END
+
+FUNCTION genpos_grid_rz2psith,ves_cent,shot,time,debug=debug
+	
+	n=n(ves_cent.pnts[0,*])
+	psith=fltarr(2,n+1)-1.0
+	inout=line_inlcfs(-1,-1,axis,ves_cent.pnts,shot=shot,time=time)
+	
+	FOR i=0,n DO IF inout [i] THEN BEGIN
+			pt=ves_cent.pnts[*,i]
+			pt-=axis
+			th=atan(pt[1]/pt[0])
+			IF pt[1] GT 0 AND pt[0] LT 0 THEN th=th+!pi
+			IF pt[1] LT 0 AND pt[0] LT 0 THEN th=th+!pi
+			IF pt[1] LT 0 AND pt[0] GT 0 THEN th=th+2.0*!pi
+			psith[1,i]=th
+	ENDIF
+
+	tmp=where(inout NE 0)
+	IF tmp[0] EQ -1 THEN RETURN,-1
+	psith[0,tmp]=efit_rz2rho(reform(ves_cent.pnts[0,tmp]),reform(ves_cent.pnts[1,tmp]),time,shot=shot,/psinorm)
+	 
+	IF keyword_set(debug) THEN stop
+
+	output={psi:reform(psith[0,*]),th:reform(psith[1,*])}
+	RETURN,output
+END
+
+
+
+FUNCTION genpos_prad,em,ves_cent
+	
+	nr=ves_cent.n[0]
+	nz=ves_cent.n[1]
+	del_r=ves_cent.pnts[0,nz]-ves_cent.pnts[0,0]
+	del_z=ves_cent.pnts[1,1]-ves_cent.pnts[1,0]
+
+	prad=0.0	
+
+	FOR i=0,n(em) DO prad+=em[i]*del_z*((ves_cent.pnts[0,i]+del_r/2.0)^2-(ves_cent.pnts[0,i]-del_r/2.0)^2)*!pi
+
+	output=prad
+	RETURN,output
+END
+
+
+
+FUNCTION genpos_rzprofile2grid,profile,r,z,ves_cent,debug=debug
+	
+	n_grid=ves_cent.n[0]*ves_cent.n[1]
+	profile_interp=fltarr(n_grid)
+
+	maxz=max(z,min=minz)
+	maxr=max(r,min=minr)
+
+	tmp=where(ves_cent.pnts[1,*] LE maxz AND ves_cent.pnts[1,*] GE minz AND ves_cent.pnts[0,*] LE maxr AND $
+		ves_cent.pnts[0,*] GE minr)
+
+	
+	FOR i=0,n(tmp) DO BEGIN
+		dist=(r-ves_cent.pnts[0,tmp[i]])^2+(z-ves_cent.pnts[1,tmp[i]])^2
+		profile_interp[tmp[i]]=profile[minloc(dist)]
+	
+	ENDFOR
+	
+
+	output=profile_interp
+	IF keyword_set(debug) THEN stop
+	RETURN,output
+
+
+END
+
+;PRO argon_axuv_view,load=load,debug=debug
+;
+;	IF NOT keyword_set(load) THEN BEGIN
+;		t=[0.0,0.05,0.1,0.15,0.2,0.2185]
+;		info=genpos_planar_info('/home/mlreinke/idl/genie/data/info/axuv/axuv_FY06.info')
+;		pos=genpos_planar2pos(info,etendue=etendue)
+;		ves_cent=grid_ves(nx=150,ny=150)
+;		out=argon_radiated_power_density()
+;		restore, '/home/mlreinke/idl/genie/data/gpv/axuv/gpv_FY06.dat',/verb
+;		axuv_profile=fltarr(n(pos[2,*])+1,n(t)+1)
+;		FOR i=0,n(t) DO BEGIN
+;			print, i
+;			em_grid=genpos_rzprofile2grid(out.em[*,i],out.r,out.z,ves_cent)
+;			FOR j=0,n(pos[2,*]) DO BEGIN
+;				tmp=where(gpv[j,*] NE 0)
+;				axuv_profile[j,i]=total(gpv[j,tmp]*em_grid[tmp])
+;			ENDFOR
+;			axuv_profile[*,i]/=etendue
+;		ENDFOR
+;		save, axuv_profile,pos,t,filename='/home/mlreinke/idl/genie/data/dm_axuv_profile.dat'
+;	ENDIF ELSE restore, '/home/mlreinke/idl/genie/data/dm_axuv_profile.dat',/verb
+;
+;	IF keyword_set(debug) THEN stop
+;	colormap=colormap(t)
+;	plot, [0],[0], yr=[0.0,max(axuv_profile)],xr=[min(pos[2,*]),max(pos[2,*])],xtit='R!lTANG!n (m)',ytit='Brightness (W/m!u2!n-str)',$
+;		tit='Line Integrated Brightness',chars=1.3,/xsty
+;	makesym=9
+;	FOR i=0,n(t) DO BEGIN
+;		oplot, pos[2,*],axuv_profile[*,i],color=colormap[i],psym=-8
+;		xyouts,0.85,(0.9-0.05*i)*max(axuv_profile),'t = '+num2str(t[i],dp=2),color=colormap[i],chars=1.2
+;	ENDFOR
+;
+;
+;END
+
+
+
+FUNCTION genpos_grid2grid,gpv,ogrid,ngrid,debug=debug
+
+	IF ogrid.area GT ngrid.area THEN RETURN, -1
+
+	x=size(gpv)
+	IF x[0] EQ 1 THEN num_det = 1 ELSE num_det=x[1]
+	ngpv=fltarr(num_det,ngrid.n[0]*ngrid.n[1])	
+
+	zeta=ogrid.pnts[1,0:ogrid.n[1]]
+	rho=ogrid.pnts[0,indgen(ogrid.n[0]+1)*(ogrid.n[1]+1)]
+	zgr=ngrid.pnts[1,0:ngrid.n[1]]
+	rgr=ngrid.pnts[0,indgen(ngrid.n[0]+1)*(ngrid.n[1]+1)]
+
+	IF zgr[1]-zgr[0] LT zeta[1]-zeta[0] THEN RETURN,-1
+	IF rgr[1]-rgr[0] LT rho[1]-rho[0] THEN RETURN,-1
+
+	minr=rgr[0]
+	nr=n(rgr)
+	maxr=rgr[nr]
+
+	minz=zgr[0]
+	nz=n(zgr)
+	maxz=zgr[nz]
+	del_rho=rho[1]-rho[0]
+	del_zeta=zeta[1]-zeta[0]
+	
+	FOR i=0,num_det-1 DO BEGIN
+		FOR j=0,n(rho)-1 DO BEGIN
+			IF rho[j+1] GE minr AND rho[j] LE maxr THEN BEGIN	;ensures opix (rho) is contained in ngrid
+				rho_frac=1.0
+				tmp=where(rgr LE rho[j])
+				IF tmp[0] NE -1 THEN low_r_index=tmp[n(tmp)] ELSE BEGIN
+					low_r_index=0
+					rho_frac=(rho[j+1]-rgr[0])/del_rho
+				ENDELSE
+				tmp=where(rgr GE rho[j+1])
+				IF tmp[0] NE -1 THEN up_r_index=tmp[0] ELSE BEGIN
+					up_r_index=nr
+					rho_frac=(rgr[nr]-rho[j])/del_rho
+				ENDELSE	
+				del_r=up_r_index-low_r_index
+				
+				FOR k=0,n(zeta)-1 DO BEGIN
+					IF zeta[k+1] GE minz AND zeta[k] LE maxz THEN BEGIN    ;ensures opix (zeta) is contained in ngrid
+						ogpv_index=ogrid.n[1]*j+k
+						tmp=where(zgr LE zeta[k])
+						zeta_frac=1.0
+						IF tmp[0] NE -1 THEN low_z_index=tmp[n(tmp)] ELSE BEGIN
+							low_z_index=0
+							zeta_frac=(zeta[k+1]-zgr[0])/del_zeta
+						ENDELSE
+						tmp=where(zgr GE zeta[k+1])
+						IF tmp[0] NE -1 THEN up_z_index=tmp[0] ELSE BEGIN
+							up_z_index=nz
+							zeta_frac=(zgr[nz]-zeta[k])/del_zeta
+						ENDELSE
+						del_z=up_z_index-low_z_index
+					
+						CASE 1 OF
+							del_r EQ 1 AND del_z EQ 1 : BEGIN
+								ngpv_index=ngrid.n[1]*low_r_index+low_z_index
+								ngpv[i,ngpv_index]+=gpv[i,ogpv_index]*zeta_frac*rho_frac	
+							END
+							del_r EQ 2 AND del_z EQ 1 : BEGIN
+								ngpv_index=ngrid.n[1]*low_r_index+low_z_index
+								rho_frac=(rgr[low_r_index+1]-rho[j])/del_rho
+								ngpv[i,ngpv_index]+=gpv[i,ogpv_index]*zeta_frac*rho_frac
+								ngpv_index=ngrid.n[1]*(low_r_index+1)+low_z_index
+								ngpv[i,ngpv_index]+=gpv[i,ogpv_index]*zeta_frac*(1.0-rho_frac)
+							END
+							del_r EQ 1 AND del_z EQ 2 : BEGIN
+								ngpv_index=ngrid.n[1]*low_r_index+low_z_index
+								zeta_frac=(zgr[low_z_index+1]-zeta[k])/del_zeta					
+								ngpv[i,ngpv_index]+=gpv[i,ogpv_index]*zeta_frac*rho_frac
+								ngpv_index=ngrid.n[1]*low_r_index+low_z_index+1
+								ngpv[i,ngpv_index]+=gpv[i,ogpv_index]*(1.0-zeta_frac)*rho_frac
+							END	
+							del_r EQ 2 AND del_z EQ 2 : BEGIN
+								dr=[0,1,1,0]
+								dz=[0,0,1,1]
+								a=(rgr[low_r_index+1]-rho[j])/del_rho
+								rho_frac=[a,1-a,1-a,a]
+								b=(zgr[low_z_index+1]-zeta[k])/del_zeta
+								zeta_frac=[b,b,1-b,1-b]
+								FOR l=0,3 DO BEGIN
+									ngpv_index=ngrid.n[1]*(low_r_index+dr[l])+low_z_index+dz[l]
+									ngpv[i,ngpv_index]+=gpv[i,ogpv_index]*zeta_frac[l]*rho_frac[l]
+								ENDFOR
+							END
+							ELSE: stop ;there is a strange error
+						ENDCASE
+					ENDIF
+				ENDFOR
+			ENDIF
+		ENDFOR
+	ENDFOR
+	
+	output=ngpv
+	IF keyword_set(debug) THEN stop
+	RETURN,output
+END
+
+
+
+PRO threeview,n_ap=n_ap,n_det=n_det,n_ves=n_ves,ps=ps
+
+	IF NOT keyword_set(n_ap) THEN n_ap = 3
+	IF NOT keyword_set(n_det) THEN n_det = 3
+	IF NOT keyword_set(n_ves) THEN n_ves = 50
+
+	ves_grid=grid_ves(nx=n_ves,ny=n_ves)
+	ves_cent=grid_ves(nx=n_ves,ny=n_ves,/cent)
+
+	ap_vec=[0.95,0.0,0.05]
+	ap_rot=[0.0,0.0,acos(0.68/ap_vec[0])]
+	ap_size=[1.0,3.0]*1.0e-3
+	det_size=[1.0,4.0]*1.0e-3
+	x0=[-5.0,0.0,0.0]*1.0e-2
+	x1=[-5.0,0.0,1.0]*1.0e-2
+	x2=[-5.0,1.0,0.0]*1.0e-2
+	ap_grid=genpos_grid(ap_size[0],ap_size[1],[n_ap,n_ap],/center)
+	det_grid=genpos_grid(det_size[0],det_size[0],[n_det,n_det],/center)
+	upos=genpos_upos(ap_vec,ap_rot,x0,x1,x2,ap_grid,det_grid)
+	gpv1=genpos_vol_coefs(ves_grid,upos.upos,upos.du)
+	gpv1=sum_array(gpv1,/i)
+	gpv1/=max(gpv1)
+
+
+	ap_vec=[0.95,0.0,-0.05]
+	ap_rot=[0.0,!pi/8.0,acos(0.60/ap_vec[0])]
+	ap_size=[3.0,3.0]*1.0e-3
+	det_size=[1.0,4.0]*1.0e-3
+	x0=[-5.0,0.0,0.0]*1.0e-2
+	x1=[-5.0,0.0,1.0]*1.0e-2
+	x2=[-5.0,1.0,0.0]*1.0e-2
+	ap_grid=genpos_grid(ap_size[0],ap_size[1],[n_ap,n_ap],/center)
+	det_grid=genpos_grid(det_size[0],det_size[0],[n_det,n_det],/center)
+	upos=genpos_upos(ap_vec,ap_rot,x0,x1,x2,ap_grid,det_grid)
+	gpv2=genpos_vol_coefs(ves_grid,upos.upos,upos.du)
+	gpv2=sum_array(gpv2,/i)
+	gpv2/=max(gpv2)
+
+	
+	ap_vec=[0.85,0.0,0.35]
+	ap_rot=[0.0,!pi/4.0,!pi/2.0]
+	ap_size=[3.0,3.0]*1.0e-3
+	det_size=[1.0,4.0]*1.0e-3
+	x0=[-5.0,0.0,0.0]*1.0e-2
+	x1=[-5.0,0.0,1.0]*1.0e-2
+	x2=[-5.0,1.0,0.0]*1.0e-2
+	ap_grid=genpos_grid(ap_size[0],ap_size[1],[n_ap,n_ap],/center)
+	det_grid=genpos_grid(det_size[0],det_size[0],[n_det,n_det],/center)
+	upos=genpos_upos(ap_vec,ap_rot,x0,x1,x2,ap_grid,det_grid)
+	gpv3=genpos_vol_coefs(ves_grid,upos.upos,upos.du)
+	gpv3=sum_array(gpv3,/i)
+	gpv3/=max(gpv3)
+
+	good=genpos_grid_invessel(ves_cent,shot=1050426022,del=0.001)
+	tmp=where(good EQ 0)
+	gpv1[tmp]=0.0
+	gpv2[tmp]=0.0
+	gpv3[tmp]=0.0
+
+	gpv=gpv1+gpv2+gpv3
+	genpos_gpv2contour,gpv,ves_cent,cct=27,ps=ps
+	
+END
+	
+	
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;TESTING SCRIPTS;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;shows that grid2grid can be used to resize a finely gridded GPV and
+;give the same result as re-runing GENPOS_VOL_COEFS
+;
+;changing the n_det and n_ap shows that there will be a savings in time if these values
+;are large enough
+
+PRO test_grid2grid,detector=detector,nx=nx,ny=ny,n_ap=n_ap,n_det=n_det
+	IF NOT keyword_set(detector) THEN detector=10
+	IF NOT keyword_set(nx) THEN nx=20
+	IF NOT keyword_set(ny) THEN ny=20
+
+	ogrid=grid_ves(nx=100,ny=100)
+	ogrid_center=grid_ves(nx=100,ny=100,/center)
+
+	start_time=systime(/seconds)
+	info=genpos_planar_info('/home/mlreinke/idl/genie/data/info/axuv/axuv_div_2.info')
+	gpv=genpos_planar2gpv(info,ogrid,/quiet,n_ap=n_ap,n_det=n_det)
+	vol2d=genpos_gpv2vol2d(ogrid_center,gpv[detector,*])
+	genplt,vol2d.vol,vol2d.r,vol2d.z	
+	ctime=systime(/seconds)-start_time
+	print, 'ORIGINAL: '+num2str(ctime,dp=2)
+
+	ngrid=grid_ves(nx=nx,ny=ny)
+	ngrid_center=grid_ves(nx=nx,ny=ny,/center)
+
+	;reform to smaller grid
+	start_time=systime(/seconds)
+	num_det=n(info.det.xi)+1
+	;ngpv=fltarr(num_det,ngrid.n[0]*ngrid.n[1])
+	;FOR i=0,num_det-1 DO ngpv[i,*]=genpos_grid2grid(gpv[i,*],ogrid,ngrid)
+	ngpv=genpos_grid2grid(gpv,ogrid,ngrid)
+	ctime=systime(/seconds)-start_time
+	print, 'REFORM: '+num2str(ctime,dp=2)
+	vol2d_g2g=genpos_gpv2vol2d(ngrid_center,ngpv[detector,*])
+	genplt,vol2d_g2g.vol,vol2d_g2g.r,vol2d_g2g.z,/win
+
+	;regenerate on a smaller grid
+	start_time=systime(/seconds)
+	gpv=genpos_planar2gpv(info,ngrid,/quiet,n_ap=n_ap,n_det=n_det)
+	ctime=systime(/seconds)-start_time
+	print, 'REGEN: '+num2str(ctime,dp=2)
+	vol2d_gpv=genpos_gpv2vol2d(ngrid_center,gpv[detector,*])
+
+	diff=vol2d_g2g.vol-vol2d_gpv.vol
+;	genplt,diff, vol2d_g2g.r,vol2d_g2g.z
+	tmp=where(vol2d_gpv.vol NE 0)
+	max_diff=max(diff[tmp]/vol2d_gpv.vol[tmp])
+	rms_diff=sqrt(mean((diff[tmp]/vol2d_gpv.vol[tmp])^2))
+	print, 'MAX FRAC ERR:'+num2str(max_diff)
+	print, 'RMS FRAC ERR:'+num2str(rms_diff)
+	stop
+END
+
+
+PRO genpos_aps2006,detector=detector,nx=nx,ny=ny,n_ap=n_ap,n_det=n_det,ps=ps,kdebug=kdebug,vessel=vessel,invessel=invessel,cct=cct
+	IF NOT keyword_set(detector) THEN detector=10
+	IF NOT keyword_set(nx) THEN nx=20
+	IF NOT keyword_set(ny) THEN ny=20
+	info=genpos_planar_info('/home/mlreinke/idl/genie/data/info/axuv/axuv_div_2.info')
+	upos=genpos_planar2upos(info,n_ap=n_ap,n_det=n_det,/quiet)
+	ves_grid=grid_ves(nx=nx,ny=ny)
+	ves_cent=grid_ves(nx=nx,ny=ny,/center)
+	gpv=genpos_vol_coefs(ves_grid,upos.upos[*,*,detector],upos.du[*,detector],kdebug=kdebug,ps=ps,vessel=vessel)
+	gpv=sum_array(gpv,/i)
+	genpos_gpv2contour,gpv,ves_cent,invessel=invessel,cct=cct
+	
+END
+
+
+PRO btor_compare,shot,time,debug=debug
+
+	mdsopen,'analysis',shot
+	psi0=mdsvalue('\ANALYSIS::TOP:EFIT.RESULTS.A_EQDSK:PSI0')
+	psibdy=mdsvalue('\ANALYSIS::TOP:EFIT.RESULTS.A_EQDSK:PSIBDY')
+	efit_time=mdsvalue('dim_of(\ANALYSIS::TOP:EFIT.RESULTS.A_EQDSK:PSI0)')
+	f=mdsvalue('\ANALYSIS::TOP:EFIT.RESULTS.G_EQDSK:FPOL')
+	psi_f=reverse(make(0,1,33))
+	mdsclose,'analysis',shot
+	efit_i=ipt(efit_time,time)
+
+	mdsopen, "magnetics", shot
+	Bt=abs(mdsvalue("\magnetics::BTOR",/quiet,status=status1))
+  	Bt_time=mdsvalue("dim_of(\magnetics::BTOR)",/quiet,status=status2)
+	mdsclose
+
+	bt_i=ipt(bt_time,time)
+	Bt0=mean(Bt[bt_i-5:bt_i+5])
+
+	r=make(0.4,0.92,100)
+	axis=line_getaxis(shot)
+	z=fltarr(100)+axis[efit_i,1]
+	psi=efit_rz2psi(r,z,time,shot=shot)
+	psi_norm=(psi-psi0[efit_i])/(psibdy[efit_i]-psi0[efit_i])
+	
+	openwin,0
+	Bphi1=Bt0*axis[efit_i,0]/r
+	Bphi2=1/r*interpol(reform(f[efit_i,*]),psi_f,psi_norm)
+	plot, r,bphi1,xtit='R!lMAJOR!n [m]',ytit='B!l'+n2g('phi')+'!n [T]',tit='Toroidal Field Compare',chars=1.3
+	oplot, r,-bphi2,color=100
+	xyouts,0.8,max(bphi1)*0.9, 'B!l'+n2g('phi')+'!n=B!lt,o!n*R!lo!n/R',chars=2.0
+	xyouts,0.8,max(bphi1)*0.7, 'B!l'+n2g('phi')+'!n=F('+n2g('psi')+')/R',chars=2.0,color=100
+
+	IF keyword_set(debug) THEN stop
+
+	openwin,1
+	r=fltarr(100)+axis[efit_i,0]
+	z=make(-0.55,0.55,100)
+	psi=efit_rz2psi(r,z,time,shot=shot)
+	psi_norm=(psi-psi0[efit_i])/(psibdy[efit_i]-psi0[efit_i])
+	Bphi3=1/r*interpol(reform(f[efit_i,*]),psi_f,psi_norm)
+
+	plot, z, (-bphi3-bt0)/bt0*100,xtit='Z [m]',ytit='% Diff From B!lt,o!n',tit='Field Difference Along Z at R=R!lo!n',chars=1.3
+
+	IF keyword_set(debug) THEN stop
+END	
+	
+
+PRO upos_debug,n=n,debug=debug
+	IF NOT keyword_set(n) THEN n=4
+	ap_vec=[0.7,0.0,0.5]
+	ap_rot=[0.0,!pi/2.0,!pi/2.0]
+	x0=[-0.03,0.0,0.0]
+	x1=[-0.03,0.0,0.01]
+	x2=[-0.03,0.01,0.0]
+	ap_size=[0.002,0.001]
+	det_size=[0.004,0.001]
+	ap_grid=genpos_grid(ap_size[0],ap_size[1],n)
+	det_grid=genpos_grid(det_size[0],det_size[1],n)
+	upos=genpos_upos(ap_vec,ap_rot,x0,x1,x2,ap_grid,det_grid,debug=debug)
+	line_path_plots,upos.upos
+	gpv=genpos_vol_coefs(grid_ves(nx=100,ny=100),upos.upos,upos.du,/contour)
+END
+
+FUNCTION rot_emiss_asym,gridpts,emiss,r,te,r_te,z,shot,time,mach,verb=verb,q=q
+	rpts=gridpts.pnts[0,*]
+	zpts=gridpts.pnts[1,*]
+	rmid=efit_rz2rmid(rpts,zpts,time,shot=shot)
+
+	axis=line_getaxis(shot)
+	efit_time=line_gettimes(shot)
+	Ro=axis[ipt(efit_time,time),0]
+
+	m_z=read_atomic_mass(read_atomic_name(z))
+	m_d=read_atomic_mass('D')
+	IF keyword_set(q) THEN avez=fltarr(n(r)+1)+z ELSE avez=avez(te,z,/q)
+	avez_interp=interpol(avez,r_te,rpts)
+	x_at_R=mach^2*(m_z/m_d-avez_interp/2.0)*(1.0-Ro^2/rpts^2)
+	x_at_Rmid=mach^2*(m_z/m_d-avez_interp/2.0)*(1.0-Ro^2/rmid^2)
+	
+	emiss_interp=interpol(emiss,r,rmid)
+	emiss_interp*=exp(x_at_R)/exp(x_at_rmid)
+
+	RETURN, emiss_interp
+END
+
+PRO test_rot_asym,mach,ps=ps
+	time=1.0
+	shot=1050407021
+	
+
+	load_emdiode_data,shot,emiss,r,t
+	emiss=emiss[*,ipt(t,time)]
+	load_fit_data,shot,te,nel,r_fit,t_fit
+	te=reform(te[ipt(t_fit,time),*])
+	ves_cent=grid_ves(nx=100,ny=100,/cent)
+	out=rot_emiss_asym(ves_cent,emiss,r,te,r_fit,42,shot,time,mach)
+	inside=line_inlcfs(-1,-1,-1,ves_cent.pnts,shot=shot,time=time)
+	out*=inside
+	genpos_gpv2contour,out,ves_cent,shot=shot,time=time,ps=ps
+	print, total(out*ves_cent.area*2*!pi*ves_cent.pnts[0,*])
+
+	;mach=[0.0,0.05,0.1,0.15,0.2,0.25,0.3]
+	;prad=[2.141,2.034,1.768,1.451,1.169,0.9527,0.7954]
+END
+
+PRO asym_plot
+	mach=[0.0,0.05,0.1,0.15,0.2,0.25,0.3]
+	prad=[2.141,2.034,1.768,1.451,1.169,0.9527,0.7954]
+	
+	plot,[0],[0], xr=[0,0.3],yr=[0,1.0],/xsty,/ysty,xtit='Mach Number (main ion)',ytit='P!lRAD!n/P!lRAD,0!n',chars=1.3
+	makesym,10
+	oplot, mach,prad/prad[0],color=100,thick=2,psym=-8,symsize=2.0
+END
+
+PRO test_gridpro,shot,time,nx=nx,ny=ny,nlevels
+	loadct,1,/silent
+	IF NOT keyword_set(nlevels) THEN nlevels=20
+	load_emdiode_data,shot,emiss,r,t,/tree
+	ves_grid=grid_ves(/center,nx=nx,ny=ny)
+	em2D=grid_profile(ves_grid,emiss,r,t,shot,tpts=time)
+
+	;if plots are set, get wall and limiter traces
+	mdsopen, 'analysis',-1
+	IF shot GT 1020000000 THEN  node_year='2002' else node_year='1994'
+	r_lim=mdsvalue('.LIMITERS.WALL.WALL_'+node_year+':RLIM')
+	z_lim=mdsvalue('.LIMITERS.WALL.WALL_'+node_year+':ZLIM')
+	r_rf=mdsvalue('.LIMITERS.RF_LIMITER:R')
+	z_rf=mdsvalue('.LIMITERS.RF_LIMITER:Z')
+	mdsclose
+	
+	;plot the limiting structures
+	wreset,19
+	plot, r_lim,z_lim,title='SHOT: '+num2str(shot,1)+' TIME: '+num2str(time,dp=3),chars=1.3
+	oplot, r_rf,z_rf
+	contour,em2d/max(em2d),ves_grid.pnts[0,*],ves_grid.pnts[1,*],/irregular,nlevels=nlevels,$
+		/fill,/overplot,levels=make(0.0,1.0,nlevels)
+	loadct,12,/silent
+
+	efit_lcfs=line_getlcfs(shot)
+	efit_time=line_gettimes(shot)
+	efit_i=ipt(efit_time,time)
+	rbdry=efit_lcfs[0,where(efit_lcfs[0,*,efit_i] NE 0 AND efit_lcfs[1,*,efit_i] NE 0),efit_i]
+	zbdry=efit_lcfs[1,where(efit_lcfs[0,*,efit_i] NE 0 AND efit_lcfs[1,*,efit_i] NE 0),efit_i]
+	rbdry=rbdry[0:n(rbdry)-1]
+	zbdry=zbdry[0:n(zbdry)-1]
+	rb_plt=[rbdry,rbdry[0]]
+	zb_plt=[zbdry,zbdry[0]]
+	oplot,rb_plt,zb_plt,color=200,thick=2.5
+
+	stop
+	
+END
+
+PRO test_rot_bright,num
+	ves_cent=grid_ves(nx=100,ny=100,/center)
+	restore, '/home/mlreinke/idl/genie/data/gpv/mist_test/gpv.dat'
+	path='/home/mlreinke/idl/genie/data/info/mist_test.info'
+	info=genpos_planar_info(path)
+	pos=genpos_planar2pos(info)
+
+	mach=[0.0,0.2,0.4,0.6]
+	mist_path=['mist_1050426022_0','mist_1050426022_6','mist_1051202012_0','mist_1051202012_6','mist_1050426022_0']
+	label=['Ar XVII 3.949 (W)','Ar XVIII 3.731 (Ly)','Ar XVII 3.949 (W)','Ar XVIII 3.731 (Ly)','Ar XVII 3.949 (W)']
+	restore, '/home/mlreinke/idl/genie/data/mist/'+mist_path[num]+'.sav'
+	emiss=mist.emiss
+	ti=mist.ti
+
+	br=fltarr(n(pos[0,*])+1,n(mach)+1)
+	FOR i=0,n(mach) DO BEGIN
+		em_rot=rot_emiss_asym(ves_cent,emiss.emiss,emiss.r, ti.ti, ti.r,16,shot,time,mach[i],/q)
+		genpos_gpv2contour,em_rot,ves_cent
+		stop
+		FOR j=0,n(pos[0,*]) DO BEGIN
+			tmp=where(gpv[j,*] GT 0 AND em_rot GT 0)
+			br[j,i]=total(gpv[j,tmp]*em_rot[tmp])
+		ENDFOR
+	ENDFOR
+
+	openwin,0
+	plot, br[*,0]/br[20,0]
+	colors=colormap(mach)
+	FOR i=1,n(mach) DO oplot,br[*,i]/br[20,i],color=colors[i]
+END
+			
+
+PRO test_newgpv,debug=debug
+	info=genpos_planar_info('/home/mlreinke/idl/genie/data/info/pos_test.info')
+	pos=genpos_planar2pos(info)
+	upos=genpos_planar2upos(info,n_ap=4,n_det=4)
+
+	ves_grid=grid_ves(nx=100,ny=150)
+	ves_cent=grid_ves(nx=100,ny=150,/cent)
+	lhat=1
+	
+	gpv=genpos_vol_coefs(ves_grid,upos.upos,upos.du,lhat=lhat)
+	tmp=where(sum_array(gpv, /i) NE 0)
+	gpv=sum_array(gpv, /i)
+	in=sum_array(lhat.r.in,/i)
+	out=sum_array(lhat.r.out, /i)
+	vin=sum_array(lhat.r.dvin, /i)
+	vout=sum_array(lhat.r.dvout, /i)
+	
+	tmp_in=where(vin NE 0)
+	lr_in=in
+	lr_in[tmp_in]/=vin[tmp_in]
+	tmp_out=where(vout NE 0)
+	lr_out=out
+	IF tmp_out[0] NE -1 THEN lr_out[tmp_out]/=vout[tmp_out]
+	phi=sum_array(lhat.phi, /i)
+	lphi=phi
+	lphi[tmp]/=gpv[tmp]
+	z=sum_array(lhat.z, /i)
+	lz=z
+	lz[tmp]/=gpv[tmp]
+
+	genpos_gpv2contour,gpv,ves_cent,win=19, /edge,/points
+	;oplot, ves_cent.pnts[0,tmp], ves_cent.pnts[1,tmp],color=255,psym=3
+	xyouts,0.7,0.3,'GPV',chars=2.0
+	genpos_gpv2contour,-lr_in,ves_cent,win=20, /edge,/points,pntcol=1
+	xyouts,0.7,0.3,'LR-IN',chars=2.0
+	IF tmp_out[0] EQ -1 THEN vessel_plot,/edge,n=21 ELSE genpos_gpv2contour, lr_out,ves_cent,win=21, /edge,/points,pntcol=1
+	xyouts,0.7,0.3,'LR-OUT',chars=2.0
+	genpos_gpv2contour, lphi,ves_cent,win=22, /edge,/points,pntcol=1
+	xyouts,0.7,0.3,'LPHI',chars=2.0	
+	genpos_gpv2contour, lz-min(lz),ves_cent,win=23, /edge,/points
+	xyouts,0.7,0.3,'LZ',chars=2.0
+
+	IF keyword_set(debug) THEN stop
+END
+
+PRO test_pos2voxel,shot,time,npts=npts
+	IF NOT keyword_set(npts) THEN npts=30
+
+	;load outboard midplane array
+	pos=axuv_midplane_pos(etendue=u)
+	pos=pos[*,0:21]
+	u=u[0:21]
+	
+	;calculate voxel weightings for ABEL line-integral
+	calc_geom,reverse(reform(pos[2,*])),npts,rm,length
+	voxcalc=length
+	FOR i=0,21 DO voxcalc[i,*]*=u[21-i]/(4.0*!pi)
+
+	;calculate voxel weightings using GENPOS
+	rhopts=line_getrho(shot,rm,time)
+	rho_vec=rhopts[where(rhopts GE 0)]
+	voxpos=genpos_pos2voxel_matrix(pos,u,shot,rho_vec=rho_vec,n_rho=n(rho_vec)+1,tpts=[time])
+	rmaj=line_getrmaj(shot,rho_vec,time)
+
+	;calculate voxel weightings using GPV
+	gpv=axuv_midplane_gpv(/load,ves_cent=ves_cent)
+	gpv=gpv[0:21,*]
+	rhopts=genpos_grid2rmid(ves_cent,shot,tpts=[time],/rho,/sol)
+	voxel=genpos_gpv2voxel_matrix(gpv,rhopts,rho_vec=rho_vec,n_rho=n(rho_vec)+1)
+
+	openwin,0
+	makesym,10
+	iplt=[4,8,12,16]
+	colors=colormap(iplt)
+	maxpt=max(voxcalc[iplt,*])
+	plot, [0],[0],xr=[0.65,0.91],/xsty,yr=[0,maxpt*1.0],xtit='R [m]', ytit='Voxel Volume [m!u3!n]',chars=1.2
+	FOR i=0,n(iplt) DO BEGIN
+		tmp=where(voxcalc[iplt[i],*] GT 0)
+		tmp=[tmp[0]-1,tmp]
+		oplot, rm[tmp],voxcalc[iplt[i],tmp],color=colors[i],thick=2.0
+		tmp=where(voxpos[21-iplt[i],*] GT 0)
+		tmp=[tmp[0]-1,tmp]
+		oplot, rmaj[tmp],voxpos[21-iplt[i],tmp],color=colors[i],psym=8
+		tmp=where(voxel[21-iplt[i],*] GT 0)
+		tmp=[tmp[0]-1,tmp]
+		makesym,9
+		oplot, rmaj[tmp],voxel[21-iplt[i],tmp],color=colors[i],psym=8	
+		makesym,10
+	ENDFOR
+	oplot, [0.68,0.69],maxpt*[1.05,1.05],thick=2.0
+	oplot, [0.76],maxpt*[1.05],psym=8
+	makesym,9
+	oplot, [0.83],maxpt*[1.05],psym=8	
+	makesym,10
+	xyouts,0.70,1.04*maxpt,'ABEL'
+	xyouts,0.77,1.04*maxpt,'POS2VOXEL'
+	xyouts,0.84,1.04*maxpt,'GPV2VOXEL'
+	stop
+	
+END
+	

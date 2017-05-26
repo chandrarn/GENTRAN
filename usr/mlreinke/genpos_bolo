@@ -1,0 +1,3158 @@
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;DIVERTOR AXUV ARRAYS;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+FUNCTION axuv_div_pos,etendue=etendue,array=array,umod=umod
+	IF NOT keyword_set(array) THEN array=[1,2]
+	base_path='/home/mlreinke/idl/genie/data/info/axuv/'
+	file_path='axuv_div_'
+	FOR i=0,n(array) DO BEGIN
+		path=base_path+file_path+num2str(array[i],1)+'.info'
+		info=genpos_planar_info(path)
+		pos=genpos_planar2pos(info,etendue=U,t=0.01*25.4/1.0e3,umod=umod)
+		IF i EQ 0 THEN out_pos=pos ELSE out_pos=[[out_pos],[pos]]
+		IF i EQ 0 THEN etendue=U ELSE etendue=[etendue,U]
+	ENDFOR
+	RETURN,out_pos
+END
+
+FUNCTION axuv_div_gpv,ves_grid,n_ap=n_ap,n_det=n_det,gpv_contour=gpv_contour,load=load,detector=detector,kdebug=kdebug,array=array
+	IF NOT keyword_set(array) THEN array=[1,2]
+	base_path='/home/mlreinke/idl/genie/data/info/axuv/'
+	out_path='/home/mlreinke/idl/genie/data/gpv/axuv/'
+	file_path='axuv_div_'
+	FOR i=0,n(array) DO BEGIN
+		path=base_path+file_path+num2str(array[i],1)+'.info'
+		info=genpos_planar_info(path)
+		path=out_path+file_path+num2str(array[i],1)+'.dat'
+		IF keyword_set(load) THEN restore, path, /verb ELSE $
+			gpv=genpos_planar2gpv(info,ves_grid,n_ap=n_ap,n_det=n_det,path=path,gpv_contour=gpv_contour,$
+				detector=detector,kdebug=kdebug)
+		IF i EQ 0 THEN output=gpv ELSE output=[output,gpv]
+	ENDFOR
+	
+	RETURN,output
+END
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;DIVERTOR FOIL ARRAYS;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;FUNCTION foil_div_pos,etendue=etendue,array=array
+;	IF NOT keyword_set(array) THEN array=[1,2,3,4]
+;	ref_pt=[810.3,-622.3]
+;	lb_ap=[-54.2+1.611*25.4*dcos(14.97-2.01),302.15-1.611*25.4*dsin(14.97-2.01)]
+;	x=[72.72,75.24,77.77,80.29,73.89,70.92,67.95,64.98,75.68,74.98,74.28,73.59,fltarr(4)+lb_ap[0]];,-55.51,-54.2,-52.89,-51.58]
+;	y=[201.7,206.1,210.5,214.9,118.33,122.5,126.6,130.7,75.44,80.47,85.5,90.54,fltarr(4)+lb_ap[1]];,292.3,297.25,302.15,307.06]
+;	phi=[40.39,33.22,25.99,18.83,-22.02,-31.35,-40.62,-49.93,7.33,-2.97,-13.28,-23.52,14.97+5.11,14.97-2.01,14.97-9.05,14.97-15.83];,16.94+2.0,14.97,12.96-3.0,10.96-6.0]
+;	pos=fltarr(4,(n(array)+1)*4.0)
+	
+;	FOR i=0,n(array) DO BEGIN
+;		pos[0,i*4:(i+1)*4-1]=(ref_pt[0]-x[(array[i]-1)*4:(array[i])*4-1])/1000.0
+;		pos[1,i*4:(i+1)*4-1]=(ref_pt[1]+y[(array[i]-1)*4:(array[i])*4-1])/1000.0
+;		pos[3,i*4:(i+1)*4-1]=phi[(array[i]-1)*4:(array[i])*4-1]*!pi/180.
+;	ENDFOR
+;	output=pos
+;	RETURN,output
+;END
+
+FUNCTION foil_div_pos,etendue=etendue
+	path='/home/mlreinke/idl/genie/data/info/foil/foil_ledge_1.info'
+	info=genpos_planar_info(path)
+	pos_ledge=genpos_planar2pos(info,etendue=u_ledge)
+	u_div=[15.7,16.7,16.7,15.7,16.2,18.0,18.0,16.2,18.2,20.7,20.7,18.2]*1.0e-9
+	r=fltarr(12)+0.7
+	z=(-41.00-[31.43,42.47,55.23,70.29,41.15,65.64,83.97,98.74,124.53,138.51,151.52,163.71]/10)/100.0
+	psi=[18.91,26.49,34.14,41.73,-50.01,-40.26,-30.53,-20.76,-23.72,-12.97,-2.12,8.16]*!pi/180
+	pos_div=fltarr(4,12)
+	pos_div[0,*]=r
+	pos_div[1,*]=z
+	pos_div[3,*]=psi
+	pos=[[pos_ledge],[pos_div]]
+	etendue=[u_ledge,u_div]
+	
+	output=pos
+	RETURN,pos
+END
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;ZSTACK AXUV ARRAYS;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+FUNCTION zstack_pos,etendue=etendue,array=array,umod=umod
+	IF NOT keyword_set(array) THEN array=[1,2,3,4,5,6]
+	base_path='/home/mlreinke/idl/genie/data/info/axuv/'
+	file_path='axuv_zstack_'
+	t=0.01*25.4/1.0e3
+	FOR i=0,n(array) DO BEGIN
+		path=base_path+file_path+num2str(array[i],1)+'.info'
+		info=genpos_planar_info(path)
+		pos=genpos_planar2pos(info,etendue=U)
+		umod_i=genpos_planar2umod(info,t)
+		IF i EQ 0 THEN out_pos=pos ELSE out_pos=[[out_pos],[pos]]
+		IF i EQ 0 THEN etendue=U ELSE etendue=[etendue,U]
+		IF i EQ 0 THEN umod=umod_i ELSE umod=[umod,umod_i]
+	ENDFOR
+	RETURN,out_pos
+END
+
+FUNCTION zstack_gpv,ves_grid,n_ap=n_ap,n_det=n_det,gpv_contour=gpv_contour,load=load,array=array,verb=verb
+	IF NOT keyword_set(array) THEN array=[1,2,3,4,5,6]
+	base_path='/home/mlreinke/idl/genie/data/info/axuv/'
+	out_path='/home/mlreinke/idl/genie/data/gpv/axuv/'
+	file_path='axuv_zstack_'
+	FOR i=0,n(array) DO BEGIN
+		path=base_path+file_path+num2str(array[i],1)+'.info'
+		info=genpos_planar_info(path)
+		path=out_path+file_path+num2str(array[i],1)+'.dat'
+		IF keyword_set(load) THEN restore, path, verb=verb ELSE $
+			gpv=genpos_planar2gpv(info,ves_grid,n_ap=n_ap,n_det=n_det,path=path,gpv_contour=gpv_contour)
+		IF i EQ 0 THEN output=gpv ELSE output=[output,gpv]
+	ENDFOR
+	
+	RETURN,output
+END
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;MIDPLANE AXUV ARRAYS;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+FUNCTION axuv_midplane_pos,etendue=etendue,umod=umod
+	base_path='/home/mlreinke/idl/genie/data/info/axuv/'
+	file_path='axuv_midplane_'
+	FOR i=1,2 DO BEGIN
+		path=base_path+file_path+num2str(i,1)+'.info'
+		info=genpos_planar_info(path)
+		pos=genpos_planar2pos(info,etendue=U)
+		umod_i=genpos_planar2umod(info,0.01*25.4/1.0e3)
+		IF i EQ 1 THEN out_pos=pos ELSE out_pos=[[out_pos],[pos]]
+		IF i EQ 1 THEN etendue=U ELSE etendue=[etendue,U]
+		IF i EQ 1 THEN umod=umod_i ELSE umod=[umod,umod_i]
+	ENDFOR
+	RETURN,out_pos
+END
+
+FUNCTION axuv_midplane_gpv,ves_grid,n_ap=n_ap,n_det=n_det,gpv_contour=gpv_contour,load=load,verb=verb,ves_cent=ves_cent,array=array
+	base_path='/home/mlreinke/idl/genie/data/info/axuv/'
+	out_path='/home/mlreinke/idl/genie/data/gpv/axuv/'
+	file_path='axuv_midplane_'
+	IF keyword_set(array) THEN BEGIN
+		start=array
+		stop=array
+	ENDIF ELSE BEGIN
+		start=1
+		stop=2
+	ENDELSE
+	FOR i=start,stop DO BEGIN
+		path=base_path+file_path+num2str(i,1)+'.info'
+		info=genpos_planar_info(path)
+		path=out_path+file_path+num2str(i,1)+'.dat'
+		IF keyword_set(load) THEN restore, path, verb=verb ELSE $
+			gpv=genpos_planar2gpv(info,ves_grid,n_ap=n_ap,n_det=n_det,path=path,gpv_contour=gpv_contour,quiet=quiet)
+		IF i EQ start THEN output=gpv ELSE output=[output,gpv]
+	ENDFOR
+	
+	RETURN,output
+END
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;DIVERTOR FOIL BOLOMETER;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;MIDPLANE FOIL BOLOMETER;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+FUNCTION foil_midplane_pos,etendue=etendue,debug=debug,good=good,x=x
+	installed=intarr(24)+1
+	installed[[12,17,19,23]]=0
+	base_path='/home/mlreinke/idl/genie/data/info/foil/'
+	IF NOT keyword_set(x) THEN file_path='foil_mid_' ELSE file_path='foil_mid_x'
+	IF keyword_set(x) THEN n_mod=5 ELSE n_mod=6
+	FOR i=1,n_mod DO BEGIN
+		path=base_path+file_path+num2str(i,1)+'.info'
+		info=genpos_planar_info(path)
+		pos=genpos_planar2pos(info,etendue=U)
+		IF i EQ 1 THEN out_pos=pos ELSE out_pos=[[out_pos],[pos]]
+		IF i EQ 1 THEN etendue=U ELSE etendue=[etendue,U]
+	ENDFOR
+	IF keyword_set(debug) THEN stop
+	IF keyword_set(good) THEN BEGIN
+		tmp=where(installed NE 0)
+		etendue=etendue[tmp]
+		out_pos=out_pos[*,tmp]
+	ENDIF
+	RETURN,out_pos
+END
+
+FUNCTION foil_midplane_gpv,ves_grid,n_ap=n_ap,n_det=n_det,gpv_contour=gpv_contour,load=load,quiet=quiet
+	base_path='/home/mlreinke/idl/genie/data/info/foil/'
+	out_path='/home/mlreinke/idl/genie/data/gpv/foil/'
+	file_path='foil_mid_'
+	IF keyword_set(quiet) THEN verb=0 ELSE verb=1
+	FOR i=1,6 DO BEGIN
+		path=base_path+file_path+num2str(i,1)+'.info'
+		info=genpos_planar_info(path)
+		path=out_path+file_path+num2str(i,1)+'.dat'
+		IF keyword_set(load) THEN restore, path, verb=verb ELSE $
+			gpv=genpos_planar2gpv(info,ves_grid,n_ap=n_ap,n_det=n_det,path=path,gpv_contour=gpv_contour)
+		IF i EQ 1 THEN output=gpv ELSE output=[output,gpv]
+	ENDFOR
+	
+	RETURN,output
+END
+
+
+
+
+
+
+PRO full_axuv,ps=ps,shot=shot,tpt=time,debug=debug,info=info
+
+	zpos=zstack_pos(etendue=zU)
+	mpos=axuv_midplane_pos(etendue=mU)
+	mpos[1,0:21]+=0.01
+	mpos[1,22:43]-=0.01	
+	
+	totpos=[[zpos],[mpos]]
+	totU=[zU,mU]
+
+	line_path_plots,totpos,thick=1.0,ps=ps,tang=1.0,shot=shot,tpt=time,/vessel
+	mpos[1,0:21]-=0.01
+	mpos[1,22:43]+=0.01
+	totpos=[[zpos],[mpos]]
+
+	;tangency radius plots
+	IF NOT keyword_set(ps) THEN BEGIN
+		device, window_state=var
+		IF var[0] EQ 0 THEN window,0 ELSE wset,0
+	ENDIF
+
+	colors=colormap(fltarr(4))
+	plot, [0],[0],yr=[0.4,0.95],xr=[0,21],xtit='Channel',ytit='R!ltang!n (m)',/xsty,/ysty,chars=1.5
+	makesym,10
+	FOR i=0,1 DO BEGIN		
+		oplot, mpos[2,i*22:(i+1)*22-1],color=200,psym=8,symsize=1.4
+		oplot, [-1,50],[0.44,0.44],linestyle=2,thick=2.0
+		oplot, [-1,50],[0.905,0.905],linestyle=2,thick=2.0
+	ENDFOR
+	xyouts,3,0.5,'Inner Wall',chars=1.2
+	xyouts,16,0.85,'Limiter',chars=1.2
+
+	;etendue plots
+	IF NOT keyword_set(ps) THEN IF var[1] EQ 0 THEN window,1 ELSE wset,1
+	plot, [0],[0],yr=[0.1e-9,10.0e-9],/ylog,$
+		xr=[0,21],xtit='Channel',ytit='Etendue (m!u2!n-str)',/xsty,/ysty,chars=1.5
+	makesym,10
+	FOR i=0,3 DO oplot,totU[i*22:(i+1)*22-1] ,color=colors[i],psym=8,symsize=1.4
+
+	;flux surface plots
+	psith=line_pos2psith(totpos,shot,time)
+	IF NOT keyword_set(ps) THEN IF var[4] EQ 0 THEN window,4 ELSE wset,4
+	IF keyword_set(ps) THEN BEGIN
+		title='!9(y,q)!3 of Tangency Points'
+		xtit='!9y!3 (norm)'
+		ytit='!9q!3 (rad)'
+	ENDIF ELSE BEGIN
+		title='!7(w,h)!3 of Tangency Points'
+		xtit='!7w!3 (norm)'
+		ytit='!7h!3 (rad)'
+	ENDELSE
+	plot,[0],[0],yr=[0,2.0*!pi],xr=[0,1],/xsty,/ysty,title=title,xtit=xtit,ytit=ytit,chars=1.5
+	IF size(psith, /type) EQ 8 THEN oplot, psith.psi,psith.th,psym=8,color=200
+	oplot,[-1,2],[!pi/2.0,!pi/2.0],color=100,linestyle=2
+	oplot,[-1,2],[3*!pi/2.0,3*!pi/2.0],color=100,linestyle=2
+	IF keyword_set(debug) THEN stop
+END
+
+
+
+
+
+PRO bolo_cross,ps=ps, shot=shot,time=time
+	
+	IF NOT keyword_set(shot) THEN shot=1050426022
+	IF NOT keyword_set(time) THEN time=1.0
+	efit_time=line_gettimes(shot)
+	efit_lcfs=line_getlcfs(shot)
+	efit_i=ipt(efit_time,time)
+	efit_rmid=line_getrmid(shot)
+
+	vessel_plot,n=22,ps=ps,shot=shot,title='SHOT: '+num2str(shot,1)
+
+	;plot the flux surfaces
+	efit_psicont,psi_r,psi_z,psi_n,psi_t,shot=shot,time=efit_time[efit_i]
+	FOR i=0,floor(n(efit_rmid[efit_i,*])/3.0)-1 DO BEGIN
+		out_r=reform(psi_r[*,3*i+1])
+		out_z=reform(psi_z[*,3*i+1])
+		tmp=where(out_r NE 0)
+		oplot, out_r[tmp], out_z[tmp], color=100,linestyle=2,thick=1.0
+	ENDFOR
+
+	;load relevant LCFS boundary and prepare for format needed for LINE_INCLFS
+	rbdry=efit_lcfs[0,where(efit_lcfs[0,*,efit_i] NE 0 AND efit_lcfs[1,*,efit_i] NE 0),efit_i]
+	zbdry=efit_lcfs[1,where(efit_lcfs[0,*,efit_i] NE 0 AND efit_lcfs[1,*,efit_i] NE 0),efit_i]
+	rbdry=rbdry[0:n(rbdry)-1]
+	zbdry=zbdry[0:n(zbdry)-1]
+	rb_plt=[rbdry,rbdry[0]]
+	zb_plt=[zbdry,zbdry[0]]
+	oplot,rb_plt,zb_plt,color=100,thick=2.0
+
+	axuv_pos=axuv_midplane_pos()
+	foil_pos=foil_midplane_pos()
+	
+	makesym,13
+	oplot,foil_pos[2,*],foil_pos[1,*],color=30,psym=8,symsize=1.5
+	makesym,10
+	oplot,axuv_pos[2,0:21],axuv_pos[1,0:21],color=200,psym=8,symsize=1.5
+	makesym,10
+	oplot,axuv_pos[2,22:43],axuv_pos[1,22:43]-0.025,color=200,psym=8,symsize=1.5
+END
+
+
+
+PRO axuv_full,ps=ps, shot=shot,time=time
+	
+	IF NOT keyword_set(shot) THEN shot=1050426022
+	IF NOT keyword_set(time) THEN time=1.0
+
+	mid_pos=axuv_midplane_pos()
+	stack_pos=zstack_pos()
+	div_pos=axuv_div_pos()
+
+	line_path_plots,div_pos,/thick, ps=ps
+	
+	makesym,9
+	oplot,mid_pos[2,0:21],mid_pos[1,0:21],color=200,psym=8,symsize=1.0
+	oplot,mid_pos[2,22:43],mid_pos[1,22:43]-0.025,color=200,psym=8,symsize=1.0
+	makesym,9
+	oplot,stack_pos[2,*],stack_pos[1,*],color=200,psym=8,symsize=1.0
+END
+
+PRO tang_full,ps=ps,shot=shot,time=time
+	IF NOT keyword_set(shot) THEN shot=1050426022
+	IF NOT keyword_set(time) THEN time=1.0
+	efit_time=line_gettimes(shot)
+	efit_lcfs=line_getlcfs(shot)
+	efit_i=ipt(efit_time,time)
+	efit_rmid=line_getrmid(shot)
+
+	vessel_plot,n=22,ps=ps,shot=shot,title='SHOT: '+num2str(shot,1)
+
+	;plot the flux surfaces
+	efit_psicont,psi_r,psi_z,psi_n,psi_t,shot=shot,time=efit_time[efit_i]
+	FOR i=0,floor(n(efit_rmid[efit_i,*])/3.0)-1 DO BEGIN
+		out_r=reform(psi_r[*,3*i+1])
+		out_z=reform(psi_z[*,3*i+1])
+		tmp=where(out_r NE 0)
+		oplot, out_r[tmp], out_z[tmp], color=100,linestyle=2,thick=1.0
+	ENDFOR
+
+	;load relevant LCFS boundary and prepare for format needed for LINE_INCLFS
+	rbdry=efit_lcfs[0,where(efit_lcfs[0,*,efit_i] NE 0 AND efit_lcfs[1,*,efit_i] NE 0),efit_i]
+	zbdry=efit_lcfs[1,where(efit_lcfs[0,*,efit_i] NE 0 AND efit_lcfs[1,*,efit_i] NE 0),efit_i]
+	rbdry=rbdry[0:n(rbdry)-1]
+	zbdry=zbdry[0:n(zbdry)-1]
+	rb_plt=[rbdry,rbdry[0]]
+	zb_plt=[zbdry,zbdry[0]]
+	oplot,rb_plt,zb_plt,color=100,thick=2.0
+
+	mid_pos=axuv_midplane_pos()
+	stack_pos=zstack_pos()
+	
+	makesym,9
+	oplot,mid_pos[2,0:21],mid_pos[1,0:21],color=200,psym=8,symsize=1.0
+	oplot,mid_pos[2,22:43],mid_pos[1,22:43]-0.025,color=200,psym=8,symsize=1.0
+	makesym,9
+	oplot,stack_pos[2,*],stack_pos[1,*],color=200,psym=8,symsize=1.0
+
+	;mid_pos=lyman_midplane_pos()
+	;stack_pos=lystack_pos()
+	;div_pos=lydiv_pos()
+
+	;line_path_plots,div_pos[*,20:n(div_pos[0,*])],/thick, /vessel,/notor,ps=ps
+	
+	;makesym,9
+	;oplot,mid_pos[2,*],mid_pos[1,*],color=200,psym=8,symsize=1.0
+	;makesym,9
+	;oplot,stack_pos[2,*],stack_pos[1,*],color=200,psym=8,symsize=1.0
+
+END
+
+PRO axuv_midplane_gpv_test,load=load,det=det,noplot=noplot,debug=debug
+	IF NOT keyword_set(det) THEN det=10
+	nx=180
+	ny=50	
+
+	ves_grid=grid_ves(nx=nx,ny=ny,zrange=[-0.1,0.1])
+	ves_cent=grid_ves(nx=nx,ny=ny,zrange=[-0.1,0.1],/cent)
+	gpv=axuv_midplane_gpv(ves_grid,n_ap=7,n_det=7,load=load)
+	pos=axuv_midplane_pos(etendue=etendue)
+	IF NOT keyword_set(noplot) THEN $
+		genpos_gpv2contour,gpv,ves_cent,det=det,nlevels=nlevels,pos=reform(pos[*,det]),cct=cct,win=win,ps=ps,div=div
+
+
+	IF NOT keyword_set(noplot) THEN BEGIN
+		gpv_det=genpos_gpv_zsum(reform(gpv[det,*]),ves_cent,rpts=rpts)
+		IF NOT keyword_set(ps) THEN wset,0
+		plot, rpts,gpv_det,xr=[pos[2,det]-0.05,pos[2,det]+0.05]
+		IF det NE 0 AND det NE 22 THEN BEGIN
+			gpv_det=genpos_gpv_zsum(reform(gpv[det-1,*]),ves_cent,rpts=rpts)
+			oplot,rpts,gpv_det,color=100,linestyle=2
+		ENDIF
+		IF det NE 21 AND det NE 43 THEN BEGIN
+			gpv_det=genpos_gpv_zsum(reform(gpv[det+1,*]),ves_cent,rpts=rpts)
+			oplot,rpts,gpv_det,color=100,linestyle=2
+		ENDIF
+	ENDIF
+	IF keyword_set(debug) THEN stop
+	IF keyword_set(ps) THEN BEGIN
+;		psc
+;		spawn, 'cp idl.ps /home/mlreinke/idl/plots/axuv_midplane_gpv_test.ps'
+	ENDIF
+END
+
+PRO foil_midplane_gpv_test,load=load,det=det,noplot=noplot,debug=debug
+	IF NOT keyword_set(det) THEN det=10
+	nx=180
+	ny=50	
+
+	ves_grid=grid_ves(nx=nx,ny=ny,zrange=[-0.05,0.15])
+	ves_cent=grid_ves(nx=nx,ny=ny,zrange=[-0.05,0.15],/cent)
+	gpv=foil_midplane_gpv(ves_grid,n_ap=8,n_det=8,load=load,/quiet)
+	pos=foil_midplane_pos(etendue=etendue)
+	IF NOT keyword_set(noplot) THEN $
+		genpos_gpv2contour,gpv,ves_cent,det=det,nlevels=nlevels,cct=cct,win=win,ps=ps,div=div
+
+
+	IF NOT keyword_set(noplot) THEN BEGIN
+		gpv_det=genpos_gpv_zsum(reform(gpv[det,*]),ves_cent,rpts=rpts)
+		IF NOT keyword_set(ps) THEN wset,0
+		plot, rpts,gpv_det,xr=[pos[2,det]-0.1,pos[2,det]+0.1]
+		IF det NE 0 AND det NE 15 THEN BEGIN
+			gpv_det=genpos_gpv_zsum(reform(gpv[det-1,*]),ves_cent,rpts=rpts)
+			oplot,rpts,gpv_det,color=100,linestyle=2
+		ENDIF
+		IF det NE 16 AND det NE 23 THEN BEGIN
+			gpv_det=genpos_gpv_zsum(reform(gpv[det+1,*]),ves_cent,rpts=rpts)
+			oplot,rpts,gpv_det,color=100,linestyle=2
+		ENDIF
+	ENDIF
+	IF keyword_set(debug) THEN stop
+	IF keyword_set(ps) THEN BEGIN
+;		psc
+;		spawn, 'cp idl.ps /home/mlreinke/idl/plots/foil_midplane_gpv_test.ps'
+	ENDIF
+END 
+
+
+
+
+
+
+PRO zstack_gpv_test,det=det,noplot=noplot,load=load,ps=ps,debug=debug
+	IF NOT keyword_set(det) THEN det=10
+	nx=150
+	ny=50
+	
+
+	ves_grid=grid_ves(nx=nx,ny=ny,zrange=[0.025,0.30])
+	ves_cent=grid_ves(nx=nx,ny=ny,zrange=[0.025,0.30],/cent)
+	gpv=zstack_gpv(ves_grid,n_ap=10,n_det=10,load=load,array=[2,4,5])
+	pos=zstack_pos(etendue=etendue,array=[2,4,5])
+	IF NOT keyword_set(noplot) THEN BEGIN
+		genpos_gpv2contour,gpv,ves_cent,det=det,nlevels=nlevels,cct=cct,win=win,ps=ps,div=div,/fsplot
+	ENDIF
+
+	IF NOT keyword_set(noplot) AND n(det) EQ 0 THEN BEGIN
+		gpv_det=genpos_gpv_zsum(reform(gpv[det[0],*]),ves_cent,rpts=rpts)
+		IF NOT keyword_set(ps) THEN wset,0
+		plot, rpts,gpv_det,xr=[pos[2,det[0]]-0.05,pos[2,det[0]]+0.05],/xsty,xtit='R (m)', ytit='Volume (m!u3!n)',$
+				tit='CH '+num2str(det[0],1)+' Res Compare',chars=1.3
+		xyouts,pos[2,det[0]]-0.04,max(gpv_det)*0.8,'U='+num2str(etendue[det[0]])+' m!u2!n str',chars=1.3
+		IF det[0] NE 0 AND det[0] NE 22 AND det[0] NE 44 THEN BEGIN
+			gpv_det=genpos_gpv_zsum(reform(gpv[det[0]-1,*]),ves_cent,rpts=rpts)
+			oplot,rpts,gpv_det,color=100,linestyle=2
+		ENDIF
+		IF det[0] NE 21 AND det[0] NE 43 AND det[0] NE 63 THEN BEGIN
+			gpv_det=genpos_gpv_zsum(reform(gpv[det[0]+1,*]),ves_cent,rpts=rpts)
+			oplot,rpts,gpv_det,color=100,linestyle=2
+		ENDIF
+		IF NOT keyword_set(ps) THEN wset,1
+		gpv_det=genpos_gpv_zslice(reform(gpv[det[0],*]),ves_cent,pos[2,det[0]],zpts=zpts,dr=0.025)
+		plot, zpts,gpv_det,xr=[pos[1,det[0]]-0.1,pos[1,det[0]]+0.1],/nodata,/xsty,xtit='Z (m)', ytit='Volume (m!u3!n)',$
+				tit='CH '+num2str(det[0],1)+' Res Compare',chars=1.3
+		oplot,zpts,gpv_det
+	ENDIF
+	IF NOT keyword_set(ps) THEN openwin,2
+	FOR i=0,n(det) DO genpos_gpv2psith,gpv,ves_cent,pos=pos,det=det[i],ps=ps,shot=1050426022,time=1.0
+	IF keyword_set(debug) THEN stop
+
+	IF keyword_set(ps) THEN BEGIN
+;		psc
+;		spawn, 'cp idl.ps /home/mlreinke/idl/plots/zstack_gpv_test.ps'
+	ENDIF
+END
+
+
+
+
+PRO axuvdiv_gpv_test,det=det,noplot=noplot,load=load,ps=ps,debug=debug,div=div
+	IF NOT keyword_set(det) THEN det=10
+	nx=100
+	ny=100
+	
+
+	ves_grid=grid_ves(nx=nx,ny=ny,zrange=[-0.5,-0.15],rr=[0.45,0.75])
+	ves_cent=grid_ves(nx=nx,ny=ny,zrange=[-0.5,-0.15],rr=[0.45,0.75],/cent)
+	gpv=axuv_div_gpv(ves_grid,n_ap=6,n_det=6,load=load,array=[2])
+	pos=axuv_div_pos(etendue=etendue,array=[2])
+	IF NOT keyword_set(noplot) THEN $
+		genpos_gpv2contour,gpv,ves_cent,det=det,nlevels=nlevels,cct=cct,win=win,ps=ps,div=div
+
+	IF keyword_set(debug) THEN stop
+
+	IF keyword_set(ps) THEN BEGIN
+;		psc
+;		spawn, 'cp idl.ps /home/mlreinke/idl/plots/lystack_gpv_test.ps'
+	ENDIF
+END
+
+
+
+
+PRO axuv_inst,ps=ps, shot=shot,time=time
+	
+	IF NOT keyword_set(shot) THEN shot=1050426022
+	IF NOT keyword_set(time) THEN time=1.0
+
+	mid_pos=axuv_midplane_pos()
+	stack_pos=zstack_pos(array=2)
+	div_pos=axuv_div_pos()
+
+	line_path_plots,div_pos,/thick, ps=ps
+	
+	makesym,9
+	oplot,mid_pos[2,0:21],mid_pos[1,0:21],color=200,psym=8,symsize=1.0
+	oplot,mid_pos[2,22:43],mid_pos[1,22:43]-0.025,color=200,psym=8,symsize=1.0
+	makesym,9
+	oplot,stack_pos[2,*],stack_pos[1,*],color=200,psym=8,symsize=1.0
+END
+
+PRO etendue_compare
+
+	;aport
+	xo=-7.037
+	yo=-1.099
+	alpha=19.586*!pi/180
+
+	x_ch=0.2
+	a_det=0.1*0.4
+	a_ap=0.1512*0.5039
+
+	ch_i=make(0,21,22)
+	a=(ch_i-10.5)*x_ch
+	xi=xo-a*sin(alpha)
+	yi=yo+a*cos(alpha)
+	
+	th=atan(yi/(-xi))
+	d=sqrt(xi^2+yi^2)
+	phi=th+alpha
+
+	U_a=a_ap*a_det*cos(phi)*cos(th)/d^2/100.0^2
+	pos=axuv_midplane_pos(etendue=U)
+	stop
+	
+	;aport
+	xo=-5.5
+	yo=-0.2
+	alpha=0.0
+
+	x_ch=0.2
+	a_det=0.1*0.4
+	a_ap=0.1242*0.3976
+
+	ch_i=make(0,21,22)
+	a=(ch_i-10.5)*x_ch
+	xi=xo-a*sin(alpha)
+	yi=yo+a*cos(alpha)
+	
+	th=atan(yi/xi)
+	d=sqrt(xi^2+yi^2)
+	phi=th+alpha
+
+	U_j=a_ap*a_det*cos(phi)*cos(th)/d^2/100.0^2
+
+	pos=axuv_midplane_pos(etendue=U)
+
+	plot, (U-[U_a,U_j])/U*100,ytit='% diff'
+
+END
+
+;this script plots an AXA brightness profile from experimental data
+;and overplots the brightness profile from GENPOS given the AXA emissivity
+;profile found using SHELLINVERT
+PRO axuv_inv_compare,shot,time,debug=debug
+	load=1
+	load_emdiode_data,shot,emiss,r,t,array='axa',/tree
+	nx=180
+	ny=50
+	ves_grid=grid_ves(nx=nx,ny=ny,zrange=[-0.2,0.2])
+	ves_cent=grid_ves(nx=nx,ny=ny,zrange=[-0.2,0.2],/cent)
+	gpv=axuv_midplane_gpv(ves_grid,n_ap=7,n_det=7,load=load)
+	pos=axuv_midplane_pos(etendue=u)
+	pos=pos[*,0:21]
+	u=u[0:21]
+	gpv=gpv[0:21,*]
+
+	em_grid=grid_profile(ves_cent,emiss,r,t,shot,tpts=time,/sol)
+	br_gpv=fltarr(22)
+	FOR i=0,21 DO BEGIN
+		tmp=where(gpv[i,*] GT 0)
+		br_gpv[i]=total(gpv[i,tmp]*em_grid[tmp])
+	ENDFOR	
+	
+	load_axuvbr_data,shot,br,rt,br_t,array='axa'
+	br_exp=br[*,ipt(br_t,time)]
+	
+	openwin,0
+	maxpt=max(br_exp)*1.0e-6
+	plot,pos[2,*],br_gpv/u*!pi*4.0*1.0e-6,xtit='R_TANG [m]',ytit='Brightness MW/m!u2!n', tit='GENPOS Brightness from AXA Emissivity',chars=1.3,$
+		xr=[0.60,0.93],yr=[0.0,1.1*maxpt],/xsty,/ysty
+	makesym,10
+	oplot,rt,br_exp*1.0e-6,color=100,psym=8,symsize=1.5
+	xyouts, 0.65,0.3*maxpt,'EXP',chars=1.2
+	oplot, [0.64],[0.31*maxpt],psym=8,color=100
+	xyouts, 0.65,0.2*maxpt,'GENPOS',chars=1.2
+	oplot, [0.63,0.64],[0.21,0.21]*maxpt
+	xyouts, 0.92,0.1*maxpt,'SHOT: '+num2str(shot,1)+' TIME: '+num2str(time,dp=2),orient=90
+
+	IF keyword_set(debug) THEN stop
+END
+
+PRO bolo_inversion, shot, time,order=order,del_i=del_i,eps=eps
+	IF NOT keyword_set(del_i) THEN del_i=51
+	IF NOT keyword_set(order) THEN order=5
+	IF NOT keyword_set(eps) THEN eps=0.01
+	bessel=1.0
+
+	calc_diodebr_data,shot,'axa',br_a,r_a,t,del_i=del_i,good=good_a
+	calc_diodebr_data,shot,'axj',br_j,r_j,t,del_i=del_i,good=good_j
+	
+	i=ipt(t,time)
+	br_a=br_a[*,i]
+	br_j=br_j[*,i]
+
+	openwin,0
+	makesym,10
+	plot, r_j,br_j,psym=8,xr=[0.4,0.92],/xsty,xtit='R!lTANG!n [m]', ytit='Brightness [W/m!u2!n-str]',symsize=1.5,chars=1.3
+	oplot,r_a,br_a,psym=8,color=100,symsize=1.5
+	
+	nx=180
+	ny=50
+	ves_grid=grid_ves(nx=nx,ny=ny,zrange=[-0.1,0.1])
+	ves_cent=grid_ves(nx=nx,ny=ny,zrange=[-0.1,0.1],/cent)
+	gpv=axuv_midplane_gpv(ves_grid,n_ap=7,n_det=7,/load)
+	rhopts=genpos_grid2rmid(ves_cent,shot,tpts=time,/rho)
+	axis=line_getaxis(shot)
+	rmid=line_getrmid(shot)
+	efit_times=line_gettimes(shot)
+	efit_i=ipt(efit_times,time[0])
+	Ro=axis[efit_i,0]
+	a=rmid[efit_i,n(rmid[0,*])]-rmid[efit_i,0]
+
+	gpv_a=gpv[where(good_a EQ 1),*]
+	coef_0_matrix=genpos_gpv2coef_matrix(gpv_a,rhopts,order,debug=debug,bessel=bessel)
+	coefs_0=la_invert(transpose(coef_0_matrix)#coef_0_matrix,/double)#transpose(coef_0_matrix)#br_a[where(good_a EQ 1)]
+	em_fit_a=genpos_coefs2profile(coefs_0,bessel=bessel,nr=nr)
+	r_fit_a=make(0,1,nr)*a+Ro
+
+	gpv_j=gpv[31:43,*]
+	coef_0_matrix=genpos_gpv2coef_matrix(gpv_j,rhopts,order,debug=debug,bessel=bessel)
+	coefs_0=la_invert(transpose(coef_0_matrix)#coef_0_matrix,/double)#transpose(coef_0_matrix)#br_j[9:21]	
+	em_fit_j=genpos_coefs2profile(coefs_0,bessel=bessel,nr=nr)
+	r_fit_j=make(0,1,nr)*a+Ro
+
+	shellinvert,br_a,r_a,em_sh_a,r_sh_a,good=good_a,npts=npts,eps=eps,redge=redge,$
+        	svdout=svdout,brchk=brchk,verb=verb,debug=shell_debug
+	shellinvert,reverse(br_j[9:21]),reverse(r_j[9:21]),em_sh_j,r_sh_j,good=good,npts=npts,eps=eps,redge=redge,$
+        	svdout=svdout,brchk=brchk,verb=verb,debug=shell_debug
+
+
+	openwin,1
+	plot, r_sh_j,em_sh_j,xr=[0.65,0.92]
+	oplot, r_sh_a,em_sh_a,color=100
+
+	openwin,2
+	plot, r_fit_j,em_fit_j,xr=[0.65,0.92]
+	oplot, r_fit_a,em_fit_a,color=100
+
+	stop
+END
+
+;show that an abel integral is the same as line_br and GPV is similar to line_br and abel integral
+PRO diode_brightness, shot, time,debug=debug,gpvload=gpvload
+
+	IF NOT keyword_set(nr) THEN nr=50	
+	axis=line_getaxis(shot)
+	rmid=line_getrmid(shot)
+	efit_times=line_gettimes(shot)
+	efit_i=ipt(efit_times,time[0])
+	Ro=axis[efit_i,0]
+	a=rmid[efit_i,n(rmid[0,*])]-rmid[efit_i,0]
+	rho=make(0.0,1.0,nr)
+	r=make(0,1,nr)*a+Ro
+	;em=1.0e7*(1.0-rho^2)*rho^2+1.0e6*(1.0-rho^2)
+	em=1.0e7*(1.0-rho^8)*rho^4+1.0e6*(1.0-rho^2)
+
+	nx=180
+	ny=50
+	ves_grid=grid_ves(nx=nx,ny=ny,zrange=[-0.1,0.1])
+	ves_cent=grid_ves(nx=nx,ny=ny,zrange=[-0.1,0.1],/cent)
+	gpv=axuv_midplane_gpv(ves_grid,n_ap=7,n_det=7,load=gpvload)
+
+	rpts=ves_cent.pnts[0,*]
+	zpts=ves_cent.pnts[1,*]
+	rmid=efit_rz2rmid(rpts,zpts,time,shot=shot)
+	em_grid=interpol(em,r,rmid)
+
+	br_a=fltarr(22)
+	br_j=fltarr(22)
+	
+	FOR i=0,21 DO BEGIN
+		tmp=where(gpv[i,*] GT 0 AND em_grid GT 0)
+		IF tmp[0] NE -1 THEN br_a[i]=total(gpv[i,tmp]*em_grid[tmp])
+	ENDFOR
+	
+	FOR i=22,43 DO BEGIN
+		tmp=where(gpv[i,*] GT 0 AND em_grid GT 0)
+		IF tmp[0] NE -1 THEN br_j[i-22]=total(gpv[i,tmp]*em_grid[tmp])
+	ENDFOR
+	pos=axuv_midplane_pos(etendue=U)
+
+	br_j_line=fltarr(22)
+	br_a_line=fltarr(22)
+
+
+	nr=1000
+	FOR i=0,21 DO BEGIN
+		rho_int=make((pos[2,i]-Ro)/a,1.0,nr)
+		r_int=rho_int*a+Ro
+		;em_int=1.0e7*(1.0-rho_int^2)*rho_int^2+1.0e6*(1.0-rho_int^2)
+		em_int=1.0e7*(1.0-rho_int^8)*rho_int^4+1.0e6*(1.0-rho_int^2)
+		tmp=where(r_int GT pos[2,i])
+		IF tmp[0] NE -1 THEN br_a_line[i]=2.0*int_tabulated(r_int[tmp],em_int[tmp]*r_int[tmp]/sqrt(r_int[tmp]^2-pos[2,i]^2))
+		br_j_line[i]=line_br(pos[*,i+22],em,r,time,shot,time,n_s=200)
+	ENDFOR
+
+
+	r_j=reform(pos[2,22:43])
+	r_a=reform(pos[2,0:21])
+	openwin,0
+	makesym,10
+	plot, r_j,br_j*1.0e-6/U[22:43],psym=8,xr=[0.4,0.92],/xsty,xtit='R!lTANG!n [m]', ytit='Brightness [MW/m!u2!n-str]',symsize=1.5,chars=1.3
+	oplot,r_a,br_a*1.0e-6/U[0:21],psym=8,color=100,symsize=1.5
+	oplot, r_a,br_a_line*1.0e-6/(4.0*!pi),color=100,linestyle=2
+	oplot, r_j,br_j_line*1.0e-6/(4.0*!pi),linestyle=2
+	
+	npts=34
+	redge=max(r_a*1.05)
+	eps=0.01
+
+	shellinvert,br_a_line,r_a,em_a_line,r_a_line,npts=npts,eps=eps,redge=redge
+	shellinvert,br_j_line,r_j,em_j_line,r_j_line,npts=npts,eps=eps,redge=redge
+	shellinvert,br_a*4.0*!pi/U[0:21],r_a,em_a_gpv,r_a_gpv,npts=npts,eps=eps,redge=redge
+	shellinvert,br_j*4.0*!pi/U[22:43],r_j,em_j_gpv,r_j_gpv,npts=npts,eps=eps,redge=redge
+	
+	
+	openwin,1
+	plot, r,em*1.0e-6,xr=[ro,0.92],/xsty,xtit='R [m]',ytit='Emissivity [MW/m!u3!n]',chars=1.3	
+	makesym,10
+	oplot, r_a_gpv,em_a_gpv*1.0e-6,psym=8,color=100
+	IF keyword_set(debug) THEN stop	
+
+
+END
+
+
+PRO gpv_inv_check,array,shot,time,debug=debug,gpvload=gpvload,npts=npts,eps=eps,profile=profile,noise=noise
+
+	IF NOT keyword_set(npts) THEN npts=34
+	IF NOT keyword_set(eps) THEN eps=0.01
+	IF NOT keyword_set(profile) THEN profile=1
+	IF NOT keyword_set(nr) THEN nr=50	
+	axis=line_getaxis(shot)
+	rmid=line_getrmid(shot)
+	efit_times=line_gettimes(shot)
+	efit_i=ipt(efit_times,time[0])
+	Ro=axis[efit_i,0]
+	a=rmid[efit_i,n(rmid[0,*])]-rmid[efit_i,0]
+	rho=make(0.0,1.2,nr)
+	r=rho*a+Ro
+	CASE profile OF
+		1 	: em=10.0*(1.0-rho^8)*rho^4+(1.0-rho^2)
+		2	: em=(1.0-rho^8)*rho^4+10.0*(1.0-rho^2)
+		3	: em=(1.0-rho^8)*rho^4+(1.0-rho^2)
+		4	: em=(sin(!pi*rho*5.0)+2.0)*(1.0-rho^2)
+		5	: em=(sin(!pi*rho*10.0)+2.0)*(1.0-rho^2)
+	ENDCASE
+	tmp=where(rho GT 1.0)
+	em[tmp]=0.0
+
+	CASE array OF
+		'axa'	: BEGIN
+			nx=180
+			ny=50
+			ves_grid=grid_ves(nx=nx,ny=ny,zrange=[-0.1,0.1])
+			ves_cent=grid_ves(nx=nx,ny=ny,zrange=[-0.1,0.1],/cent)
+			gpv=axuv_midplane_gpv(ves_grid,n_ap=7,n_det=7,load=gpvload)
+			pos=axuv_midplane_pos(etendue=u)
+			pos=pos[*,0:21]
+			u=u[0:21]
+			gpv=gpv[0:21,*]
+			
+		END
+		'wb2ax'	: BEGIN
+			nx=180
+			ny=50		
+			ves_grid=grid_ves(nx=nx,ny=ny,zrange=[0.025,0.225])
+			ves_cent=grid_ves(nx=nx,ny=ny,zrange=[0.025,0.225],/cent)
+			gpv=zstack_gpv(ves_grid,n_ap=7,n_det=7,load=gpvload,array=4)
+			pos=zstack_pos(etendue=u,array=4)
+		END
+		'wb3ax'	: BEGIN
+			nx=180
+			ny=50		
+			ves_grid=grid_ves(nx=nx,ny=ny,zrange=[-0.225,0.025])
+			ves_cent=grid_ves(nx=nx,ny=ny,zrange=[-0.225,0.025],/cent)
+			gpv=zstack_gpv(ves_grid,n_ap=7,n_det=7,load=gpvload,array=3)
+			pos=zstack_pos(etendue=u,array=3)
+		END
+	ENDCASE	
+
+	rpts=ves_cent.pnts[0,*]
+	zpts=ves_cent.pnts[1,*]
+	rmid=efit_rz2rmid(rpts,zpts,time,shot=shot)
+	em_grid=interpol(em,r,rmid)
+	
+	n_ch=n(u)+1
+	br=fltarr(n_ch)
+	FOR i=0,n_ch-1 DO BEGIN
+		tmp=where(gpv[i,*] GT 0 AND em_grid GT 0)
+		IF tmp[0] NE -1 THEN br[i]=total(gpv[i,tmp]*em_grid[tmp])/u[i]*4.0*!pi
+	ENDFOR
+	rt=reform(pos[2,*])
+	redge=1.01*max(rt)
+	IF keyword_set(noise) THEN br+=randomn(seed,n_ch)*noise/100.0*br
+	shellinvert,br,rt,emiss,r_inv,npts=npts,eps=eps,redge=redge,brchk=brchk
+	r_inv_mid=diode_rz2rmid(shot,r_inv,fltarr(npts)+pos[1,0],time)
+
+
+	openwin,0
+	makesym,10
+	maxpt=max(br)*1.1
+	plot, rt,br,psym=8,xr=[min(rt)*0.9,max(rt)*1.1],/xsty,yr=[0,maxpt],/ysty,xtit='R!lTANG!n [m]', ytit='Brightness',symsize=1.25,chars=1.2,tit='ARRAY: '+array
+	oplot,brchk.rad,brchk.br
+	oplot,[min(rt)+0.015],[maxpt*0.15],psym=8
+	oplot,[min(rt)+0.0125,min(rt)+0.0175],[maxpt,maxpt]*0.1	
+	xyouts,min(rt)+0.025,0.14*maxpt,'GPV-BASED BRIGHT'
+	xyouts,min(rt)+0.025,0.09*maxpt,'SHELLINVERT BRCHK'
+	
+	openwin,1
+	maxpt=max(em)*1.1
+	plot, r,em,xr=[ro,0.92],/xsty,xtit='R [m]',ytit='Emissivity',chars=1.2,psym=8,tit='ARRAY: '+array,yr=[0.0,maxpt],/ysty
+	makesym,10
+	oplot, r_inv_mid,emiss
+	oplot,[ro+0.015],[maxpt*0.15],psym=8
+	oplot,[ro+0.0125,ro+0.0175],[maxpt,maxpt]*0.1
+	xyouts,ro+0.025,0.14*maxpt,'INPUT EMISS'
+	xyouts,ro+0.025,0.09*maxpt,'SHELLINVERT EMISS'
+	xyouts,ro+0.01,maxpt*0.05,'npts='+num2str(npts,1)+' eps='+num2str(eps,dp=3)
+
+	IF keyword_set(debug) THEN stop
+
+
+END
+
+;shows that GENPOS_EMISS_INVERT finds the same emissivity profile as SHELLINVERT
+PRO gpv_abel_compare, shot, time,eps=eps,n_rho=n_rho,load=load,sol=sol,rho_vec=rho_vec,eta=eta
+	IF NOT keyword_set(eps) THEN eps=0.1
+
+	load_emdiode_data,shot,emiss,r,t,array='axa',/tree
+	load_axuvbr_data,shot,br,rt,t,array='axa',/tree
+		
+	nx=180
+	ny=50
+	ves_grid=grid_ves(nx=nx,ny=ny,zrange=[-0.1,0.1])
+	ves_cent=grid_ves(nx=nx,ny=ny,zrange=[-0.1,0.1],/cent)
+	gpv=axuv_midplane_gpv(ves_grid,n_ap=7,n_det=7,load=load)
+	gpv=gpv[0:21,*]
+	pos=axuv_midplane_pos(etendue=U)
+	pos=pos[*,0:21]
+	U=U[0:21]
+
+	ipt=ipt(t,time)
+	power=br[*,ipt]*U/(4.0*!pi)
+	good=intarr(22)+1
+	good[where(power EQ 0)]=0
+
+	out=genpos_emiss_invert(power,gpv,shot,[time],ves_cent,eps=eps,eta=eta,n_rho=n_rho,good=good,sol=sol,rho_vec=rho_vec)
+	rmaj=line_getrmaj(shot,out.rho,out.time)
+	efit_time=line_gettimes(shot)
+	
+	
+	openwin,0
+	plot, r,emiss[*,ipt]*1.0e-6
+	oplot,rmaj[*,ipt(efit_time,time)],out.emiss*1.0e-6,color=100
+	stop
+END
+
+
+PRO axa_axj_compare, shot, time,load=load,plot=plot,esf=esf,del_t=del_t
+
+	load_emdiode_data,shot,emiss,r,t,array='axa',/tree
+	load_axuvbr_data,shot,br_a,rt_a,t_a,array='axa',/tree
+	mdsopen,'spectroscopy',shot
+	del_i=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.AXA:DEL_I')
+	mdsclose,'spectroscopy',shot
+	calc_diodebr_data,shot,'axj',br_j,rt_j,t_j,del_i=del_i
+		
+	nx=180
+	ny=50
+	ves_grid=grid_ves(nx=nx,ny=ny,zrange=[-0.1,0.1])
+	ves_cent=grid_ves(nx=nx,ny=ny,zrange=[-0.1,0.1],/cent)
+	gpv=axuv_midplane_gpv(ves_grid,n_ap=7,n_det=7,load=load)
+	pos=axuv_midplane_pos(etendue=U)
+	ilow=ipt(t,time-del_t/2.0)
+	ihigh=ipt(t,time+del_t/2.0)
+
+	em_grid=grid_profile(ves_cent,sum_array(emiss[*,ilow:ihigh],/i)/(ihigh-ilow+1.0),r,time,shot,tpts=time,/sol)
+	br_gpv=fltarr(22)
+	FOR i=22,43 DO BEGIN
+		tmp=where(gpv[i,*] GT 0)
+		br_gpv[i-22]=total(gpv[i,tmp]*em_grid[tmp])
+	ENDFOR	
+	br_gpv=br_gpv/U[22:43]*!pi*4.0
+	ilow=ipt(t_j,time-del_t/2.0)
+	ihigh=ipt(t_j,time+del_t/2.0)
+	br_j=sum_array(br_j[*,ilow:ihigh],/i)/(ihigh-ilow+1.0)
+	ilow=ipt(t_a,time-del_t/2.0)
+	ihigh=ipt(t_a,time+del_t/2.0)
+	br_a=sum_array(br_a[*,ilow:ihigh],/i)/(ihigh-ilow+1.0)
+	
+	IF keyword_set(plot) THEN BEGIN makesym,10
+		openwin,0
+		maxpt=max(br_gpv) > max(br_j) > max(br_a)
+		plot, [0],[0],xr=[0.40,0.92],yr=[0.0,maxpt*1.1*1.0e-6],/xsty,/ysty,xtit='R_TANG [m]', ytit='Brightness MW/m!u2!n'
+		oplot, rt_j, br_j*1.0e-6,psym=8,symsize=1.5
+		oplot, rt_a, br_a*1.0e-6,psym=8,symsize=1.5,color=100
+		oplot, rt_j, br_gpv*1.0e-6
+
+		openwin,1
+		plot, br_j/br_gpv,psym=-8,/xsty,xtit='AXJ CH #',ytit='Etendue Factor'
+	ENDIF
+	esf=br_j/br_gpv
+END
+
+PRO esf_fill,start=start,stop=stop,load=load,debug=debug,ch=ch
+	IF NOT keyword_set(start) THEN start=0
+	restore, '/home/mlreinke/idl/bolometer/fab_shotlist.dat'
+	save_file='/home/mlreinke/idl/bolometer/esf_data.dat'
+	n_shots=n(shotlist)+1
+	IF NOT keyword_set(stop) THEN stop=n_shots-1
+	IF start EQ 0 AND NOT keyword_set(load) THEN BEGIN
+		esf=fltarr(22,n_shots)
+		prad_2pi=fltarr(n_shots)
+		prf=fltarr(n_shots)
+		ip=fltarr(n_shots)
+		wth=fltarr(n_shots)
+	ENDIF ELSE restore, save_file
+	badshots=[0]
+
+	IF keyword_set(debug) THEN stop
+	IF NOT keyword_set(load) THEN FOR i=start,stop DO BEGIN
+		IF total(where(badshots EQ shotlist[i])) EQ -1 THEN BEGIN
+			print,shotlist[i]
+			load_wth_data,shotlist[i],w,t
+			wth[i]=mean(w[ipt(t,t0[i]):ipt(t,t1[i])])
+			load_ip_data,shotlist[i],curr,t	
+			ip[i]=mean(curr[ipt(t,t0[i]):ipt(t,t1[i])])
+			load_RFnet_data,shotlist[i],p,t
+			prf[i]=mean(p[ipt(t,t0[i]):ipt(t,t1[i])])
+			load_2pi_data,shotlist[i],pd,t,pf,tf
+			prad_2pi[i]=mean(pd[ipt(t,t0[i]):ipt(t,t1[i])])
+			axa_axj_compare,shotlist[i],(t0[i]+t1[i])/2.0,/load,esf=esf_tmp,del_t=t1[i]-t0[i]
+			esf[*,i]=esf_tmp
+			IF i EQ start THEN stop
+			save,shotlist,t0,t1,esf,prad_2pi,prf,ip,wth,hmode,filename=save_file
+		ENDIF
+	ENDFOR
+	IF keyword_set(debug) THEN stop
+	good=intarr(n_shots)+1
+	good[4]=0
+	tmp=where(good EQ 1)
+	wth=wth[tmp]
+	ip=ip[tmp]
+	prf=prf[tmp]
+	prad_2pi=prad_2pi[tmp]
+	esf=esf[*,tmp]	
+	shotlist=shotlist[tmp]
+	hmode=hmode[tmp]
+	t1=t1[tmp]
+	t0=t0[tmp]
+	n_shots=n(shotlist)+1
+	pos=axuv_midplane_pos(etendue=U)
+
+	openwin,0
+	maxpt=max(esf)
+	plot,[0],[0],xr=[0.38,0.91],yr=[0.0,maxpt*1.1],xtit='CH #', ytit='Etendue Scaling Factor',/xsty
+	makesym,10
+	for i=0,n_shots-1 DO IF hmode[i] EQ 'L' THEN oplot,pos[2,22:43],esf[*,i],psym=8,symsize=0.75
+	makesym,10
+	for i=0,n_shots-1 DO IF hmode[i] EQ 'H' THEN oplot,pos[2,22:43],esf[*,i],psym=8,symsize=0.75,color=200
+
+	
+	esf_mean_h=fltarr(22)
+	esf_std_h=fltarr(22)
+	esf_mean_l=fltarr(22)
+	esf_std_l=fltarr(22)
+	intercept_l=fltarr(22)
+	slope_l=fltarr(22)
+	intercept_h=fltarr(22)
+	slope_h=fltarr(22)
+	FOR i=0,21 DO BEGIN
+		tmp=where(hmode EQ 'H')
+		esf_mean_h[i]=mean(esf[i,tmp])
+		esf_std_h[i]=stdev(esf[i,tmp])
+		coefs=poly_fit(wth[tmp]*1.0e-6,esf[i,tmp],1)
+		intercept_h[i]=coefs[0]
+		slope_h[i]=coefs[1]
+		tmp=where(hmode EQ 'L')
+		esf_mean_l[i]=mean(esf[i,tmp])
+		esf_std_l[i]=stdev(esf[i,tmp])		
+		coefs=poly_fit(wth[tmp]*1.0e-6,esf[i,tmp],1)
+		intercept_l[i]=coefs[0]
+		slope_l[i]=coefs[1]
+	ENDFOR
+	openwin,1
+	plot,[0],[0],xr=[0.38,0.91],yr=[0.0,maxpt*1.1],xtit='R_TANG [m]', ytit='Etendue Scaling Factor',/xsty,chars=1.3
+	oploterror, pos[2,22:43],esf_mean_h,esf_std_h,psym=8,color=200
+	oploterror, pos[2,22:43],esf_mean_l,esf_std_l,psym=8
+	                                                                                                                                               
+
+;	openwin,2
+;	plot, pos[2,22:43],slope_l,psym=-8,ytit='ESF/MJ'
+;	oplot,pos[2,22:43],slope_h,color=200,psym=-8
+
+	openwin,2
+	IF NOT keyword_set(ch) THEN ch=10
+	wth*=1.0e-6
+	l=where(hmode EQ 'L')
+	h=where(hmode EQ 'H')
+	plot, wth[l],esf[ch,l],psym=8,tit='CH #'+num2str(ch,1)+' RTANG='+num2str(pos[2,ch],dp=2),xtit='WTH [MJ]',ytit='ESF',xr=[0.0,0.15],/xsty
+	oplot, wth[l],wth[l]*slope_l[ch]+intercept_l[ch]
+	oplot, wth[h],esf[ch,h],psym=8,color=200
+	oplot, wth[h],wth[h]*slope_h[ch]+intercept_h[ch],color=200
+	stop
+
+	
+END	
+
+
+PRO thick_ap,n_ap=n_ap,n_det=n_det
+	IF NOT keyword_set(n_ap) THEN n_ap=[60,10]
+	IF NOT keyword_set(n_det) THEN n_det=[10,5]
+	path='/home/mlreinke/idl/genie/data/info/axuv/axuv_midplane_1.info'
+	info=genpos_planar_info(path)
+	upos=genpos_planar2upos(info,t=0.01*25.4/1.0e3,clear=clear,n_ap=n_ap,n_det=n_det)
+	upos_a=fltarr(22)
+	FOR i=0,21 DO upos_a[i]=total(upos.du[*,i]*clear[*,i])
+	pos=axuv_midplane_pos(etendue=u,umod=umod)
+	u_mod_a=umod[0:21]
+	u_a=u[0:21]
+
+	path='/home/mlreinke/idl/genie/data/info/axuv/axuv_midplane_2.info'
+	info=genpos_planar_info(path)
+	upos=genpos_planar2upos(info,t=0.01*25.4/1.0e3,clear=clear,n_ap=n_ap,n_det=n_det)
+	upos_j=fltarr(22)
+	FOR i=0,21 DO upos_j[i]=total(upos.du[*,i]*clear[*,i])
+	u_mod_j=umod[22:43]
+	u_j=u[22:43]
+
+	maxpt=max(u_j) > max(u_a)
+	ch=indgen(22)+1
+	plot, [0],[0],xr=[0,23],/xsty,yr=[0,maxpt*1.1],/ysty,xtit='CH #', ytit='Etendue [m!u2!n-str]', tit='Finite Aperture Effects t = 0.010"',chars=1.2
+	oplot, ch, u_a,color=100,thick=3.0
+	oplot, ch, upos_a,color=100,psym=8,symsize=1.3
+	oplot, ch, u_a*u_mod_a,color=100,linestyle=2,thick=3.0
+	oplot, ch, u_j,color=00,thick=3.0
+	oplot, ch, upos_j,color=00,psym=8,symsize=1.3
+	oplot, ch, u_j*u_mod_j,color=00,linestyle=2,thick=3.0
+	
+	xyouts, 15, 2.0e-9, 'n!lAP!n = ['+num2str(n_ap[0],1)+', '+num2str(n_ap[1],1)+']',chars=1.3
+	xyouts, 15, 1.5e-9, 'n!lDET!n = ['+num2str(n_det[0],1)+', '+num2str(n_det[1],1)+']',chars=1.3
+	
+	oplot, [3,4],[25,25]*1.0e-10,thick=2
+	oplot, [3,4],[20,20]*1.0e-10,thick=2,linestyle=2
+	oplot, [3.5],[15]*1.0e-10, psym=8
+	xyouts, 5,24*1.0e-10,'THIN',chars=1.2
+	xyouts, 5,19*1.0e-10, 'THICK - EQ',chars=1.2
+	xyouts, 5,14*1.0e-10, 'THICK - GENPOS',chars=1.2
+	stop
+END
+
+
+PRO wb_emiss,shot,t1,t2,debug=debug,load=load,eps=eps,npts=npts
+	IF NOT keyword_set(tr) THEN tr=0.01
+	time=0.5*(t1+t2)
+	tr=(t2-t1)/2.0
+	mdsopen,'spectroscopy',shot
+	zaxa=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.AXA:Z_O')
+	zaxj=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.AXJ:Z_O')
+	z1=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB1AX:Z_O')
+	z2=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB2AX:Z_O')
+	z3=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB3AX:Z_O')
+	mdsclose,'spectroscopy',shot
+	axis=line_getaxis(shot)
+	efit_time=line_gettimes(shot)
+	raxis=mean(axis[ipt(efit_time,t1):ipt(efit_time,t2),0])
+
+	;load wall box #1 data
+	calc_emdiode_data,shot,'wb1ax',emiss,r1,t,bright=br,rt=rt1ax,brchk=brchk,eps=eps,npts=npts
+	i_low=ipt(t,time-tr/2.0)
+	i_high=ipt(t,time+tr/2.0)
+	br1=sum_array(br[*,i_low:i_high],/i)/(i_high-i_low+1)*1.0e-6
+	em1=sum_array(emiss[*,i_low:i_high],/i)/(i_high-i_low+1)*1.0e-6
+	brchk1=sum_array(brchk.br[*,i_low:i_high],/i)/(i_high-i_low+1)*1.0e-6
+	r_chk1=brchk.rad
+	rmid1=efit_rz2rmid(r1,fltarr(n(r1)+1)+z1,time,shot=shot)
+	print, 'WB1AX - Loaded'
+
+	;load wall box #2 data
+	calc_emdiode_data,shot,'wb2ax',emiss,r2,t,bright=br,rt=rt2ax,brchk=brchk,eps=eps,npts=npts
+	i_low=ipt(t,time-tr/2.0)
+	i_high=ipt(t,time+tr/2.0)
+	br2=sum_array(br[*,i_low:i_high],/i)/(i_high-i_low+1)*1.0e-6
+	em2=sum_array(emiss[*,i_low:i_high],/i)/(i_high-i_low+1)*1.0e-6
+	brchk2=sum_array(brchk.br[*,i_low:i_high],/i)/(i_high-i_low+1)*1.0e-6
+	r_chk2=brchk.rad
+	rmid2=efit_rz2rmid(r2,fltarr(n(r2)+1)+z2,time,shot=shot)
+	print, 'WB2AX - Loaded'
+
+	;load wall box #3 data
+	calc_emdiode_data,shot,'wb3ax',emiss,r3,t,bright=br,rt=rt3ax,brchk=brchk,eps=eps,npts=npts
+	i_low=ipt(t,time-tr/2.0)
+	i_high=ipt(t,time+tr/2.0)
+	br3=sum_array(br[*,i_low:i_high],/i)/(i_high-i_low+1)*1.0e-6
+	em3=sum_array(emiss[*,i_low:i_high],/i)/(i_high-i_low+1)*1.0e-6
+	brchk3=sum_array(brchk.br[*,i_low:i_high],/i)/(i_high-i_low+1)*1.0e-6
+	r_chk3=brchk.rad
+	rmid3=efit_rz2rmid(r3,fltarr(n(r3)+1)+z3,time,shot=shot)
+	print, 'WB3AX - Loaded'
+
+	;load AXJ data
+	calc_emdiode_data,shot,'axj',emiss,raxj,t,bright=br,rt=rtaxj,brchk=brchk,eps=eps,npts=npts
+	i_low=ipt(t,time-tr/2.0)
+	i_high=ipt(t,time+tr/2.0)
+	braxj=sum_array(br[*,i_low:i_high],/i)/(i_high-i_low+1)*1.0e-6
+	emaxj=sum_array(emiss[*,i_low:i_high],/i)/(i_high-i_low+1)*1.0e-6
+	brchkaxj=sum_array(brchk.br[*,i_low:i_high],/i)/(i_high-i_low+1)*1.0e-6
+	r_chkaxj=brchk.rad
+	rmidaxj=efit_rz2rmid(raxj,fltarr(n(raxj)+1)+zaxj,time,shot=shot)
+	print, 'AXJ - Loaded'
+
+	load_emdiode_data,shot,emiss,raxa,t,array='axa',brchk=brchk
+	load_axuvbr_data,shot,br,rtaxa,t,array='axa'
+	i_low=ipt(t,time-tr/2.0)
+	i_high=ipt(t,time+tr/2.0)
+	braxa=sum_array(br[*,i_low:i_high],/i)/(i_high-i_low+1)*1.0e-6
+	emaxa=sum_array(emiss[*,i_low:i_high],/i)/(i_high-i_low+1)*1.0e-6
+	brchkaxa=sum_array(brchk.br[*,i_low:i_high],/i)/(i_high-i_low+1)*1.0e-6
+	r_chkaxa=brchk.rad
+	rmidaxa=raxa
+	print, 'AXA - Loaded'
+
+	openwin,0
+	maxpt=max(br1) > max(br2) > max(br3) > max(braxa) > max(braxj)
+	makesym,10
+	plot,[0],[0],xr=[0.4,0.91],yr=[0.0,maxpt*1.1],/xsty,/ysty,xtit='R!lTANG!n [m]',ytit='Brightness [MW/m!u2!n]',tit='Wall Box Brightness Profiles',chars=1.2
+	tmp=where(br1 NE 0)
+	oplot,rt1ax[tmp],br1[tmp],psym=8,color=30
+	oplot,r_chk1,brchk1,color=30
+	tmp=where(br2 NE 0)
+	oplot,rt2ax[tmp],br2[tmp],psym=8,color=100
+	oplot,r_chk2,brchk2,color=100
+	tmp=where(br3 NE 0)
+	oplot,rt3ax[tmp],br3[tmp],psym=8,color=200
+	oplot,r_chk3,brchk3,color=200
+	tmp=where(braxa NE 0)
+	oplot,rtaxa[tmp],braxa[tmp],psym=8
+	oplot,r_chkaxa,brchkaxa
+	tmp=where(braxj NE 0)
+	makesym,9
+	oplot,rtaxj[tmp],braxj[tmp],psym=8
+	oplot,r_chkaxj,brchkaxj,linestyle=2
+	xyouts,0.5,0.1*maxpt,num2str(shot,1)+' t='+num2str((t1+t2)/2.0,dp=3),chars=0.9
+	makesym,10
+
+	xyouts, 0.8,0.95*maxpt,'AXA',chars=1.2
+	xyouts, 0.8,0.9*maxpt,'WB1-AX',chars=1.2,color=30
+	xyouts, 0.8,0.85*maxpt,'WB2-AX',chars=1.2,color=100
+	xyouts, 0.8,0.8*maxpt,'WB3-AX',chars=1.2,color=200
+	oplot, [0.44,0.44],[-1.0*maxpt,maxpt*2.0],linestyle=2,thick=thick
+	oplot, [0.905,0.905],[-1.0*maxpt,maxpt*2.0],linestyle=2,thick=thick	
+	oplot, [0.835,0.835],[-1.0*maxpt,maxpt*2.0],linestyle=2,thick=thick,color=30
+	oplot, [0.875,0.875],[-1.0*maxpt,maxpt*2.0],linestyle=0,thick=thick,color=100
+	oplot, [0.875,0.875],[-1.0*maxpt,maxpt*2.0],linestyle=5,thick=thick,color=200
+
+	openwin,1
+	maxpt=max(em1) > max(em2) > max(em3) > max(emaxa)
+	plot,[0],[0],xr=[0.44,0.92],yr=[0.0,maxpt*1.1],/xsty,/ysty,xtit='R [m]',ytit='Emissivity [MW/m!u3!n]',tit='Emissivity',chars=1.2
+	oplot, raxa,emaxa,thick=2.0
+	oplot, r1,em1,color=30,thick=2.0
+	oplot, r2,em2,color=100,thick=2.0
+	oplot, r3,em3,color=200,thick=2.0
+	oplot, raxj,emaxj,thick=2.0,linestyle=2
+	xyouts, 0.68,0.25*maxpt,'AXA',chars=1.2	
+	xyouts, 0.68,0.2*maxpt,'WB1-AX',chars=1.2,color=30
+	xyouts, 0.68,0.15*maxpt,'WB2-AX',chars=1.2,color=100
+	xyouts, 0.68,0.1*maxpt,'WB3-AX',chars=1.2,color=200
+	oplot, [0.44,0.44],[-1.0*maxpt,maxpt*2.0],linestyle=2,thick=thick
+	oplot, [0.905,0.905],[-1.0*maxpt,maxpt*2.0],linestyle=2,thick=thick	
+	oplot, [0.835,0.835],[-1.0*maxpt,maxpt*2.0],linestyle=2,thick=thick,color=30
+	oplot, [0.875,0.875],[-1.0*maxpt,maxpt*2.0],linestyle=0,thick=thick,color=100
+	oplot, [0.875,0.875],[-1.0*maxpt,maxpt*2.0],linestyle=5,thick=thick,color=200
+	xyouts,0.5,0.95*maxpt,num2str(shot,1)+' t='+num2str((t1+t2)/2.0,dp=3),chars=0.9
+
+	openwin,2
+	maxpt=max(em1) > max(em2) > max(em3) > max(emaxa)
+	plot,[0],[0],xr=[raxis-0.02,0.92],yr=[0.0,maxpt*1.1],/xsty,/ysty,xtit='R [m]',ytit='Emissivity [MW/m!u3!n]',tit='Emissivity Mapped to Midplane',chars=1.2
+	oplot, rmidaxa,emaxa,thick=2.0
+	oplot, rmid1,em1,color=30,thick=2.0
+	oplot, rmid2,em2,color=100,thick=2.0
+	oplot, rmid3,em3,color=200,thick=2.0
+	oplot, rmidaxj,emaxj,thick=2.0,linestyle=2
+	xyouts, 0.79,0.25*maxpt,'AXA',chars=1.2
+	xyouts, 0.79,0.2*maxpt,'WB1-AX',chars=1.2,color=30
+	xyouts, 0.79,0.15*maxpt,'WB2-AX',chars=1.2,color=100
+	xyouts, 0.79,0.1*maxpt,'WB3-AX',chars=1.2,color=200
+	xyouts,0.7,0.1*maxpt,num2str(shot,1)+' t='+num2str((t1+t2)/2.0,dp=3),chars=0.9
+
+	vessel_plot,d_old=d_old,title=num2str(shot,1)+' t='+num2str((t1+t2)/2.0,dp=3)
+	fs_plot,shot,time
+	tmp=where(braxa NE 0)
+	oplot,rtaxa[tmp],fltarr(n(rtaxa[tmp])+1)+zaxa,psym=8,symsize=1.5
+	tmp=where(braxj NE 0)
+	makesym,9
+	oplot,rtaxj[tmp],fltarr(n(rtaxj[tmp])+1)+zaxj,psym=8,symsize=1.5
+	makesym,10
+	tmp=where(br1 NE 0)
+	oplot,rt1ax[tmp],fltarr(n(rt1ax[tmp])+1)+z1,psym=8,symsize=1.5,color=30
+	tmp=where(br2 NE 0)
+	oplot,rt2ax[tmp],fltarr(n(rt2ax[tmp])+1)+z2,psym=8,symsize=1.5,color=100
+	tmp=where(br3 NE 0)	
+	oplot,rt3ax[tmp],fltarr(n(rt3ax[tmp])+1)+z3,psym=8,symsize=1.5,color=200
+	IF !d.name EQ 'PS' THEN device, xsize=float(d_old.x_size)/d_old.x_px_cm,ysize=float(d_old.y_size)/d_old.y_px_cm
+	IF keyword_set(debug) THEN stop
+END
+
+PRO mid2wb_bright,shot,t1,t2,noly2=noly2,noly3=noly3,nolim=nolim,debug=debug,noaxj=noaxj
+	IF !d.name EQ 'PS' THEN ps=1
+	mdsopen,'spectroscopy',shot
+	z1ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB1AX:Z_O')
+	z2ly=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB2LY:Z_O')
+	z2ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB2AX:Z_O')
+	z3ly=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB3LY:Z_O')
+	z3ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB3AX:Z_O')
+	zaxa=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.AXA:Z_O')
+	zaxj=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.AXJ:Z_O')
+	u1ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB1AX:u')
+	u2ly=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB2LY:u')
+	u2ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB2AX:u')
+	u3ly=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB3LY:u')
+	u3ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB3AX:u')
+	uaxa=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.AXA:u')
+	uaxj=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.AXJ:u')
+	mdsclose,'spectroscopy',shot
+
+	ves_grid=grid_ves(nx=120,ny=180)
+	ves_cent=grid_ves(nx=120,ny=180,/cent)
+	gpv=zstack_gpv(ves_grid,n_ap=8,n_det=8,/load)
+	gpv_pos=zstack_pos(etendue=u_z)
+	u_z_th=[u1ax,u1ax,u3ax,u2ax,u2ly,u3ly]
+	n_ch=n(gpv[*,0])+1
+
+	load_emdiode_data,shot,emiss,r,t,array='axa',/tree
+	emiss=avearray(emiss,t,t1,t2)
+	emgrid=grid_profile(ves_cent,emiss,r,0.5*(t1+t2),shot,tpts=0.5*(t1+t2),/sol)
+	power=fltarr(n_ch)
+	FOR i=0,n_ch-1 DO BEGIN
+		tmp=where(gpv[i,*] NE 0)
+		power[i]=total(gpv[i,tmp]*emgrid[tmp])*u_z_th[i]/u_z[i]
+	ENDFOR
+
+	mid_gpv=axuv_midplane_gpv(ves_grid,n_ap=8,n_det=8,/load)
+	mid_pos=axuv_midplane_pos(etendue=u_mid)
+	mid_power=fltarr(44)
+	FOR i=0,21 DO BEGIN
+		tmp=where(mid_gpv[i,*] NE 0)
+		mid_power[i]=total(mid_gpv[i,tmp]*emgrid[tmp])*uaxa[i]/u_mid[i]
+	ENDFOR	
+	FOR i=22,43 DO BEGIN
+		tmp=where(mid_gpv[i,*] NE 0)
+		mid_power[i]=total(mid_gpv[i,tmp]*emgrid[tmp])*uaxj[i-22]/u_mid[i]
+	ENDFOR
+
+	load_axuvbr_data,shot,br2ax,r2ax,t,array='wb2ax',good=good2ax
+	br2ax=avearray(br2ax,t,t1,t2)
+	load_axuvbr_data,shot,br2ly,r2ly,t,array='wb2ly',good=good2ly
+	br2ly=avearray(br2ly,t,t1,t2)
+	load_axuvbr_data,shot,br3ax,r3ax,t,array='wb3ax',good=good3ax
+	br3ax=avearray(br3ax,t,t1,t2)
+	load_axuvbr_data,shot,br3ly,r3ly,t,array='wb3ly',good=good3ly
+	br3ly=avearray(br3ly,t,t1,t2)
+	load_axuvbr_data,shot,br1ax,r1ax,t,array='wb1ax',good=good1ax
+	br1ax=avearray(br1ax,t,t1,t2)
+	load_axuvbr_data,shot,braxa,raxa,t,array='axa',good=goodaxa
+	braxa=avearray(braxa,t,t1,t2)
+	load_axuvbr_data,shot,braxj,raxj,t,array='axj',good=goodaxj
+	braxj=avearray(braxj,t,t1,t2)
+
+	IF keyword_set(ps) THEN BEGIN
+		symsize=1.0
+		thick=2.0
+		ls=1.0
+	ENDIF ELSE BEGIN
+		openwin,0,xsize=1500,ysize=800
+		symsize=2.0
+		thick=4.0
+		ls=1.5
+	ENDELSE
+	IF keyword_set(noly2) OR keyword_set(noly3) THEN BEGIN
+		maxpt=max(br1ax) > max(br2ax) > max(br3ax) > max(braxa) 
+	ENDIF ELSE BEGIN
+		IF keyword_set(nolim) THEN maxpt=max(br1ax) > max(br2ax) > max(br2ly[0:18]) > max(br3ax) > max(br3ly[0:18]) > max(braxa) ELSE $
+		maxpt=max(br1ax) > max(br2ax) > max(br2ly) > max(br3ax) > max(br3ly) > max(braxa)
+	ENDELSE
+	plot, [0],[0], xr=[0.4,0.92],/xsty,yr=[0,maxpt*1.1],xtit='R!lTANG!n [m]', ytit='Brightness [W/m!u2!n]',/ysty,chars=1.2*ls,$
+		tit='SHOT '+num2str(shot,1)+' TIME: ('+num2str(t1,dp=2)+','+num2str(t2,dp=2)+')'
+	makesym,10
+	tmp=where(goodaxa NE 0)
+	oplot,raxa[tmp], braxa[tmp],psym=8,symsize=symsize
+	oplot,raxa,mid_power[0:21]/(uaxa)*4.0*!pi,thick=2.0
+	tmp=where(good1ax NE 0)
+	oplot,r1ax[tmp], br1ax[tmp],psym=8,color=30,symsize=symsize
+	oplot,r1ax,power[22:43]/(u1ax)*4.0*!pi,color=30,thick=2.0
+	tmp=where(good2ax NE 0)
+	oplot,r2ax[tmp], br2ax[tmp],psym=8,color=100,symsize=symsize
+	oplot,r2ax,power[66:87]/(u2ax)*4.0*!pi,color=100,thick=2.0
+	tmp=where(good3ax NE 0)
+	oplot,r3ax[tmp], br3ax[tmp],psym=8,color=200,symsize=symsize
+	oplot,r3ax,power[44:65]/(u3ax)*4.0*!pi,color=200,thick=2.0
+	
+	IF NOT keyword_set(noly3) OR NOT keyword_set(noly2) THEN BEGIN
+		makesym,9
+		IF NOT keyword_set(noly2) THEN BEGIN
+			tmp=where(good2ly NE 0)		
+			oplot,r2ly[tmp], br2ly[tmp],psym=8,color=100,symsize=symsize
+			oplot,r2ly,power[88:107]/(u2ly)*4.0*!pi,color=100,linestyl=2.0
+		ENDIF
+		IF NOT keyword_set(noly3) THEN BEGIN
+			tmp=where(good3ly NE 0)
+			oplot,r3ly[tmp], br3ly[tmp],psym=8,color=200,symsize=symsize
+			oplot,r3ly,power[108:127]/(u3ly)*4.0*!pi,color=200,linestyl=2.0
+		ENDIF
+		makesym,10
+	ENDIF
+	IF NOT keyword_set(noaxj) THEN BEGIN
+		makesym,9
+		tmp=where(goodaxj NE 0)		
+		oplot,raxj[tmp], braxj[tmp],psym=8,symsize=symsize
+		oplot,raxj,mid_power[22:43]/(uaxj)*4.0*!pi,linestyl=2.0
+		makesym,10
+	ENDIF
+
+	oplot, [0.44,0.44],[-1.0*maxpt,maxpt*2.0],linestyle=2,thick=thick
+	oplot, [0.905,0.905],[-1.0*maxpt,maxpt*2.0],linestyle=2,thick=thick	
+	oplot, [0.835,0.835],[-1.0*maxpt,maxpt*2.0],linestyle=2,thick=thick,color=30
+	oplot, [0.875,0.875],[-1.0*maxpt,maxpt*2.0],linestyle=0,thick=thick,color=100
+	oplot, [0.875,0.875],[-1.0*maxpt,maxpt*2.0],linestyle=5,thick=thick,color=200
+	xyouts,0.75,1.0*maxpt,'MID',chars=1.2*ls
+	xyouts,0.75,0.93*maxpt,'WB1',color=30,chars=1.2*ls
+	xyouts,0.75,0.86*maxpt,'WB2',color=100,chars=1.2*ls	
+	xyouts,0.75,0.79*maxpt,'WB3',color=200,chars=1.2*ls	
+
+	vessel_plot,d_old=d_old
+	fs_plot,shot,(t1+t2)*0.5
+	tmp=where(braxa GT 0)
+	oplot,raxa[tmp],fltarr(n(raxa[tmp])+1)+zaxa,psym=8,symsize=1.5
+	tmp=where(br1ax GT 0)
+	oplot,r1ax[tmp],fltarr(n(r1ax[tmp])+1)+z1ax,psym=8,symsize=1.5,color=30
+	tmp=where(br2ax GT 0)
+	oplot,r2ax[tmp],fltarr(n(r2ax[tmp])+1)+z2ax,psym=8,symsize=1.5,color=100
+	tmp=where(br3ax GT 0)	
+	oplot,r3ax[tmp],fltarr(n(r3ax[tmp])+1)+z3ax,psym=8,symsize=1.5,color=200
+	IF NOT keyword_set(noly2) OR NOT keyword_set(noly3) THEN BEGIN
+		makesym,9
+		IF NOT keyword_set(noly2) THEN BEGIN
+			tmp=where(br2ly GT 0)
+			oplot,r2ly[tmp],fltarr(n(r2ly[tmp])+1)+z2ly,psym=8,symsize=1.5,color=100
+		ENDIF
+		IF NOT keyword_set(noly3) THEN BEGIN
+			tmp=where(br3ly GT 0)	
+			oplot,r3ly[tmp],fltarr(n(r3ly[tmp])+1)+z3ly,psym=8,symsize=1.5,color=200
+		ENDIF
+		makesym,10
+	ENDIF
+	IF NOT keyword_set(noaxj) THEN BEGIN
+		makesym,9
+		tmp=where(braxj GT 0)
+		oplot,raxj[tmp],fltarr(n(r2ly[tmp])+1)+zaxj,psym=8,symsize=1.5
+		makesym,10
+	ENDIF		
+	IF !d.name EQ 'PS' THEN device, xsize=float(d_old.x_size)/d_old.x_px_cm,ysize=float(d_old.y_size)/d_old.y_px_cm
+	IF keyword_set(debug) THEN stop
+END
+
+PRO emiss_psith,shot,t1,t2
+	IF !d.name EQ 'PS' THEN ps=1
+	mdsopen,'spectroscopy',shot
+	z1ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB1AX:Z_O')
+	z2ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB2AX:Z_O')
+	z3ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB3AX:Z_O')
+	zaxa=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.AXA:Z_O')
+	u1ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB1AX:u')
+	u2ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB2AX:u')
+	u3ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB3AX:u')
+	uaxa=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.AXA:u')
+	mdsclose,'spectroscopy',shot
+
+	ves_grid=grid_ves(nx=120,ny=180)
+	ves_cent=grid_ves(nx=120,ny=180,/cent)
+	gpv=zstack_gpv(ves_grid,n_ap=8,n_det=8,/load,array=[2,3,4])
+	gpv_pos=zstack_pos(etendue=u_z,array=[2,3,4])
+	u_z_th=[u1ax,u3ax,u2ax]
+	n_ch=n(gpv[*,0])+1
+
+	load_emdiode_data,shot,emiss,r,t,array='axa',/tree
+	emiss=avearray(emiss,t,t1,t2)
+	emgrid=grid_profile(ves_cent,emiss,r,0.5*(t1+t2),shot,tpts=0.5*(t1+t2),/sol)
+	power=fltarr(n_ch)
+	FOR i=0,n_ch-1 DO BEGIN
+		tmp=where(gpv[i,*] NE 0)
+		power[i]=total(gpv[i,tmp]*emgrid[tmp])*u_z_th[i]/u_z[i]		;correct for the finite aperture that isn't built into GPV
+	ENDFOR
+	bright=power/u_z_th*4.0*!pi
+
+	mid_gpv=axuv_midplane_gpv(ves_grid,n_ap=8,n_det=8,/load)
+	mid_pos=axuv_midplane_pos(etendue=u_mid)
+	mid_power=fltarr(22)
+	FOR i=0,21 DO BEGIN
+		tmp=where(mid_gpv[i,*] NE 0)
+		mid_power[i]=total(mid_gpv[i,tmp]*emgrid[tmp])*uaxa[i]/u_mid[i]
+	ENDFOR
+	mid_bright=mid_power/uaxa*4.0*!pi
+
+	load_axuvbr_data,shot,br2ax,r2ax,t,array='wb2ax',good=good2ax
+	br2ax=avearray(br2ax,t,t1,t2)
+	load_axuvbr_data,shot,br3ax,r3ax,t,array='wb3ax',good=good3ax
+	br3ax=avearray(br3ax,t,t1,t2)
+	load_axuvbr_data,shot,br1ax,r1ax,t,array='wb1ax',good=good1ax
+	br1ax=avearray(br1ax,t,t1,t2)
+	load_axuvbr_data,shot,braxa,raxa,t,array='axa',good=goodaxa
+	braxa=avearray(braxa,t,t1,t2)
+
+	IF keyword_set(ps) THEN BEGIN
+		symsize=1.0
+		thick=2.0
+		ls=1.0
+	ENDIF ELSE BEGIN
+		openwin,0,xsize=1500,ysize=800
+		symsize=2.0
+		thick=4.0
+		ls=1.5
+	ENDELSE
+	maxpt=max(br1ax) > max(br2ax) > max(br3ax) > max(braxa) 
+	plot, [0],[0], xr=[0.4,0.92],/xsty,yr=[0,maxpt*1.1],xtit='R!lTANG!n [m]', ytit='Brightness [W/m!u2!n]',/ysty,chars=1.2*ls,$
+		tit='SHOT '+num2str(shot,1)+' TIME: ('+num2str(t1,dp=2)+','+num2str(t2,dp=2)+')'
+	makesym,10
+	tmp=where(goodaxa NE 0)
+	oplot,raxa[tmp], braxa[tmp],psym=8,symsize=symsize
+	oplot,raxa,mid_bright,thick=2.0
+	tmp=where(good1ax NE 0)
+	oplot,r1ax[tmp], br1ax[tmp],psym=8,color=30,symsize=symsize
+	oplot,r1ax,bright[0:21],color=30,thick=2.0
+	tmp=where(good2ax NE 0)
+	oplot,r2ax[tmp], br2ax[tmp],psym=8,color=100,symsize=symsize
+	oplot,r2ax,bright[44:65],color=100,thick=2.0
+	tmp=where(good3ax NE 0)
+	oplot,r3ax[tmp], br3ax[tmp],psym=8,color=200,symsize=symsize
+	oplot,r3ax,bright[22:43],color=200,thick=2.0
+
+
+	oplot, [0.44,0.44],[-1.0*maxpt,maxpt*2.0],linestyle=2,thick=thick
+	oplot, [0.905,0.905],[-1.0*maxpt,maxpt*2.0],linestyle=2,thick=thick	
+	oplot, [0.835,0.835],[-1.0*maxpt,maxpt*2.0],linestyle=2,thick=thick,color=30
+	oplot, [0.875,0.875],[-1.0*maxpt,maxpt*2.0],linestyle=0,thick=thick,color=100
+	oplot, [0.875,0.875],[-1.0*maxpt,maxpt*2.0],linestyle=5,thick=thick,color=200
+	xyouts,0.75,1.0*maxpt,'MID',chars=1.2*ls
+	xyouts,0.75,0.93*maxpt,'WB1',color=30,chars=1.2*ls
+	xyouts,0.75,0.86*maxpt,'WB2',color=100,chars=1.2*ls	
+	xyouts,0.75,0.79*maxpt,'WB3',color=200,chars=1.2*ls	
+
+	vessel_plot,d_old=d_old
+	fs_plot,shot,(t1+t2)*0.5
+	tmp=where(braxa GT 0)
+	oplot,raxa[tmp],fltarr(n(raxa[tmp])+1)+zaxa,psym=8,symsize=1.5
+	tmp=where(br1ax GT 0)
+	oplot,r1ax[tmp],fltarr(n(r1ax[tmp])+1)+z1ax,psym=8,symsize=1.5,color=30
+	tmp=where(br2ax GT 0)
+	oplot,r2ax[tmp],fltarr(n(r2ax[tmp])+1)+z2ax,psym=8,symsize=1.5,color=100
+	tmp=where(br3ax GT 0)	
+	oplot,r3ax[tmp],fltarr(n(r3ax[tmp])+1)+z3ax,psym=8,symsize=1.5,color=200
+	
+	IF !d.name EQ 'PS' THEN device, xsize=float(d_old.x_size)/d_old.x_px_cm,ysize=float(d_old.y_size)/d_old.y_px_cm
+	IF keyword_set(debug) THEN stop
+
+	wb1_bright
+END
+
+PRO wb_bright,shot,t1,t2,noly2=noly2,noly3=noly3,nolim=nolim,debug=debug,noaxj=noaxj
+	IF !d.name EQ 'PS' THEN ps=1
+	mdsopen,'spectroscopy',shot
+	z1ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB1AX:Z_O')
+	z2ly=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB2LY:Z_O')
+	z2ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB2AX:Z_O')
+	z3ly=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB3LY:Z_O')
+	z3ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB3AX:Z_O')
+	zaxa=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.AXA:Z_O')
+	zaxj=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.AXJ:Z_O')
+	u1ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB1AX:u')
+	u2ly=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB2LY:u')
+	u2ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB2AX:u')
+	u3ly=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB3LY:u')
+	u3ax=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB3AX:u')
+	uaxa=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.AXA:u')
+	uaxj=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.AXJ:u')
+	mdsclose,'spectroscopy',shot
+
+
+	load_axuvbr_data,shot,br2ax,r2ax,t,array='wb2ax',good=good2ax
+	br2ax=avearray(br2ax,t,t1,t2)
+	load_axuvbr_data,shot,br2ly,r2ly,t,array='wb2ly',good=good2ly
+	br2ly=avearray(br2ly,t,t1,t2)
+	load_axuvbr_data,shot,br3ax,r3ax,t,array='wb3ax',good=good3ax
+	br3ax=avearray(br3ax,t,t1,t2)
+	load_axuvbr_data,shot,br3ly,r3ly,t,array='wb3ly',good=good3ly
+	br3ly=avearray(br3ly,t,t1,t2)
+	load_axuvbr_data,shot,br1ax,r1ax,t,array='wb1ax',good=good1ax
+	br1ax=avearray(br1ax,t,t1,t2)
+	load_axuvbr_data,shot,braxa,raxa,t,array='axa',good=goodaxa
+	braxa=avearray(braxa,t,t1,t2)
+	load_axuvbr_data,shot,braxj,raxj,t,array='axj',good=goodaxj
+	braxj=avearray(braxj,t,t1,t2)
+
+	IF keyword_set(ps) THEN BEGIN
+		symsize=1.0
+		thick=2.0
+		ls=1.0
+	ENDIF ELSE BEGIN
+		openwin,0,xsize=1500,ysize=800
+		symsize=2.0
+		thick=4.0
+		ls=1.5
+	ENDELSE
+	IF keyword_set(noly2) OR keyword_set(noly3) THEN BEGIN
+		maxpt=max(br1ax) > max(br2ax) > max(br3ax) > max(braxa) 
+	ENDIF ELSE BEGIN
+		IF keyword_set(nolim) THEN maxpt=max(br1ax) > max(br2ax) > max(br2ly[0:18]) > max(br3ax) > max(br3ly[0:18]) > max(braxa) ELSE $
+		maxpt=max(br1ax) > max(br2ax) > max(br2ly) > max(br3ax) > max(br3ly) > max(braxa)
+	ENDELSE
+	plot, [0],[0], xr=[0.4,0.92],/xsty,yr=[0,maxpt*1.1],xtit='R!lTANG!n [m]', ytit='Brightness [W/m!u2!n]',/ysty,chars=1.2*ls,$
+		tit='SHOT '+num2str(shot,1)+' TIME: ('+num2str(t1,dp=2)+','+num2str(t2,dp=2)+')'
+	makesym,10
+	tmp=where(goodaxa NE 0)
+	oplot,raxa[tmp], braxa[tmp],psym=8,symsize=symsize
+	tmp=where(good1ax NE 0)
+	oplot,r1ax[tmp], br1ax[tmp],psym=8,color=30,symsize=symsize
+	tmp=where(good2ax NE 0)
+	oplot,r2ax[tmp], br2ax[tmp],psym=8,color=100,symsize=symsize
+	tmp=where(good3ax NE 0)
+	oplot,r3ax[tmp], br3ax[tmp],psym=8,color=200,symsize=symsize
+	
+	IF NOT keyword_set(noly3) OR NOT keyword_set(noly2) THEN BEGIN
+		makesym,9
+		IF NOT keyword_set(noly2) THEN BEGIN
+			tmp=where(good2ly NE 0)		
+			oplot,r2ly[tmp], br2ly[tmp],psym=8,color=100,symsize=symsize
+		ENDIF
+		IF NOT keyword_set(noly3) THEN BEGIN
+			tmp=where(good3ly NE 0)
+			oplot,r3ly[tmp], br3ly[tmp],psym=8,color=200,symsize=symsize
+		ENDIF
+		makesym,10
+	ENDIF
+	IF NOT keyword_set(noaxj) THEN BEGIN
+		makesym,9
+		tmp=where(goodaxj NE 0)		
+		oplot,raxj[tmp], braxj[tmp],psym=8,symsize=symsize
+		makesym,10
+	ENDIF
+
+	oplot, [0.44,0.44],[-1.0*maxpt,maxpt*2.0],linestyle=2,thick=thick
+	oplot, [0.905,0.905],[-1.0*maxpt,maxpt*2.0],linestyle=2,thick=thick	
+	oplot, [0.835,0.835],[-1.0*maxpt,maxpt*2.0],linestyle=2,thick=thick,color=30
+	oplot, [0.875,0.875],[-1.0*maxpt,maxpt*2.0],linestyle=0,thick=thick,color=100
+	oplot, [0.875,0.875],[-1.0*maxpt,maxpt*2.0],linestyle=5,thick=thick,color=200
+	xyouts,0.75,1.0*maxpt,'MID',chars=1.2*ls
+	xyouts,0.75,0.93*maxpt,'WB1',color=30,chars=1.2*ls
+	xyouts,0.75,0.86*maxpt,'WB2',color=100,chars=1.2*ls	
+	xyouts,0.75,0.79*maxpt,'WB3',color=200,chars=1.2*ls	
+
+	vessel_plot,d_old=d_old
+	fs_plot,shot,(t1+t2)*0.5
+	tmp=where(braxa NE 0)
+	oplot,raxa[tmp],fltarr(n(raxa[tmp])+1)+zaxa,psym=8,symsize=1.5
+	tmp=where(br1ax NE 0)
+	oplot,r1ax[tmp],fltarr(n(r1ax[tmp])+1)+z1ax,psym=8,symsize=1.5,color=30
+	tmp=where(br2ax NE 0)
+	oplot,r2ax[tmp],fltarr(n(r2ax[tmp])+1)+z2ax,psym=8,symsize=1.5,color=100
+	tmp=where(br3ax NE 0)	
+	oplot,r3ax[tmp],fltarr(n(r3ax[tmp])+1)+z3ax,psym=8,symsize=1.5,color=200
+	IF NOT keyword_set(noly2) OR NOT keyword_set(noly3) THEN BEGIN
+		makesym,9
+		IF NOT keyword_set(noly2) THEN BEGIN
+			tmp=where(br2ly NE 0)
+			oplot,r2ly[tmp],fltarr(n(r2ly[tmp])+1)+z2ly,psym=8,symsize=1.5,color=100
+		ENDIF
+		IF NOT keyword_set(noly3) THEN BEGIN
+			tmp=where(br3ly NE 0)	
+			oplot,r3ly[tmp],fltarr(n(r3ly[tmp])+1)+z3ly,psym=8,symsize=1.5,color=200
+		ENDIF
+		makesym,10
+	ENDIF
+	IF NOT keyword_set(noaxj) THEN BEGIN
+		makesym,9
+		tmp=where(braxj GT 0)
+		oplot,raxj[tmp],fltarr(n(r2ly[tmp])+1)+zaxj,psym=8,symsize=1.5
+		makesym,10
+	ENDIF		
+	IF !d.name EQ 'PS' THEN device, xsize=float(d_old.x_size)/d_old.x_px_cm,ysize=float(d_old.y_size)/d_old.y_px_cm
+	IF keyword_set(debug) THEN stop
+END
+
+PRO fy08_update_diodetree,shot,refill=refill
+
+	pos=axuv_midplane_pos(etendue=u,umod=umod)
+	u=u*umod
+	rt=reform(pos[2,*])
+
+	mdsopen,'spectroscopy',shot
+	array='axa'
+	mdsput, '\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.'+array+':R_TANG','build_with_units($,"m")',rt[0:21]
+        mdsput, '\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.'+array+':U','build_with_units($,"m^2-str")',u[0:21]
+	array='axj'
+	mdsput, '\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.'+array+':R_TANG','build_with_units($,"m")',rt[22:43]
+        mdsput, '\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.'+array+':U','build_with_units($,"m^2-str")',u[22:43]
+	mdsclose,'spectroscopy',shot
+
+	IF keyword_set(refill) THEN IF is_diode(shot,'axa') THEN diode_write2tree,shot,'axa'
+	IF keyword_set(refill) THEN IF is_diode(shot,'axa') THEN diode_write2tree,shot,'axj',/no_emiss
+	print, 'shot '+num2str(shot,1)+' updated
+END
+
+PRO zstack_res,array
+
+	path= '/home/mlreinke/idl/genie/data/gpv/axuv/axuv_zstack_'
+	CASE array OF 
+		1: file='2.dat'
+		2: file='4.dat'
+		3: file='3.dat'
+		4: file='1.dat'
+	ENDCASE
+	CASE array OF 
+		1: pos=zstack_pos(array=2)
+		2: pos=zstack_pos(array=4)
+		3: pos=zstack_pos(array=3)
+		4: pos=zstack_pos(array=1)
+
+	ENDCASE
+	restore, path+file
+	
+	;make zsum
+	zsum_i=genpos_gpv_zsum(reform(gpv[0,*]),ves_cent,rpts=rpts)
+	n_rpts=n(rpts)+1
+	n_ch=n(gpv[*,0])+1
+	zsum=fltarr(n_ch,n_rpts)
+	zsum[0,*]=zsum_i
+	FOR i=1,n_ch-1 DO zsum[i,*]=genpos_gpv_zsum(reform(gpv[i,*]),ves_cent,rpts=rpts)
+	
+	openwin,0
+	maxpt=max(zsum)*1.1*1.0e10
+	plot,[0],[0],xr=[min(rpts),max(rpts)],/xsty,yr=[0,maxpt],xtit='Major Radius [m]', ytit='Voxel Weighting [10!u-10!l m!u3!n]',chars=1.2
+	FOR i=0,n_ch-1 DO oplot, rpts,zsum[i,*]*1.0e10,color=(i MOD 3)*100
+
+	;make rsum
+	rsum_i=genpos_gpv_rsum(reform(gpv[0,*]),ves_cent,zpts=zpts)
+	n_zpts=n(zpts)+1
+	rsum=fltarr(n_ch,n_zpts)
+	rsum[0,*]=rsum_i
+	FOR i=1,n_ch-1 DO rsum[i,*]=genpos_gpv_rsum(reform(gpv[i,*]),ves_cent,zpts=zpts)	
+
+	openwin,1
+	maxpt=max(rsum)*1.1*1.0e10
+	plot,[0],[0],xr=[pos[1,0]-0.1,pos[1,0]+0.1],/xsty,yr=[0,maxpt],xtit='Vertical Height [m]', ytit='Voxel Weighting [10!u-10!l m!u3!n]',chars=1.2
+	FOR i=0,n_ch-1 DO oplot, zpts,rsum[i,*]*1.0e10,color=(i MOD 3)*100
+	
+	vert_fwhm=fltarr(n_ch)
+	rad_fwhm=fltarr(n_ch)
+	n_z=n(zpts)+1
+	n_r=n(rpts)+1
+	FOR i=0,n_ch-1 DO BEGIN
+		maxpt=max(rsum[i,*])
+		loc=maxloc(reform(rsum[i,*]))
+		vert_fwhm[i]=abs(interpol(zpts[0:loc],rsum[i,0:loc],maxpt/2.0)-interpol(zpts[loc:n_z-1],rsum[i,loc:n_z-1],maxpt/2.0))
+		maxpt=max(zsum[i,*])
+		loc=maxloc(reform(zsum[i,*]))
+		rad_fwhm[i]=abs(interpol(rpts[0:loc],zsum[i,0:loc],maxpt/2.0)-interpol(rpts[loc:n_r-1],zsum[i,loc:n_r-1],maxpt/2.0))		
+	ENDFOR
+	stop
+END
+
+PRO zstack_res_mag,array,delr,delz,noplot=noplot
+	path= '/home/mlreinke/idl/genie/data/info/axuv/'
+	CASE array OF 
+		1: file='axuv_zstack_2.info'
+		2: file='axuv_zstack_4.info'
+		3: file='axuv_zstack_3.info'
+		4: file='axuv_zstack_1.info'
+		'axa': file='axuv_midplane_1.info'
+	ENDCASE
+	CASE array OF 
+		1: color=30
+		2: color=100
+		3: color=200
+		4: color=0
+		'axa': color=0
+	ENDCASE
+	info=genpos_planar_info(path+file)
+	pos=genpos_planar2pos(info)
+
+	num=n(info.det.xi)+1
+	det_pos=fltarr(2,num)
+	det_pos[0,*]=info.det.xi
+	det_pos[1,*]=info.det.zeta	
+	x0=info.det.x0
+	x1=info.det.x1
+	x2=info.det.x2
+
+	xi_uv=(x2-x0)/sqrt(total((x2-x0)^2))
+	zeta_uv=(x1-x0)/sqrt(total((x1-x0)^2))
+
+	foc=fltarr(num)
+	cos_th=fltarr(num)
+	im=fltarr(num)
+
+        FOR i=0,num-1 DO BEGIN
+        	xyz=det_pos[0,i]*xi_uv+det_pos[1,i]*zeta_uv+x0
+                xyz_mag=sqrt(total(xyz*xyz))
+                norm=crossp((x2-x0),(x1-x0))
+                n_hat=norm/sqrt(total(norm*norm))
+                cos_th[i]=abs(total(n_hat*xyz)/xyz_mag)
+		foc[i]=xyz_mag
+        ENDFOR
+	detr=info.det.size[0]
+	detz=info.det.size[1]
+	im=sqrt((info.ap.vec[0])^2-(pos[2,*])^2)
+	
+	delr=im/foc*cos_th*detr*100.0
+	delz=im/foc*detz*100.0
+	
+	IF NOT keyword_set(noplot) THEN BEGIN
+		openwin,0
+		maxpt=max(delr) > max(delz)
+		ch=indgen(22)+1
+		plot,[0],[0],xr=[0,num+1],/xsty,yr=[0,maxpt*1.1],/ysty,xtit='CH #',ytit='Uncertainty [cm]',chars=1.2
+		makesym,10
+		oplot,ch,delr,color=color,psym=-8
+		oplot,[3],[maxpt]*0.9,color=color,psym=8
+		xyouts,3.5,maxpt*0.9,n2g('Delta')+'R',chars=1.2
+		makesym,9
+		oplot,ch,delz,color=color,psym=-8
+		oplot,[3],[maxpt]*0.8,color=color,psym=8
+		xyouts,3.5,maxpt*0.8,n2g('Delta')+'Z',chars=1.2
+	ENDIF
+	delr=reform(delr)/100.0
+	delz=reform(delz)/100.0
+END
+
+PRO wb23_inv_noise,shot,time,del_i=del_i,sub=sub,eps=eps,npts=npts,load=load,debug=debug
+	IF NOT keyword_set(del_i) THEN del_i=31
+	IF NOT keyword_set(eps) THEN eps=0.05
+	IF NOT keyword_set(redge) THEN redge=0.90
+	IF NOT keyword_set(npts) THEN npts=30
+	IF keyword_set(sub) THEN BEGIN
+		sub2=[7]
+		sub3=[14,20]
+	ENDIF ELSE BEGIN
+		sub2=[0]
+		sub3=[0]
+	ENDELSE
+
+	IF NOT keyword_set(load) THEN BEGIN
+		calc_diodebr_data,shot,'wb2ax',br2,rt2,t,good=good2,del_i=del_i,sub_ch=sub2,z=z2
+		calc_diodebr_data,shot,'wb3ax',br3,rt3,t,good=good3,del_i=del_i,sub_ch=sub3,z=z3
+		save, br2,rt2,good2,z2,br3,rt3,good3,z3,t,shot,filename='/home/mlreinke/bolometer/data_tmp.dat'
+	ENDIF ELSE restore, '/home/mlreinke/bolometer/data_tmp.dat'
+	rt_error,tmp,sig_rt_2,/wb2
+	rt_error,tmp,sig_rt_3,/wb3
+
+	ivec=ivec(t,time)
+	br2=br2[*,ivec]*1.0e-6
+	br3=br3[*,ivec]*1.0e-6
+	t=t[ivec]
+	n_time=n(t)+1
+
+	;shellinvert and find error in wb2ax
+	shellinvert,br2,rt2,emiss2,r2,good=good2,npts=npts,eps=eps,redge=redge,svdout=svdout,brchk=brchk2
+	shellinvert,br2,rt2+sig_rt_2,emiss2_pr,r2_pr,good=good2,npts=npts,eps=eps,redge=redge+mean(sig_rt_2),svdout=svdout
+	shellinvert,br2,rt2-sig_rt_2,emiss2_mr,r2_mr,good=good2,npts=npts,eps=eps,redge=redge-mean(sig_rt_2),svdout=svdout
+	
+	em_err2=fltarr(npts,n_time)
+	br_err2=fltarr(n(br2[*,0])+1,n_time)
+	wb2_err=calc_diodebr_error(shot,'wb2ax',0.01)*1.0e-6
+	FOR i=0,n_time-1 DO BEGIN
+		error=sqrt((0.015*br2[*,i])^2+(wb2_err)^2)
+		shellinvert_error,br2[*,i],error,rt2,emiss,radii,num=num,good=good2,npts=npts,eps=eps,redge=redge
+		FOR j=0,npts-1 DO em_err2[j,i]=stdev(emiss[j,*])
+		br_err2[*,i]=error
+	ENDFOR
+	rmid2=diode_rz2rmid(shot,r2,z2,t)
+	rmid2_mr=diode_rz2rmid(shot,r2_mr,z2,t)
+	rmid2_pr=diode_rz2rmid(shot,r2_pr,z2,t)
+
+	;shellinvert and find error in wb3ax
+	shellinvert,br3,rt3,emiss3,r3,good=good3,npts=npts,eps=eps,redge=redge,svdout=svdout,brchk=brchk3
+	shellinvert,br3,rt3+sig_rt_3,emiss3_pr,r3_pr,good=good3,npts=npts,eps=eps,redge=redge+mean(sig_rt_3),svdout=svdout
+	shellinvert,br3,rt3-sig_rt_3,emiss3_mr,r3_mr,good=good3,npts=npts,eps=eps,redge=redge-mean(sig_rt_3),svdout=svdout
+	em_err3=fltarr(npts,n_time)
+	br_err3=fltarr(n(br3[*,0])+1,n_time)
+	wb3_err=calc_diodebr_error(shot,'wb3ax',0.01)*1.0e-6
+	FOR i=0,n_time-1 DO BEGIN
+		error=sqrt((0.015*br3[*,i])^2+(wb3_err)^2)
+		shellinvert_error,br3[*,i],error,rt3,emiss,radii,num=num,good=good3,npts=npts,eps=eps,redge=redge
+		FOR j=0,npts-1 DO em_err3[j,i]=stdev(emiss[j,*])
+		br_err3[*,i]=error
+	ENDFOR
+	rmid3=diode_rz2rmid(shot,r3,z3,t)
+	rmid3_mr=diode_rz2rmid(shot,r3_mr,z3,t)
+	rmid3_pr=diode_rz2rmid(shot,r3_pr,z3,t)
+
+	IF keyword_set(debug) THEN stop
+	FOR i=0,n_time-1 DO BEGIN
+		openwin,0
+		maxpt=max(emiss2[*,i]) > max(emiss3[*,i])
+		plot,[0],[0],xr=[0.5,0.91],/xsty,yr=[0,maxpt*1.1],/ysty,xtit='Major Radius [m]',ytit='Emissivity [W/m!u3!n]',chars=1.2,$
+			tit='SHOT: '+num2str(shot,1)+' TIME: '+num2str(time[i],dp=2)
+		oplot,r2,emiss2[*,i],color=100
+		oploterror,r2,emiss2[*,i],fltarr(n(r2)+1),em_err2[*,i],color=100,errcolor=100
+		oplot,r3,emiss3[*,i],color=200
+		oploterror,r3,emiss3[*,i],fltarr(n(r3)+1),em_err3[*,i],color=200,errcolor=200
+
+		openwin,1
+		makesym,10
+		maxpt=max(br2[*,i]) > max(br3[*,i])
+		plot,[0],[0],xr=[0.5,0.91],/xsty,yr=[0,maxpt*1.1],/ysty,xtit='Tangency Radius [m]',ytit='Brightness [W/m!u2!n]',chars=1.2,$
+			tit='SHOT: '+num2str(shot,1)+' TIME: '+num2str(time[i],dp=2)
+		tmp=where(br2[*,i] NE 0)
+		oplot,rt2[tmp],br2[tmp,i],color=100,psym=8
+		oploterror,rt2[tmp],br2[tmp,i],sig_rt_2,br_err2[tmp,i],color=100,errcolor=100,psym=8
+		oplot,brchk2.rad,brchk2.br[*,i],color=100
+		tmp=where(br3[*,i] NE 0)
+		oplot,rt3[tmp],br3[tmp,i],color=200,psym=8
+		oploterror,rt3[tmp],br3[tmp,i],sig_rt_3,br_err3[tmp,i],color=200,errcolor=200,psym=8
+		oplot,brchk3.rad,brchk3.br[*,i],color=200
+		
+		openwin,2
+		maxpt=max(emiss2[*,i]) > max(emiss3[*,i])
+		plot,[0],[0],xr=[0.75,0.93],/xsty,yr=[0,maxpt*1.1],/ysty,xtit='RMID [m]',ytit='Emissivity [W/m!u3!n]',chars=1.2,$
+			tit='SHOT: '+num2str(shot,1)+' TIME: '+num2str(time[i],dp=2)
+		oplot,rmid2,emiss2[*,i],color=100
+		oploterror,rmid2,emiss2[*,i],fltarr(n(r2)+1),em_err2[*,i],color=100,errcolor=100
+		oplot,rmid3,emiss3[*,i],color=200
+		oploterror,rmid3,emiss3[*,i],fltarr(n(r3)+1),em_err3[*,i],color=200,errcolor=200
+
+		openwin,3
+		maxpt=max(emiss2[*,i]) > max(emiss3[*,i])
+		plot,[0],[0],xr=[0.75,0.93],/xsty,yr=[0,maxpt*1.1],/ysty,xtit='RMID [m]',ytit='Emissivity [W/m!u3!n]',chars=1.2,$
+			tit='SHOT: '+num2str(shot,1)+' TIME: '+num2str(time[i],dp=2)
+		oploterror, 0.5*(rmid2_mr+rmid2_pr),0.5*(emiss2_mr[*,i]+emiss2_pr[*,i]),0.5*(rmid2_mr-rmid2_pr),fltarr(npts),color=100,errcolor=100
+		;oplot,rmid2,emiss2[*,i],color=100
+		;oplot,rmid2_mr,emiss2_mr[*,i],color=100,linestyle=0
+		;oplot,rmid2_pr,emiss2_pr[*,i],color=100,linestyle=2
+
+		;oplot,rmid3,emiss3[*,i],color=200
+		;oplot,rmid3_mr,emiss3_mr[*,i],color=200,linestyle=0
+		;oplot,rmid3_pr,emiss3_pr[*,i],color=200,linestyle=2
+		oploterror, 0.5*(rmid3_mr+rmid3_pr),0.5*(emiss3_mr[*,i]+emiss3_pr[*,i]),0.5*(rmid3_mr-rmid3_pr),fltarr(npts),color=200,errcolor=200
+	
+	ENDFOR
+	IF keyword_set(debug) THEN stop
+END
+
+;+
+;NAME:
+;	CALC_INOUT_RATIO
+;
+;PURPOSE:
+;	This procedure calculates the ratio of LFS to HFS emissivity at a specified RMID point using
+;	one of the 2D bolometery arrays.
+;
+;CALLING SEQUENCE:
+;	calc_inout_ratio,shot,array,rmidpt,ratio,time
+;	
+;INPUTS:
+;	shot:		LONG	shot number
+;	array:		STR	indicator of array 'axj','wb1ax','wb2ax','wb3ax'
+;	rmidpt:		FLT	value of RMID at which to calc out/in ratio [m]
+;	
+;OPTIONAL INPUTS:
+;	delr:		FLT	radial range over which to average the emissivity [m] (+/- delr/2.0) DEFAULT=0.01
+;	em_lim:		FLT	lower level of emissivity to calculate ratio [MW/m^3] DEFAULT = 0.1
+;
+;KEYWORD PARAMETERS:
+;	debug:		/debug will stop the code before the RETURN statement
+;
+;OUTPUTS:
+;	ratio:		FLTARR	[n_time] ratio of HFS/LFS emissivity at the input RMID point
+;	time:		FLTARR	[n_time] of the time points [sec]
+;
+;OPTIONAL OUTPUTS:
+;	r_out:		FLTARR	[n_time] of the major radius of the outboard point [m]
+;	r_in:		FLTARR	[n_time] of the major radius of the inboard point [m]
+;	
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke - 2/17/08
+;
+;-
+
+PRO calc_inout_ratio,shot,array,rmidpt,ratio,time,r_out=r_out,r_in=r_in,delr=delr,em_lim=em_lim,em_mean=em_mean,debug=debug
+	IF NOT keyword_set(delr) THEN delr=0.01
+	IF NOT keyword_set(em_lim) THEN em_lim=0.1
+	em_lim*=1.0e6
+
+	mdsopen,'spectroscopy',shot
+	em=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.'+array+':EMISS',/quiet,status=status)
+	IF NOT status THEN BEGIN
+		time=-1
+		ratio=-1
+		mdsclose,'spectroscopy',shot
+		RETURN
+	ENDIF
+	r=mdsvalue('dim_of(\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.'+array+':EMISS,0)')
+	time=mdsvalue('dim_of(\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.'+array+':EMISS,1)')
+	rmid=mdsvalue('dim_of(\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.'+array+':EMISS,2)')
+	mdsclose,'spectroscopy',shot
+	n_time=n(time)+1
+
+	ratio=fltarr(n_time)+1.0
+	em_mean=fltarr(n_time)
+	r_out=fltarr(n_time)
+	r_in=fltarr(n_time)
+
+	FOR i=0,n_time-1 DO BEGIN
+		tmp=where(rmid[*,i] GE rmidpt-delr/2.0 AND rmid[*,i] LE rmidpt+delr/2.0)
+		IF tmp[0] NE -1 THEN BEGIN
+			check=indgen(n(tmp)+1)
+			tmp1=tmp[where(tmp-tmp[0]-check EQ 0)]
+			r_in[i]=mean(r[tmp1])
+			em_in=mean(em[tmp1,i])
+			tmp1=where(tmp-tmp[0]-check GT 0)
+			IF tmp1[0] NE -1 THEN BEGIN
+				tmp1=tmp[tmp1]
+				r_out[i]=mean(r[tmp1])
+				em_out=mean(em[tmp1,i])	
+				IF em_in GE em_lim OR em_out GE em_lim THEN ratio[i]=em_out/em_in
+				em_mean[i]=mean(em_out+em_in)
+			ENDIF	
+		ENDIF
+	ENDFOR
+	IF keyword_set(debug) THEN stop
+END
+
+
+PRO calc_apsi,shot,array,a,rmid,time,npts=npts,tr=tr
+	IF NOT keyword_set(npts) THEN npts=30
+	IF NOT keyword_set(tr) THEN tr=[0.1,1.5]
+
+	;load data
+	mdsopen,'spectroscopy',shot
+	em=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.'+array+':EMISS')
+	r=mdsvalue('dim_of(\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.'+array+':EMISS,0)')
+	time=mdsvalue('dim_of(\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.'+array+':EMISS,1)')
+	rmidpts=mdsvalue('dim_of(\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.'+array+':EMISS,2)')
+	mdsclose,'spectroscopy',shot
+	axis=line_getaxis(shot)
+	efit_time=line_gettimes(shot)
+	
+	;truncate data onto time range
+	tmp=where(time GE tr[0] AND time LE tr[1])
+	em=em[*,tmp]
+	rmidpts=rmidpts[*,tmp]
+	time=time[tmp]
+	Ro=interpol(axis[*,0],efit_time,time)
+	
+	n_time=n(time)+1
+	n_rmidpts=n(r)+1
+	rmid=make(0.68,0.91,npts)
+	a=fltarr(npts,n_time)
+
+	FOR i=0,n_time-1 DO BEGIN
+		minloc=minloc(rmidpts[*,i])
+		r_in=r[0:minloc-6]
+		em_in=em[0:minloc-6,i]
+		rmid_in=rmidpts[0:minloc-6,i]
+		r_out=r[minloc-5:n_rmidpts-1]
+		em_out=em[minloc-5:n_rmidpts-1,i]
+		rmid_out=rmidpts[minloc-5:n_rmidpts-1,i]
+		
+		em_ratio=interpol(em_out,rmid_out,rmid_in)/em_in
+		r_out_on_in=interpol(r_out,rmid_out,rmid_in)
+		a_i=Ro[i]^2/(r_out_on_in^2-r_in^2)*alog(em_ratio)
+		tmp=where(rmid GE min(rmid_in) AND rmid LE max(rmid_in))
+		IF tmp[0] NE -1 THEN a[tmp,i]=interpol(a_i,rmid_in,rmid[tmp])
+	ENDFOR
+END
+
+
+PRO plot_apsi_profile,shot,t1,t2,npts=npts,xray=xray
+	IF keyword_set(xray) THEN BEGIN
+		xtomo_core_invert_asym,shot,t1,t2,/tree,/eta,n_iter=5,emiss=emiss,a_rho=a_rho,eps=0.5,rho_vec=rho_vec
+		rmaj=line_getrmaj(shot,rho_vec,(t1+t2)/2.0)
+		max_xray=max(a_rho)
+	ENDIF ELSE max_xray=0.0
+		
+	calc_apsi,shot,'wb1ax',a1,rmid1,time,tr=[t1,t2],npts=npts
+	calc_apsi,shot,'wb2ax',a2,rmid2,time,tr=[t1,t2],npts=npts
+	calc_apsi,shot,'wb3ax',a3,rmid3,time,tr=[t1,t2],npts=npts
+
+	n_time=n(time)+1.0
+	a1=sum_array(a1,/i)/n_time
+	tmp=where(a1 GT 0)
+	a1=a1[tmp]
+	rmid1=rmid1[tmp]
+	a2=sum_array(a2,/i)/n_time
+	tmp=where(a2 GT 0)
+	a2=a2[tmp]
+	rmid2=rmid2[tmp]
+	a3=sum_array(a3,/i)/n_time
+	tmp=where(a3 GT 0)
+	a3=a3[tmp]
+	rmid3=rmid3[tmp]
+
+	openwin,0
+	maxpt=max(a1) > max(a2) > max(a3) > max_xray
+	plot,[0],[0],xr=[0.68,0.91],/xsty,yr=[0,maxpt*1.1],/ysty,xtit='RMID [m]', ytit='Exponential Asymmetry Term',chars=1.2
+	makesym,10
+	oplot, rmid1,a1,color=30,psym=8
+	oplot, rmid2,a2,color=100,psym=8
+	oplot, rmid3,a3,color=200,psym=8
+	IF keyword_set(xray) THEN oplot, rmaj,a_rho
+
+END
+	
+PRO plot_asym,shot,rpt=rpt,t1=t1,t2=t2
+	IF NOT keyword_set(rpt) THEN rpt=0.84
+	IF NOT keyword_set(t1) THEN t1=0.5
+	IF NOT keyword_set(t2) THEN t2=1.5
+	calc_inout_ratio,shot,'wb2ax',rpt,ratio,rat_time
+	load_nl04_data,shot,nl04,nl_time
+	load_gpct0_data,shot,te0,gpc_time
+	nl04*=1.0e-20
+	nebar=nl04/0.6
+	mdsopen,'spectroscopy',shot
+	m_vel=mdsvalue('\SPECTROSCOPY::TOP.HIREX_SR.ANALYSIS.M:VEL')
+	a_vel=mdsvalue('\SPECTROSCOPY::TOP.HIREX_SR.ANALYSIS.A:VEL')
+	w_vel=mdsvalue('\SPECTROSCOPY::TOP.HIREX_SR.ANALYSIS.W:VEL')
+	t_vel=mdsvalue('dim_of(\SPECTROSCOPY::TOP.HIREX_SR.ANALYSIS.W:VEL)')
+	mdsclose,'spectroscopy',shot
+	load_2pi_data,shot,prad,prad_t,/nofoil
+
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0
+	IF ps THEN ls=0.75 ELSE ls=1.0
+	openwin,0
+	position=[0.1,0.085,0.975,0.305]
+	plot,rat_time,ratio,pos=position,xr=[t1,t2],/xsty,xticks=6,xtit='Time [sec]',ytit=n2g('epsilon')+'!lout!n / '+n2g('epsilon')+'!lin!n',chars=1.2*ls,yr=[0,1.75],/ysty
+	xyouts,t1+(t2-t1)*0.8,0.25,'R!lMID!n='+num2str(rpt,dp=2)+' [m]',chars=1.2*ls
+	position=[0.1,0.305,0.975,0.525]
+	maxpt=max(prad[ipt(prad_t,t1):ipt(prad_t,t2)])
+	oplot, [-10,10],[1.0,1.0],linestyle=2.0
+	plot,prad_t,prad,pos=position,/noerase,xr=[t1,t2],/xsty,xticks=6,xtickname=replicate(' ',7+1),ytit='2'+n2g('pi')+' Diode [MW]',chars=1.2*ls,yr=[0,maxpt*1.1],/ysty
+	position=[0.1,0.525,0.975,0.745]
+	maxpt=max(nebar[ipt(nl_time,t1):ipt(nl_time,t2)]) > max(te0[ipt(gpc_time,t1):ipt(gpc_time,t2)])
+	plot,nl_time,nebar,pos=position,/noerase,xr=[t1,t2],/xsty,xticks=6,xtickname=replicate(' ',7+1),ytit='<n!le!n> [10!u20!n m!u-3!n]',chars=1.2*ls,yr=[0,maxpt*1.1],/ysty
+	oplot,gpc_time,te0,color=200
+	xyouts,t1+(t2-t1)*0.05,maxpt*0.75,'GPC T!le,0!n [keV]',color=200,chars=1.2*ls
+	position=[0.1,0.745,0.975,0.945]	
+	plot,[0],[0],xr=[t1,t2],/xsty,ytit='V!lTOR!n [km/s]',xticks=6,xtickname=replicate(' ',7+1),chars=1.2*ls,/noerase,pos=position,yr=[-100,100],/ysty,tit='SHOT: '+num2str(shot,1)
+	oplot, t_vel,m_vel,psym=-8
+	;oplot, t_vel,a_vel,psym=-8,color=200
+	;tmp=where(w_vel[*,1] NE 0)
+	;oplot, t_vel[tmp],w_vel[tmp,1],psym=-8,color=100
+	
+END
+
+;do .r /home/rachmcd/mit_cxrs/general/ts_edge_prof.pro before .compile of load_data
+PRO fill_mo_asym_data,start=start,csv=csv,rmidpt=rmidpt
+
+	csv_path='/home/mlreinke/idl/data/fy08_hmodes.csv'
+	dat_path='/home/mlreinke/idl/data/fy08_hmodes.dat'
+	save_path='/home/mlreinke/idl/data/mo_asym_data.dat'
+
+
+	IF keyword_set(csv) THEN csv_convert, csv_path,dat_path
+	restore, dat_path
+
+	IF NOT keyword_set(start) THEN start=0
+	
+	n_shot=n(shot)+1
+	IF start EQ 0 THEN BEGIN
+		asym=fltarr(n_shot)
+		em_mean=fltarr(n_shot)
+		apsi=fltarr(n_shot)
+		apsi_th=fltarr(n_shot)
+		mo_br=fltarr(n_shot)
+		mo_vel=fltarr(n_shot)
+		lya_br=fltarr(n_shot)
+		lya_vel=fltarr(n_shot)
+		w_br=fltarr(n_shot)
+		w_vel=fltarr(n_shot)
+		z_vel=fltarr(n_shot)
+		p2pi=fltarr(n_shot)
+		ip=fltarr(n_shot)
+		ne0=fltarr(n_shot)
+		nebar=fltarr(n_shot)
+		te0=fltarr(n_shot)
+		h89=fltarr(n_shot)
+		wmhd=fltarr(n_shot)
+		q95=fltarr(n_shot)
+		q_rmidpt=fltarr(n_shot)
+		poh=fltarr(n_shot)
+		prf_j=fltarr(n_shot)
+		prf_d=fltarr(n_shot)
+		prf_e=fltarr(n_shot)
+		prf=fltarr(n_shot)
+		ptot=fltarr(n_shot)
+		te_rmidpt=fltarr(n_shot)
+		ne_rmidpt=fltarr(n_shot)
+		rho_th=fltarr(n_shot)
+		bth=fltarr(n_shot)
+		bt=fltarr(n_shot)
+		lperp_rmidpt=fltarr(n_shot)
+		gradp_rmidpt=fltarr(n_shot)
+		lperp_n_rmidpt=fltarr(n_shot)
+		lperp_t_rmidpt=fltarr(n_shot)
+	ENDIF ELSE restore, save_path
+
+	z_imp=42
+	z=z_imp
+	m_z=read_atomic_mass(z)
+	m_i=2.014
+	m_conv=1.66e-27	;convert amu to kg
+	e=1.6e-19
+
+	IF NOT keyword_set(rmidpt) THEN rmidpt=0.84
+	FOR i=start,n(shot) DO BEGIN
+		print, shot[i], i
+		
+		cmod_ts,shot[i],ts
+		time=ts.time
+		ilow=ipt(time,t1[i])
+		ihigh=ipt(time,t2[i])
+		ts_r=reform(sum_array(ts.r[ilow:ihigh,*],/j))/(ihigh-ilow+1.0)
+		rpt=ipt(ts_r,rmidpt)
+		te_rmidpt[i]=mean(ts.te[ilow:ihigh,rpt])
+		ne_rmidpt[i]=mean(ts.n_e[ilow:ihigh,rpt])
+		load_rfant_data,shot[i],d,e,j3,j4,time
+		prf_j[i]=mean(j3[ipt(time.j3,t1[i]):ipt(time.j3,t2[i])])+mean(j4[ipt(time.j4,t1[i]):ipt(time.j4,t2[i])])
+		prf_d[i]=mean(d[ipt(time.d,t1[i]):ipt(time.d,t2[i])])
+		prf_e[i]=mean(e[ipt(time.e,t1[i]):ipt(time.e,t2[i])])
+		prf[i]=prf_j[i]+prf_d[i]+prf_e[i]
+		load_poh_data,shot[i],pow,time
+		poh[i]=mean(pow[ipt(time,t1[i]):ipt(time,t2[i])])
+		ptot[i]=prf[i]+poh[i]
+		load_q95_data,shot[i],q,time
+		q95[i]=mean(q[ipt(time,t1[i]):ipt(time,t2[i])])
+		load_qpsi_data,shot[i],q,r,time
+		ilow=ipt(time,t1[i])
+		ihigh=ipt(time,t2[i])
+		q_r=reform(sum_array(r[ilow:ihigh,*],/j))/(ihigh-ilow+1.0)
+		rpt=ipt(q_r,rmidpt)
+		q_rmidpt[i]=mean(q[ilow:ihigh,rpt])
+		out=efit_rz2psi([rmidpt],[0.0],0.5*(t1[i]+t2[i]),bz,br,shot=shot[i])
+		bth[i]=sqrt(bz^2+br^2)
+		rho_th[i]=sqrt(2.0*te_rmidpt[i]*1.0e3*2.01*m_conv)/(sqrt(1.6e-19)*bth[i])
+		load_lperp_data,shot[i],0.5*(t1[i]+t2[i]),lperp,r,gradp=gradp,dt=(t2[i]-t1[i]),lperp_t=lperp_t,lperp_n=lperp_n
+		IF lperp[0] NE -1 THEN BEGIN
+			lperp_rmidpt[i]=interpol(lperp,r,rmidpt)
+			gradp_rmidpt[i]=interpol(gradp,r,rmidpt)
+			lperp_n_rmidpt[i]=interpol(lperp_n,r,rmidpt)
+			lperp_t_rmidpt[i]=interpol(lperp_t,r,rmidpt)
+		ENDIF
+		load_wth_data,shot[i],w,time
+		wmhd[i]=mean(w[ipt(time,t1[i]):ipt(time,t2[i])])*1.0e-3
+		h89,shot[i],hfac,time
+		h89[i]=mean(hfac[ipt(time,t1[i]):ipt(time,t2[i])])
+		calc_inout_ratio,shot[i],'wb2ax',rmidpt,ratio,time,r_in=r_in,r_out=r_out,em_mean=em_mean_i
+		asym[i]=mean(ratio[ipt(time,t1[i]):ipt(time,t2[i])])
+		em_mean[i]=mean(em_mean_i[ipt(time,t1[i]):ipt(time,t2[i])])
+		r_in=mean(r_in[ipt(time,t1[i]):ipt(time,t2[i])])
+		r_out=mean(r_out[ipt(time,t1[i]):ipt(time,t2[i])])
+		apsi[i]=0.68^2/(r_out^2-r_in^2)*alog(asym[i])
+		load_hirexsr_scope_data,shot[i],br,vel,ti,time,/m,status=status
+		IF status[0] THEN mo_br[i]=mean(br[ipt(time,t1[i]):ipt(time,t2[i])])
+		IF status[1] THEN mo_vel[i]=mean(vel[ipt(time,t1[i]):ipt(time,t2[i])])
+		load_hirexsr_scope_data,shot[i],br,vel,ti,time,/lya,status=status
+		IF status[0] THEN lya_br[i]=mean(br[ipt(time,t1[i]):ipt(time,t2[i])])
+		IF status[1] THEN lya_vel[i]=mean(vel[ipt(time,t1[i]):ipt(time,t2[i])])
+		load_hirexsr_scope_data,shot[i],br,vel,ti,time,/w,status=status
+		IF status[0] THEN w_br[i]=mean(br[ipt(time,t1[i]):ipt(time,t2[i]),0])
+		IF status[1] THEN w_vel[i]=mean(vel[ipt(time,t1[i]):ipt(time,t2[i]),0])
+		load_hirexsr_scope_data,shot[i],br,vel,ti,time,/z,status=status
+		IF status[1] THEN z_vel[i]=mean(vel[ipt(time,t1[i]):ipt(time,t2[i]),1])
+		load_2pi_data,shot[i],prad,time,x,y,/nofoil
+		p2pi[i]=mean(prad[ipt(time,t1[i]):ipt(time,t2[i])])
+		load_ip_data,shot[i],curr,time
+		ip[i]=(-1.0e-6)*mean(curr[ipt(time,t1[i]):ipt(time,t2[i])])
+		load_ne0_data,shot[i],density,time
+		ne0[i]=mean(density[ipt(time,t1[i]):ipt(time,t2[i])])*1.0e-20
+		load_te0_data,shot[i],temp,time
+		te0[i]=mean(temp[ipt(time,t1[i]):ipt(time,t2[i])])
+		load_nl04_data,shot[i],nl04,time
+		nebar[i]=(mean(nl04[ipt(time,t1[i]):ipt(time,t2[i])])*1.0e-20)/0.6
+		load_bt_data,shot[i],bt0,time
+		bt[i]=mean(bt0[ipt(time,t1[i]):ipt(time,t2[i])])
+
+		apsi_th[i]=(1.0-avez(te_rmidpt[i]*1.0e3,z_imp,/q)*m_i/m_z)*m_conv*m_z*(mo_vel[i]*1.0e3)^2/(2.0*1.6e-19*1.0e3*te_rmidpt[i])
+
+		save,shot,te_rmidpt,ne_rmidpt,nebar,poh,prf_j,prf_d,prf_e,prf,ptot,q95,q_rmidpt,wmhd,h89,asym,em_mean,apsi,apsi_th,mo_br,mo_vel,lya_br,$
+			lya_vel,w_br,w_vel,z_vel,p2pi,ip,ne0,te0,rmidpt,rho_th,bth,bt,gradp_rmidpt,lperp_rmidpt,lperp_n_rmidpt,lperp_t_rmidpt,filename=save_path
+	ENDFOR
+END
+
+
+;need genspec_hirexsr
+
+PRO local_v_ti_fill,rmidpt=rmidpt,start=start
+	IF NOT keyword_set(start) THEN start=0
+	IF NOT keyword_set(rmidpt) THEN rmidpt=0.84
+	
+	dat_path='/home/mlreinke/idl/data/fy08_hmodes.dat'
+	save_path='/home/mlreinke/idl/data/local_v_ti.dat'
+	restore,dat_path
+	
+	IF start EQ 0 THEN BEGIN
+		v_z_rmidpt=fltarr(n(shot)+1)
+		ti_z_rmidpt=fltarr(n(shot)+1)
+	ENDIF ELSE restore, save_path
+	badshots=[1080213004,1080321024]
+	stop
+	
+	FOR i=start+1,n(shot) DO IF shot[i] GT 1080123000 AND total(where(badshots EQ shot[i])) EQ -1 THEN BEGIN
+		print, shot[i]
+		updown_asym_fit,shot[i],t1[i],t2[i],br,vel,ti,rt,pos=pos
+		rt=rt[24:*]
+		ti=ti[24:*]
+		vel=vel[24:*]*rt/(pos[2,24:*]*cos(pos[3,24:*]))
+		ipt=ipt(rt,rmidpt)
+		IF ti[ipt] NE 0 THEN BEGIN
+			ti_z_rmidpt[i]=ti[ipt]
+			v_z_rmidpt[i]=vel[ipt]
+		ENDIF ELSE BEGIN
+			tmp=where(ti GT 0)
+			ti_z_rmidpt[i]=ti[tmp[n(tmp)]]
+			v_z_rmidpt[i]=vel[tmp[n(tmp)]]
+		ENDELSE
+		save,shot,t1,t2,v_z_rmidpt,ti_z_rmidpt,rmidpt,filename=save_path
+	ENDIF
+
+END
+
+PRO local_v_ti_simp,rmidpt=rmidpt,start=start
+	IF NOT keyword_set(start) THEN start=0
+	IF NOT keyword_set(rmidpt) THEN rmidpt=0.84
+	
+	dat_path='/home/mlreinke/idl/data/fy08_hmodes.dat'
+	save_path='/home/mlreinke/idl/data/local_v_ti_simp.dat'
+	restore,dat_path
+	
+	IF start EQ 0 THEN BEGIN
+		v_z_rmidpt=fltarr(n(shot)+1)
+		ti_z_rmidpt=fltarr(n(shot)+1)
+	ENDIF ELSE restore, save_path
+	badshots=[1080129005,1080213004,1080213012,1080213014,1080213016,1080213018,1080213025,1080304005,1080304007,1080321024,$
+			1080409023]
+	stop
+	
+	FOR i=start+1,n(shot) DO IF shot[i] GT 1080123000 AND total(where(badshots EQ shot[i])) EQ -1 THEN BEGIN
+		print, shot[i]
+		updown_asym_simp,shot[i],t1[i],t2[i],br,vel,ti,rt,pos=pos
+		rt=rt[24:*]
+		ti=ti[24:*]
+		vel=vel[24:*]*rt/(pos[2,24:*]*cos(pos[3,24:*]))
+		ipt=ipt(rt,rmidpt)
+		IF ti[ipt] NE 0 THEN BEGIN
+			ti_z_rmidpt[i]=ti[ipt]
+			v_z_rmidpt[i]=vel[ipt]
+		ENDIF ELSE BEGIN
+			tmp=where(ti GT 0)
+			ti_z_rmidpt[i]=ti[tmp[n(tmp)]]
+			v_z_rmidpt[i]=vel[tmp[n(tmp)]]
+		ENDELSE
+		save,shot,t1,t2,v_z_rmidpt,ti_z_rmidpt,rmidpt,filename=save_path
+	ENDIF
+
+END
+
+
+PRO mo_asym_plot,comp=comp,ar=ar,simp=simp
+	IF !d.name EQ 'PS' THEN ps=1
+	save_path='/home/mlreinke/idl/data/mo_asym_data.dat'
+	save_path2='/home/mlreinke/idl/data/xray_asym_data.dat'	
+	IF NOT keyword_set(simp) THEN save_path3='/home/mlreinke/idl/data/local_v_ti.dat' ELSE save_path3='/home/mlreinke/idl/data/local_v_ti_simp.dat'
+	er_path='/home/mlreinke/idl/cxrs/er_rmidpt.dat'
+	dat_path='/home/mlreinke/idl/data/fy08_hmodes.dat'
+	
+	restore,er_path
+	restore,save_path
+	restore,dat_path
+	restore,save_path2
+	restore,save_path3
+	for i=0,n(shot)-1 DO xray_asym[i]=interpol(xray_arho[i,*],xray_rmaj[i,*],0.845)
+	xray_asym[17]=0
+
+	xray_cs_rat=fltarr(n(shot)+1)
+	xray_cs_rmid=fltarr(n(shot)+1)
+	apsi_th_rmidpt=fltarr(n(shot)+1)
+	apsi_th_cxrs=fltarr(n(shot)+1)
+	apsi_th_error=fltarr(n(shot)+1)
+	apsi_th_cxrs_error=fltarr(n(shot)+1)
+
+	z_imp=42
+	IF keyword_set(ar) THEN z_imp=18
+	z=z_imp
+	m_z=read_atomic_mass(z)
+	m_i=2.014
+	m_conv=1.66e-27	;convert amu to kg
+	e=1.6e-19
+	ti_z_rmidpt-=0.5
+	FOR i=0,n(shot) DO BEGIN
+		ipt=ipt(xray_cs_rmaj[i,*],rmidpt)
+		IF ipt[0] NE -1 THEN BEGIN
+			xray_cs_rat[i]=xray_cs_emc[i,ipt]/xray_cs_emr[i,ipt]
+			xray_cs_rmid[i]=xray_cs_emc[i,ipt]
+		ENDIF
+		IF keyword_set(ar) THEN ave_z=16.0 ELSE ave_z=avez(te_rmidpt[i]*1.0e3,z_imp,/q)
+		apsi_th_rmidpt[i]=(1.0-ave_z*m_i/m_z)*m_conv*m_z*(v_z_rmidpt[i])^2/(2.0*1.6e-19*1.0e3*ti_z_rmidpt[i])
+		apsi_th_cxrs[i]=(1.0-ave_z*m_i/m_z)*m_conv*m_z*(er_rmidpt[i]/bth[i]*1.0e3)^2/(2.0*1.6e-19*ti_pol_rmidpt[i])
+		apsi_th_error[i]=2.0*apsi_th_rmidpt[i]*1.0e4/abs(v_z_rmidpt[i])
+		apsi_th_cxrs_error[i]=2.0*apsi_th_cxrs[i]/abs(er_rmidpt[i]/bth[i]*1.0e3)*abs(er_rmid_err[i]/bth[i]*1.0e3)
+
+	ENDFOR
+	g=ne_rmidpt/(ti_z_rmidpt)^(3/2.0)*1.0e-20*4.2/(2.0*0.7^2)*0.15
+	mach=m_z*m_conv*v_z_rmidpt^2/(2.0*e*ti_z_rmidpt*1.0e3)
+	ymaxpt=max(apsi_th) > max(apsi)
+	ymaxpt=6.0
+	mach=m_z*m_conv*v_z_rmidpt^2/(2.0*e*ti_z_rmidpt*1.0e3)
+	mach_error=2.0*mach*1.0e4/abs(v_z_rmidpt)	;error from 10 km/s uncertainty
+	mach_cxrs=m_z*m_conv*(er_rmidpt/bth*1.0e3)^2/(2.0*e*ti_pol_rmidpt)
+	mach_cxrs_error=2.0*mach_cxrs/abs(er_rmidpt/bth*1.0e3)*abs(er_rmid_err/bth*1.0e3)
+
+
+	;ti_z_rmidpt=te_rmidpt
+	openwin,0
+	plot, [0],[0],xr=[0,10],yr=[0,ymaxpt],/xsty,/ysty,xtit='M!lo!n!u2!n',ytit='a(r/a ~ 0.75)',chars=1.3
+	;oplot, mo_vel^2/te_rmidpt,apsi,psym=8,color=200
+	;oplot, mo_vel^2/te_rmidpt,apsi_th_rmidpt,psym=8
+	;oplot, mo_vel^2/te_rmidpt,xray_asym,psym=8,color=30
+	;oplot, (v_z_rmidpt/1.0e3)^2/ti_z_rmidpt,apsi,psym=8,color=200
+	;oplot, (v_z_rmidpt/1.0e3)^2/ti_z_rmidpt,apsi_th_rmidpt,psym=8
+	;oplot, (v_z_rmidpt/1.0e3)^2/ti_z_rmidpt,xray_asym,psym=8,color=30
+	gpts=where(ti_z_rmidpt GT 0 AND ti_z_rmidpt LT 1.0)
+	oplot, mach[gpts],apsi[gpts],psym=8,color=200
+	oploterror,mach[gpts],apsi[gpts],mach_error[gpts],0.2*apsi[gpts],psym=8,color=200,errcolor=200
+	oplot, mach[gpts],apsi_th_rmidpt[gpts],psym=8
+	oploterror,mach[gpts],apsi_th_rmidpt[gpts],mach_error[gpts],apsi_th_error[gpts],psym=8
+	oplot, mach[gpts],xray_asym[gpts],psym=8,color=30
+	oploterror, mach[gpts],xray_asym[gpts],mach_error[gpts],0.2*xray_asym[gpts],psym=8,color=30,errcolor=30
+	tmp_fit=where(apsi_th_rmidpt LT 4.5 AND apsi_th_rmidpt GT 0 AND ti_z_rmidpt GT 0 AND ti_z_rmidpt LT 1.0)
+	coefs=poly_fit(mach[tmp_fit],[apsi_th_rmidpt[tmp_fit]],1,yfit=yfit)
+	x=make(0,1.0e6,100)
+	oplot,x,coefs[1]*x+coefs[0],linestyle=2.0
+	tmp=where(xray_asym GT 0)
+	oplot, [0,2.0e4],[1,1]*mean(xray_asym[gpts]),linestyle=2,color=30
+	oplot, [1.000],[ymaxpt*0.7],psym=8,color=30
+	xyouts,1.500,ymaxpt*0.68,'Soft X-Ray',chars=1.3,color=30
+
+	IF keyword_set(comp) THEN BEGIN
+		IF keyword_set(ar) THEN ymaxpt=1.0 ELSE ymaxpt=4.5
+		IF keyword_set(ar) THEN xmaxpt=3.0 ELSE xmaxpt=6.0
+		plot, [0],[0],xr=[0,xmaxpt],yr=[0,ymaxpt],/xsty,/ysty,xtit='M!lo!n!u2!n',ytit='a(r/a ~ 0.75)',chars=1.3
+		IF keyword_set(ar) THEN gpts=where(er_rmidpt GT 0 AND mach_cxrs LT 8 AND mach_cxrs GT 0 AND mach_cxrs_error LT 2.0 AND mo_br LT 300) ELSE $
+			gpts=where(er_rmidpt GT 0 AND mach_cxrs LT 8 AND mach_cxrs GT 0 AND mach_cxrs_error LT 2.0 AND mo_br GT 300)
+		oplot, mach_cxrs[gpts],apsi[gpts],psym=8,color=200
+		oploterror,mach_cxrs[gpts],apsi[gpts],mach_cxrs_error[gpts],0.2*apsi[gpts],psym=8,color=200,errcolor=200
+		oplot, mach_cxrs[gpts],apsi_th_cxrs[gpts],psym=8
+		oploterror,mach_cxrs[gpts],apsi_th_cxrs[gpts],mach_cxrs_error[gpts],apsi_th_cxrs_error[gpts],psym=8
+		;oplot, mach_cxrs[gpts],xray_asym[gpts],psym=8,color=30
+		;oploterror, mach_cxrs[gpts],xray_asym[gpts],mach_error[gpts],0.2*xray_asym[gpts],psym=8,color=30,errcolor=30
+		tmp_fit=where(apsi_th_cxrs LT 4.5 AND apsi_th_cxrs GT 0)
+		coefs=poly_fit(mach_cxrs[tmp_fit],[apsi_th_cxrs[tmp_fit]],1,yfit=yfit)
+		x=make(0,1.0e6,100)
+		oplot,x,coefs[1]*x+coefs[0],linestyle=2.0
+	ENDIF
+	oplot, [1.000],[ymaxpt*0.9],psym=8
+	oplot, [1.000],[ymaxpt*0.8],psym=8,color=200
+	xyouts,1.500,ymaxpt*0.88,'Theory',chars=1.3
+	xyouts,1.500,ymaxpt*0.78,'AXUV Diodes',color=200,chars=1.3
+	oplot, [0,2.0e4],[1,1]*mean(apsi[gpts]),linestyle=2,color=200
+	
+
+;	!p.multi=[0,0,3]
+;	IF keyword_set(ps) THEN ls=0.5 ELSE ls=1.0
+;	openwin,2,ysize=700
+;	plot,ip,xray_asym,psym=8,chars=3.0*ls,xr=[0,1.5],xtit='I!lp!n [MA]',ytit='SXR Asym'	
+;	plot,te_rmidpt,xray_asym,psym=8,chars=3.0*ls,xr=[0,1.5],xtit='T!le!n at RMID [keV]',ytit='SXR Asym'
+;	plot, ne_rmidpt*1.0e-20,xray_asym,psym=8,chars=3.0*ls,xr=[0,4.0],xtit='n!le!n at RMID [10!u20!n m!u-3!n]',ytit='SXR Asym'
+;	!p.multi=0
+
+;	tmp=where(ip[0:n(shot)] GT 0.75 AND ip[0:n(shot)] LT 0.85)
+;	coll=ne_rmidpt*1.0e-20/te_rmidpt^(2.0)*q_rmidpt
+;	openwin,3
+
+;	plot, coll[tmp],xray_asym[tmp],psym=8,xr=[0,15.0],/nodata,xtit='Like L!l||!n/'+n2g('lambda')+'!lii!n - q*n!le!n/T!le!u2!n',chars=1.2,$
+;		ytit='Asymmetry Term'
+;	oplot, coll[tmp],xray_asym[tmp],psym=8,color=30
+;	oplot, coll[tmp],apsi[tmp],psym=8,color=200
+
+;	openwin,4
+;	plot, h89,xray_asym,psym=8,xr=[0,2.0],xtit='H!l89!n',ytit='Asymmetry Term',/nodata,chars=1.2
+;	oplot, h89[tmp],xray_asym[tmp],color=30,psym=8
+;	oplot, h89[tmp],apsi[tmp],color=200,psym=8
+
+	lpar=rmidpt*q_rmidpt
+	log_lam=alog(4.9e7*te_rmidpt^(3/2.0)/ne_rmidpt*1.0e20)
+	e_o=8.85e-12
+	vth_i=sqrt(2.0*e*1.0e3*ti_z_rmidpt/(m_conv*m_i))
+	vth_i_cxrs=sqrt(2.0*e*ti_pol_rmidpt/(m_conv*m_i))
+	tau_i=12.0*(!pi)^(3/2.0)*sqrt(m_conv*m_i)*(ti_z_rmidpt*e*1.0e3)^(3/2.0)/(ne_rmidpt*e^2*log_lam)
+	tau_i_cxrs=12.0*(!pi)^(3/2.0)*sqrt(m_conv*m_i)*(ti_pol_rmidpt*e)^(3/2.0)/(ne_rmidpt*e^2*log_lam)
+	tau_i*=e_o^2/e^2
+	tau_i_cxrs*=e_o^2/e^2
+	lam_ii=vth_i/sqrt(2.0)*tau_i
+	lam_ii_cxrs=vth_i_cxrs/sqrt(2.0)*tau_i_cxrs
+	z_mo=avez(te_rmidpt*1.0e3,42)
+	fq,18,frac,te_frac
+	z_ar=fltarr(n(shot)+1)
+	z_data=make(0,18,19.0)
+	FOR i=0,n(shot) DO BEGIN
+		frac_i=float(frac[*,ipt(te_frac,te_rmidpt[i]*1.0e3)])
+		z_ar[i]=total(z_data*frac_i)
+	ENDFOR
+
+	delta=rho_th/lperp_rmidpt*z_mo^2*lpar/lam_ii
+	delta_cxrs=rho_th/lperp_rmidpt*z_mo^2*lpar/lam_ii_cxrs
+	delta_ar=rho_th/lperp_rmidpt*z_ar^2*lpar/lam_ii
+
+	tmp=where(finite(delta) EQ 1 AND delta GT 0.5)
+	;y=(asym[tmp]-1.0)/(asym[tmp]+1.0)
+	y=(asym-1.0)/(asym+1.0)
+	x=(mach-delta^2)/(1+delta^2)
+	x_cxrs=(mach_cxrs-delta_cxrs^2)/(1+delta_cxrs^2)
+	x_err=sqrt(mach_error/(1+delta^2)+(0.1*x)^2)
+	;x=delta[tmp]
+	y_th=2.0*0.2/0.68*x
+	y_th_cxrs=2.0*0.2/0.68*x_cxrs
+	openwin,7
+	plot, [0],[0],psym=8,xr=[-1,3],yr=[-0.75,2.0],/xsty,/ysty,symsize=0.3,xtit='(M!lo!n!u2!n-'+n2g('Delta')+'!u2!n)/(1+'+n2g('Delta')+'!u2!n)',chars=1.2
+	oploterror, x[gpts],y[gpts],x_err[gpts],0.2*y[gpts],psym=8,color=200,errcolor=200
+	oplot, [-10,10],mean(y)*[1,1],linestyle=2.0,color=200
+	oploterror,x[gpts],2.0*0.2/0.68*x[gpts],x_err[gpts],x_err[gpts]*2.0*0.2/0.68,psym=8
+	oplot,[-1,3],[-1,3]*2.0*0.2/0.68,linestyle=2.0
+	;oplot,x,2.0*0.2/0.68*(x-x_err)
+	;oplot,x,2.0*0.2/0.68*(x+x_err)
+
+	
+	xyouts,-0.5,1.5,'Theory',chars=1.2
+	oplot,[-0.6],[1.55],psym=8
+	xyouts,-0.5,1.2,'AXUV Diodes',chars=1.2,color=200
+	oplot,[-0.6],[1.25],psym=8,color=200
+
+
+	IF keyword_set(comp) THEN BEGIN
+		openwin,10
+		IF keyword_set(simp) THEN label='XRAY = HIREXSR_SIMPLE_TI' ELSE label='XRAY = FIT TO RAW SPECTRA'
+		tmp=where(er_rmidpt GT 0)
+		plot, ti_pol_rmidpt[tmp],ti_z_rmidpt[tmp]*1.0e3-100.0,psym=8,xtit='T!li!n from CXRS [eV]',ytit='T!li!n from Ar!u+16!n (z) [eV]',chars=1.2,xr=[0,1.0e3],yr=[0,1.0e3],tit=label
+		oplot, [0,1.0e3],[0,1.0e3],linestyle=2.0
+		xyouts,600,200,'T!lINST!n = 600 [eV] for XRAY'
+		openwin,11
+		plot, (er_rmidpt[tmp]/bth[tmp]),sqrt((v_z_rmidpt[tmp])^2)/1.0e3,psym=8,xtit='v!lz!n from CXRS E!lR!n[km/s]',ytit='v!lz!n from Ar!u+16!n (z) [km/s]',chars=1.2,xr=[0,80],yr=[-10,80],tit=label
+		oploterror,(er_rmidpt[tmp]/bth[tmp]),sqrt((v_z_rmidpt[tmp])^2)/1.0e3,er_rmid_err[tmp]/bth[tmp],fltarr(n(tmp)+1)+10,psym=8
+		oplot, [0,1.0e3],[0,1.0e3],linestyle=2.0
+	ENDIF
+	stop
+
+;	pts=[1,1.5,2,2.5,3,3.5,4,4.5,5]
+;	del=0.5
+;	bin=fltarr(n(pts)+1)
+;	err=fltarr(n(pts)+1)
+;	FOR i=0,n(pts) DO BEGIN
+;		tmp=where(x GE pts[i]-del/2.0 AND x LT pts[i]+del/2.0)
+;		bin[i]=mean(y[tmp])
+;		err[i]=stdev(y[tmp])
+;	ENDFOR
+;	oploterror, pts,bin,fltarr(n(pts)+1)+del,err,psym=8,color=200,errcolor=200
+;	coefs=poly_fit(pts,bin,1)
+;	xplot=make(0,10,10)
+;	oplot,xplot,coefs[0]+coefs[1]*xplot,color=200,linestyle=2.0
+
+	go=2.85e-4
+	g_mo=go*ne_rmidpt*1.0e-20*z_mo^2/(te_rmidpt^(3/2.0)*(lperp_rmidpt-3/2.0*lperp_t_rmidpt)*100.0)*abs(bt)*rmidpt/0.69/bth^2*(rmidpt-0.69)*rmidpt/0.69*log_lam
+	g_ar=go*ne_rmidpt*1.0e-20*z_ar^2/(te_rmidpt^(3/2.0)*(lperp_rmidpt-3/2.0*lperp_t_rmidpt)*100.0)*abs(bt)*rmidpt/0.69/bth^2*(rmidpt-0.69)*rmidpt/0.69*log_lam
+	g_ar1=go*ne_rmidpt*1.0e-20*z_ar^2/(te_rmidpt^(3/2.0)*(lperp_n_rmidpt)*100.0)*abs(bt)*0.69/rmidpt/bth^2*(rmidpt-0.69)*rmidpt/0.69*log_lam
+	g_mo1=go*ne_rmidpt*1.0e-20*z_mo^2/(te_rmidpt^(3/2.0)*(lperp_n_rmidpt)*100.0)*abs(bt)*0.69/rmidpt/bth^2*(rmidpt-0.69)*rmidpt/0.69*log_lam
+
+
+	mach_mo=m_z*m_conv/(2.0*1.0e3*te_rmidpt*e)*v_z_rmidpt^2
+	mach_ar=40.0*m_conv/(2.0*1.0e3*te_rmidpt*e)*v_z_rmidpt^2
+	ar_tmp=where(w_br/nebar GT 3.0e3 AND mo_br/nebar LT 200)
+	mo_tmp=where(w_br/nebar LT 500)
+
+	openwin,4
+	plot, [0],[0],xtit='g!u2!n',ytit='Cosine/Radial from AXUV Diodes',xr=[0,25],/xsty,yr=[0,0.3]
+	makesym,9
+	oplot, (g_ar[ar_tmp])^2,(asym[ar_tmp]-1.0)/(asym[ar_tmp]+1.0),psym=8,color=200
+	oplot, [30],[0.02],psym=8,color=200
+	xyouts,32,0.02,'Argon',color=200
+	makesym,10
+	oplot, (g_mo[mo_tmp])^2,(asym[mo_tmp]-1.0)/(asym[mo_tmp]+1.0),psym=8,color=200
+	oplot, [30],[0.05],psym=8,color=200
+	xyouts,32,0.05,'Molybdenum',color=200
+	
+
+
+	openwin,5
+	plot,[0],[0],xr=[0.01,1.0],/xlog,yr=[0,2.0],/xsty,/ysty,xtit='L!l||!n/'+n2g('lambda')+'!lii!n at R='+num2str(rmidpt,dp=2)+' [m]',chars=1.3,ytit='H!l89!n'
+	oplot,lpar/lam_ii,h89,psym=8
+
+	openwin,6
+	plot, delta,(asym-1.0)/(asym+1.0),psym=4,/nodata,xtit=n2g('Delta'),ytit='Cosine/Radial from AXUV Diodes',yr=[0,0.3]
+	makesym,9
+	oplot, delta_ar[ar_tmp],(asym[ar_tmp]-1.0)/(asym[ar_tmp]+1.0),psym=8,color=200
+	oplot, [30],[0.02],psym=8,color=200
+	xyouts,32,0.02,'Argon',color=200
+	y=(asym[ar_tmp]-1.0)/(asym[ar_tmp]+1.0)
+	x=delta_ar[ar_tmp]
+	tmp=where(finite(x) EQ 1 AND x GT 0.4)
+	y=y[tmp]
+	x=x[tmp]
+	coefs=poly_fit(x,y,1)
+	xplot=make(0,10,100)
+	oplot,xplot,coefs[0]+coefs[1]*xplot,linestyle=2.0,color=200
+
+	makesym,10
+	oplot, delta[mo_tmp],(asym[mo_tmp]-1.0)/(asym[mo_tmp]+1.0),psym=8,color=200
+	oplot, [30],[0.05],psym=8,color=200
+	xyouts,32,0.05,'Molybdenum',color=200
+	y=(asym[mo_tmp]-1.0)/(asym[mo_tmp]+1.0)
+	x=delta[mo_tmp]
+	y=y[where(finite(x) EQ 1)]
+	x=x[where(finite(x) EQ 1)]
+	coefs=poly_fit(x,y,1)
+	oplot,xplot,coefs[0]+coefs[1]*xplot,color=200
+	stop
+
+	IF !d.name EQ 'PS' THEN BEGIN
+		xsize=3.0
+		ysize=5.0075
+		ls=0.65
+		device, xsize=xsize, ysize=ysize, /inches
+	ENDIF
+	openwin,1
+	plot,apsi,xray_asym,psym=8,xr=[0,0.8],yr=[0,1.6],/xsty,/ysty,xtit='AXUV Asymmetry', ytit='SXR Asymmetry',chars=0.75
+	oplot, [0,2],[0,4],linestyle=2
+	                                                                                       
+;	openwin,0
+;	maxpt=max(mo_br/ne0)
+;	plot, [0],[0],xr=[0,2.5],yr=[0,maxpt],/xsty,/ysty,xtit='RF Power [MW]', ytit='Mo Bright/n!le!n',chars=1.2
+;	tmp=where(prf_j/prf GT 0.1)
+;	oplot, prf_j[tmp],mo_br[tmp]/ne0[tmp],color=30,psym=8
+;	tmp=where(prf_d/prf GT 0.1)
+;	oplot, prf_d[tmp],mo_br[tmp]/ne0[tmp],color=100,psym=8
+;	tmp=where(prf_e/prf GT 0.1)
+;	oplot, prf_e[tmp],mo_br[tmp]/ne0[tmp],color=200,psym=8
+
+END
+
+
+PRO ccfrac_plt,z,tr=tr
+	fq,z,frac,te
+	plc=plc(te,z,/q)
+	
+	lines=[2,3,4]
+	xtit='Te [eV]'
+	ytit='Fractional Abundance'
+	tit='f_q(Te) for '+read_atomic_name(z)+' (Z='+num2str(z,1)+')'
+	IF keyword_set(tr) THEN xr=tr ELSE xr=[min(te),max(te)]
+	yr=[0.0001,2.0]
+	plot,[0,0],[0,0],xr=xr,yr=yr,xtit=xtit,ytit=ytit,tit=tit,/xsty, /ysty,chars=1.3,/xlog,/ylog
+	lstylelist=[0,2,3]
+	l_cntr=0
+	FOR i=0,z DO BEGIN
+		IF l_cntr EQ n(lstylelist)+1 THEN l_cntr=0
+		oplot, te,frac[i,*],linestyle=lstylelist[l_cntr]
+		mloc=maxloc(reform(frac[i,*]))
+		xyouts,te[mloc],frac[i,mloc]*1.01,num2str(i,1),color=100,charsize=1.35
+		l_cntr+=1
+	ENDFOR
+	tmp=where(plc LT 0.1)
+	norm=max(plc[tmp])
+	oplot, te[tmp],plc[tmp]/norm,thick=5,color=200
+	stop
+END
+	
+PRO wb23_inst,shot=shot,time=time
+
+	mdsopen,'spectroscopy',shot
+	g2=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB2AX:GOOD')
+	z2=fltarr(22)+mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB2AX:Z_O')
+	rt2=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB2AX:R_TANG')
+	
+	g3=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB3AX:GOOD')
+	z3=fltarr(22)+mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB3AX:Z_O')
+	rt3=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB3AX:R_TANG')
+	mdsclose,'spectroscopy',shot
+
+	vessel_plot,shot=shot,title='SHOT: '+num2str(shot,1)+' TIME: '+num2str(time,dp=3)
+	fs_plot,shot,time
+	tmp=where(g2 EQ 1)
+	oplot, rt2[tmp],z2[tmp],psym=8,color=100
+	tmp=where(g3 EQ 1)
+	oplot, rt3[tmp],z3[tmp],psym=8,color=200
+	stop
+END
+
+PRO axuv_mhd_rot,shot,ch,chsub=chsub,ch2=ch2,array=array,nf=nf,nt=nt,samples=samples,fr=fr,tr=tr,maxpt=maxpt,fo=fo,to=to,ps=ps
+	IF NOT keyword_set(fr) THEN fr=[2,20]
+	IF NOT keyword_set(tr) THEN tr=[0,2.0]
+	IF NOT keyword_set(chsub) THEN chsub=7
+	IF NOT keyword_set(array) THEN array='axa'
+	IF NOT keyword_set(samples) THEN samples=2048
+	IF NOT keyword_set(nf) THEN nf=3
+	IF NOT keyword_set(to) THEN to=[0]
+	IF NOT keyword_set(fo) THEN fo=[5,10,15]
+	IF NOT keyword_set(ch2) THEN ch2=ch-1
+	
+	IF strlowcase(array) NE 'xtomo' THEN BEGIN
+		load_diode_data,shot,ch-1,v,t,array
+		load_diode_data,shot,ch2-1,vlow,t,array
+		load_diode_data,shot,chsub,vsub,t,array
+		mdsopen,'spectroscopy',shot
+		rtang=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.'+array+':R_TANG')
+		mdsclose,'spectroscopy',shot
+	ENDIF ELSE BEGIN
+		vsub=0.0
+		mdsopen,'xtomo',shot
+		IF ch LT 10 THEN chstr='0'+num2str(ch,1) ELSE chstr=num2str(ch,1)
+		v=mdsvalue('\XTOMO::TOP.SIGNALS.ARRAY_3:CHORD_'+chstr)
+		IF ch LT 11 THEN chstr='0'+num2str(ch-1,1) ELSE chstr=num2str(ch-1,1)
+		vlow=mdsvalue('\XTOMO::TOP.SIGNALS.ARRAY_3:CHORD_'+chstr)
+		t=mdsvalue('dim_of(\XTOMO::TOP.SIGNALS.ARRAY_3:CHORD_'+chstr+')')
+		mdsclose,'xtomo',shot
+		rtang=indgen(38)+1
+	ENDELSE
+
+	v-=vsub
+	transform,v,t,ft,time,freq,nf=nf,nt=nt,samples=samples
+	ft*=100
+	vlow-=vsub
+	transform,vlow,t,ftlow,time,freq,nf=nf,nt=nt,samples=samples
+	ftlow*=100
+	freq/=1.0e3
+	extremepts=localmaxmin(ft,time,freq,tr,fr)
+	extremepts_low=localmaxmin(ftlow,time,freq,tr,fr)
+
+	IF NOT keyword_set(maxpt) THEN maxpt=extremepts[1] > extremepts_low[1]
+	
+	labels={ilab:'Time [sec]',jlab:'Frequency [kHz]',klab:'Fluctuation Intensity [AU]',ctit:'SHOT :'+num2str(shot,1)+' '+strupcase(array)+$
+		' CH: '+num2str(ch)+'  R!lTANG!n='+num2str(rtang[ch-1],dp=3)+' [m]',itit:' ',jtit:' '}
+	genplt,ft,time,freq,cct=39,ncntrs=50,jr=fr,ir=tr,maxpt=maxpt,labels=labels,io=to,jo=fo,ps=ps,suffix='axuv_mhd1'
+	labels={ilab:'Time [sec]',jlab:'Frequency [kHz]',klab:'Fluctuation Intensity [AU]',ctit:'SHOT :'+num2str(shot,1)+' '+strupcase(array)+$
+		' CH: '+num2str(ch2)+'  R!lTANG!n='+num2str(rtang[ch2-1],dp=3)+' [m]',itit:' ',jtit:' '}
+
+	genplt,ftlow,time,freq,win=1,cct=39,ncntrs=50,jr=fr,ir=tr,maxpt=maxpt,labels=labels,io=to,jo=fo,ps=ps,suffix='axuv_mhd2'
+END	
+
+
+PRO calc_lax_emiss,shot,emiss,rho,time,brchk,rmaj=rmaj,n_rho=n_rho,rho_vec=rho_vec,eps=eps,eta=eta,tr=tr,debug=debug,$
+		bright=bright,chmin=chmin
+
+	IF NOT keyword_set(chmin) THEN chmin=10
+
+	;load brightness
+	load_axuvbr_data,shot,bright,rt,time,array='lax',good=good
+	pos=axuv_div_pos(array=[1],etendue=u)
+	bright=bright[chmin:*,*]
+	rt=rt[chmin:*]
+	good=good[chmin:*]
+	pos=pos[*,chmin:*]
+	u=u[chmin:*]
+	
+
+	;setup inversion data
+	IF NOT keyword_set(n_rho) THEN IF keyword_set(rho_vec) THEN n_rho=n(rho_vec)+1 ELSE n_rho=20
+	IF NOT keyword_set(eta) THEN eta=1.0
+	IF NOT keyword_set(eps) THEN eps=1.0e3
+	IF NOT keyword_set(rho_vec) THEN rho_vec=make(0.9,1.05,n_rho)
+	IF NOT keyword_set(tr) THEN tr=[min(time), max(time)]
+
+	;find good channels to remove from full POS (already removed from brightness)
+	goodpts=where(good EQ 1)
+	n_good=total(good)	
+	
+	;make sub array of EFIT time to generate voxel data
+	t_vox=line_gettimes(shot)
+	min_t=min(t_vox) > min(time) > tr[0]
+	max_t=max(t_vox) < max(time) < tr[1]
+	i_low=ipt(t_vox,min_t)
+	i_high=ipt(t_vox,max_t)
+	IF i_low EQ i_high THEN t_vox=t_vox[i_low] ELSE t_vox=t_vox[i_low+1:i_high-1]
+
+	;generate voxel data
+	pos=pos[*,goodpts]
+	u=u[goodpts]
+	voxel=genpos_pos2voxel_matrix(pos,u,shot,tpts=t_vox,rho_vec=rho_vec,/verb,rhopts=rhopts,n_s=n_s)
+
+	IF keyword_set(debug) THEN stop
+
+
+	;truncate brightness and time to be within voxel time range
+	i_low=ipt(time,min(t_vox))
+	i_high=ipt(time,max(t_vox))
+	IF i_low EQ i_high THEN BEGIN
+		time=time[i_low] 
+		bright=bright[*,i_low]
+	ENDIF ELSE BEGIN
+		time=time[i_low+1:i_high-1]
+		bright=bright[*,i_low+1:i_high-1]
+	ENDELSE
+	n_time=n(time)+1
+
+	;generate output data
+	rho=rho_vec
+	rmaj=line_getrmaj(shot,rho,time)
+	emiss=fltarr(n_rho,n_time)
+	brchk=fltarr(n_good,n_time)
+	print, 'inverting profiles'
+	FOR i=0,n_time-1 DO BEGIN
+		;interpolate voxel matrix that was generated on EFIT time points
+		IF n_time NE 1 THEN BEGIN
+			ibnd=ibound(t_vox,time[i])
+			vox_i=voxel[*,*,ibnd[0]]+(voxel[*,*,ibnd[1]]-voxel[*,*,ibnd[0]])/(t_vox[ibnd[1]]-t_vox[ibnd[0]])*(time[i]-t_vox[ibnd[0]])
+		ENDIF ELSE vox_i=voxel
+		a=max(vox_i)
+		pow=bright[goodpts,i]*u[goodpts]/(4.0*!pi)
+		IF total(vox_i) NE 0 THEN BEGIN
+			emiss[*,i]=genpos_profile_invert(pow,vox_i,double(eps*a^2),brchk=brchk_i,/nofirst,eta=double(eta*a^2))	
+			brchk[*,i]=brchk_i.mom*4.0*!pi/u
+		ENDIF
+	ENDFOR
+	print, 'inversions done'
+	IF keyword_set(debug) THEN stop
+END
+
+PRO plot_axdiv_main_bright,shot,tau,plots=plots,wb4=wb4,wb3=wb3
+
+	mdsopen,'spectroscopy', shot
+	array='axa'
+	IF keyword_set(wb4) THEN array='wb4ax'
+	IF keyword_set(wb3) THEN array='wb3ax'
+	emiss=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.'+array+':EMISS')*1.0e-6
+	r=mdsvalue('dim_of(\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.'+array+':EMISS,2)')	;r mapped to midplane
+	time=mdsvalue('dim_of(\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.'+array+':EMISS,1)')
+	axdiv_utree=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.AXDIV:U')
+	mdsclose,'spectroscopy',shot
+	emiss=emiss[*,ipt(time,tau)]
+	r=r[*,ipt(time,tau)]
+
+	calc_diodebr_data,shot,'axdiv',br_axdiv,rt_axdiv,t,del_i=11
+	br_axdiv=br_axdiv[*,ipt(t,tau)]*1.0e-6
+	calc_diodebr_data,shot,'lax',br_lax,rt_lax,t,del_i=101
+	br_lax=br_lax[*,ipt(t,tau)]*1.0e-6
+
+  	path='/home/mlreinke/idl/genie/data/info/axuv/axuv_div_2.info'
+	info=genpos_planar_info(path)
+	pos_axdiv=genpos_planar2pos(info,etendue=axdiv_uinfo,t=0.01*25.4/1.0e3)
+	br_axdiv*=axdiv_utree/axdiv_uinfo
+	path='/home/mlreinke/idl/genie/data/info/axuv/axuv_div_1.info'
+	info=genpos_planar_info(path)
+	pos_lax=genpos_planar2pos(info)
+
+	axdiv_main=line_br(pos_axdiv,emiss,r,tau,shot,tau,n_s=300,plots=plots)
+	lax_main=line_br(pos_lax,emiss,r,tau,shot,tau,plots=plots,n_s=300)
+	
+
+	openwin,0
+	plot, rt_axdiv,br_axdiv,xtit='RTANG [m]', ytit='Brightness [MW/m!u2!n]',tit='AXDIV',chars=1.2,psym=-8,yr=[0,max(br_axdiv)*1.05],/ysty,/xsty
+	oplot,rt_axdiv,axdiv_main,color=200,psym=-8
+
+
+	openwin,1
+	plot, br_lax,xtit='CH#', ytit='Brightness [MW/m!u2!n]',tit='AXDIV',chars=1.2,psym=-8,yr=[0,max(br_lax)*1.05],/ysty,/xsty
+	oplot,lax_main,color=200,psym=-8
+
+
+	stop
+END
+	
+	
+PRO calc_diode_delta,shot,dt,t1,plot=plot,t2=t2,array=array
+	IF NOT keyword_set(dtau) THEN dtau=0.05
+	IF NOT keyword_set(array) THEN array='axj'
+	mdsopen,'spectroscopy',shot
+	emiss=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.'+array+':EMISS')*1.0e-6
+	r=mdsvalue('dim_of(\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.'+array+':EMISS,0)')
+	t=mdsvalue('dim_of(\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.'+array+':EMISS,1)')
+	mdsclose,'spectroscopy',shot
+	
+	;isolate 
+	tmp=where(t GE dt[0] AND t LE dt[1])
+	tau=t[tmp]
+	n_tau=n(tau)+1
+	n_ch=n(r)+1
+	dem=fltarr(n_ch,n_tau)
+
+	FOR i=0,n_ch-1 DO BEGIN
+		IF keyword_set(t2) THEN sub=[where(t GE t1[0] AND t LE t1[1]),where(t GE t2[0] AND t LE t2[1])] ELSE $
+			sub=where(t GE t1[0] AND t LE t1[1])
+		xfit=t[sub]
+		yfit=reform(emiss[i,sub])
+		coefs=poly_fit(xfit,yfit,1)
+		dem[i,*]=emiss[i,tmp]-(coefs[1]*tau+coefs[0])
+		
+		IF keyword_set(plot) THEN BEGIN
+			IF keyword_set(t2) THEN xr=[min(t1), max(t2)] ELSE xr=[min(t1), max(dt)]
+			!p.multi=[0,0,2]
+			plot, t,emiss[i,*],xr=xr,/xsty
+			oplot, t,coefs[1]*t+coefs[0],linestyle=2.0,color=200
+			plot, tau,dem[i,*],xr=xr,/xsty
+			!p.multi=0
+			stop
+		ENDIF
+	ENDFOR
+	stop
+	
+END
+
+
+PRO zstack_rth_plot,shot,t
+
+	mdsopen,'spectroscopy',shot
+	em4=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.WB4AX:EMISS')
+	r4=mdsvalue('dim_of(\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.WB4AX:EMISS,0)')
+	t4=mdsvalue('dim_of(\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.WB4AX:EMISS,1)')
+	rm4=mdsvalue('dim_of(\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.WB4AX:EMISS,2)')
+	z4=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB4AX:Z_0')
+	em3=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.WB3AX:EMISS')
+	r3=mdsvalue('dim_of(\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.WB3AX:EMISS,0)')
+	t3=mdsvalue('dim_of(\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.WB3AX:EMISS,1)')
+	rm3=mdsvalue('dim_of(\SPECTROSCOPY::TOP.BOLOMETER.RESULTS.DIODE.WB3AX:EMISS,2)')
+	z3=mdsvalue('\SPECTROSCOPY::TOP.BOLOMETER.DIODE_CALIB.WB3AX:Z_O')
+	mdsclose,'spectroscopy',shot
+
+	axis=line_getaxis(shot)
+	efit_t=line_gettimes(shot)
+
+	em4=em4[*,ipt(t4,t)]
+	rm4=rm4[*,ipt(t4,t)]
+	em3=em3[*,ipt(t3,t)]
+	rm3=rm3[*,ipt(t3,t)]
+	axis=reform(axis[ipt(efit_t,t),*])
+
+	th4=fltarr(n(r4)+1)
+	tmp=where(r4 LT axis[0])
+	dz=abs(z4-axis[1])
+	dr=abs(r4[tmp]-axis[0])
+	th4[tmp]=!pi+atan(dz/dr)
+	tmp=where(r4 GE axis[0])
+	dr=abs(r4[tmp]-axis[0])
+	th4[tmp]=2.0*!pi-atan(dz/dr)
+
+	th3=fltarr(n(r3)+1)
+	tmp=where(r3 LT axis[0])
+	dz=abs(z3-axis[1])
+	dr=abs(r3[tmp]-axis[0])
+	th3[tmp]=!pi+atan(dz/dr)
+	tmp=where(r3 GE axis[0])
+	dr=abs(r4[tmp]-axis[0])
+	th3[tmp]=2.0*!pi-atan(dz/dr)
+
+	rmin=min(rm4)
+	tmp=where(rm3 GE rmin)
+	em3=em3[tmp]
+	rm3=rm3[tmp]
+	th3=th3[tmp]
+
+	em=[em4,em3]
+	rm=[rm4,rm3]
+	th=[th4,th3]
+	
+	
+
+	stop
+END
+
+PRO xpt_br,shot,tr,lbr,zpos,kbr,rpos,lyman=lyman,plot=plot,pos=pos
+	IF keyword_set(lyman) THEN BEGIN
+		array='lly'
+  		path='/home/mlreinke/idl/genie/data/info/lyman/lyman_div_2.info'
+		info=genpos_planar_info(path)
+		pos=genpos_planar2pos(info,etendue=u,t=0.01*25.4/1.0e3)
+		good1=intarr(20)+1
+		good1[[0,19]]=0
+	ENDIF ELSE BEGIN
+		array='lax'
+		path='/home/mlreinke/idl/genie/data/info/axuv/axuv_div_2.info'
+		info=genpos_planar_info(path)
+		pos2=genpos_planar2pos(info,etendue=u,t=0.01*25.4/1.0e3)
+		good2=intarr(20)+1
+		good2[[0,10,19]]=0
+		path='/home/mlreinke/idl/genie/data/info/axuv/axuv_div_1.info'
+		info=genpos_planar_info(path)
+		pos1=genpos_planar2pos(info,etendue=u,t=0.01*25.4/1.0e3)
+		good1=intarr(20)+1
+		good1[[0,19]]=0
+		pos=[[pos1],[pos2]]
+	ENDELSE
+	tpt=mean(tr)
+	load_axuvbr_data,shot,br,rt,t,array=array,/tree
+	ilow=ipt(t,tr[0])
+	ihigh=ipt(t,tr[1])
+	lbr=sum_array(br[*,ilow:ihigh],/i)/(ihigh-ilow+1.0)*1.0e-6
+	
+	load_xpt_data,shot,rx,zx,tx
+	xpt=[rx[ipt(tx,tpt)],zx[ipt(tx,tpt)]]/100.0
+	zpos=fltarr(20)
+	rpos=fltarr(20)
+	FOR i=0,19 DO BEGIN
+		s=line_s(pos[*,i],r=xpt[0])
+		zpos[i]=line_z(min(s),pos[*,i])-xpt[1]
+		rpos[i]=line_r(min(s),pos[*,i])-xpt[0]
+	ENDFOR
+
+	IF keyword_set(plot) THEN BEGIN
+		tmp1=where(good1 EQ 1)
+		IF keyword_set(lyman) THEN tmp=tmp1 ELSE tmp=where([good1,good2] EQ 1)
+ 		line_path_plots,pos[*,tmp],/div,/bspline,shot=shot,tpt=mean(tr)
+		oplot, fltarr(n(tmp1)+1)+xpt[0],zpos[tmp1]+xpt[1],psym=8
+		IF NOT keyword_set(lyman) THEN  oplot, rpos[tmp2]+xpt[0],fltarr(n(tmp2)+1)+xpt[1],psym=8
+	ENDIF
+
+	IF keyword_set(plot) THEN BEGIN
+		openwin,0
+		plot, zpos[tmp1]*100.0,lbr[tmp1]*1.0e3,psym=-8,xtit='Z-Z!lX!n [cm]',ytit='Brightness [kW/m!u2!n]'
+	ENDIF
+
+	IF NOT keyword_set(lyman) THEN BEGIN
+		calc_diodebr_data,shot,'axdiv',br,rt,t
+		ilow=ipt(t,tr[0])
+		ihigh=ipt(t,tr[1])
+		abr=sum_array(br[*,ilow:ihigh],/i)/(ihigh-ilow+1.0)*1.0e-6
+	
+		rpos=fltarr(20)
+		FOR i=20,39 DO BEGIN
+			s=line_s(pos[*,i],z=xpt[1])
+			rpos[i-20]=line_r(min(s),pos[*,i])-xpt[0]
+		ENDFOR
+		IF keyword_set(plot) THEN BEGIN
+			openwin,1
+			tmp2=where(good2 EQ 1)
+			plot, rpos[tmp2]*100.0,abr[tmp2]*1.0e3,psym=-8,xtit='R-R!lX!n [cm]',ytit='Brightness [kW/m!u2!n]'
+		ENDIF
+	ENDIF
+
+	;xpt_br,1100903021,[1.08,1.12],/plot,/lyman
+	;xpt_br,1100903019,[1.08,1.12],lbr,zpos,/lyman
+	;oplot, zpos[1:18]*100.0,lbr[1:18]*1.0e3,psym=-8,color=100
+	stop
+END
+
+PRO axj_asym_qscale
+
+	shots=1091118000+[6,7,10,12]
+	color=[0,30,100,200]
+
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0
+	d_old=!d
+	ls=1.0
+	IF keyword_set(ps) THEN BEGIN
+		device, xsize=5.5,ysize=5.5*1100.0/800.0,/inches
+		ls=1.0
+		!p.thick=6
+		!p.charthick=2.0
+	ENDIF ELSE openwin,0,xsize=600,ysize=1000
+	xr=[0.4,1.6]
+	nt=6
+	nm=6
+	del=(0.95-0.08)/5
+	xlab=0.08+0.45
+	ylab=0.8
+
+
+	;current
+	i=4
+	pos=[0.13,0.08+i*del,0.9,0.08+(i+1)*del]
+	dy=1.4
+	plot, [0],[0],xr=xr,pos=pos,/xsty,chars=1.0*ls,xticks=nt,xminor=nm,xtickname=replicate(' ',nt+2),yr=[0.5,dy],ytit='[MA]',/ysty,xthick=5.0,ythick=5.0
+	;xyouts,1.55,0.5*dy,'(b)'
+	FOR i=0,n(shots) DO BEGIN
+		load_ip_data,shots[i],y,x
+		oplot,x,-1.0*y/1.0e6,color=color[i]	
+	ENDFOR
+	xyouts,xlab,0.6,'I!lp!n'
+
+	;prad
+	i=3
+	pos=[0.13,0.08+i*del,0.9,0.08+(i+1)*del]
+	lines=[2.0,2.5,3.0]
+	dy=1.5
+	plot, [0],[0],xr=xr,pos=pos,/xsty,chars=1.0*ls,xticks=nt,xminor=nm,xtickname=replicate(' ',nt+2),yr=[0,dy],ytit='[MW]',/noerase,/ysty,xthick=5.0,ythick=5.0
+	;xyouts,1.55,0.5*dy,'(d)'
+	FOR i=0,n(shots) DO BEGIN
+		load_praddiode_data,shots[i],y,x,/tree
+		oplot,x,y,color=color[i]
+	ENDFOR
+	xyouts,xlab,dy*ylab,'P!lRAD,DIODE!n'
+
+
+	;density
+	i=1
+	pos=[0.13,0.08+i*del,0.9,0.08+(i+1)*del]
+	dy=1.05
+	plot, [0],[0],xr=xr,pos=pos,/xsty,chars=1.0*ls,xticks=nt,xminor=nm,xtickname=replicate(' ',nt+2),yr=[0,dy],ytit='[10!u20!n m!u-2!n]',/noerase,/ysty,xthick=5.0,ythick=5.0
+	;xyouts,1.55,0.5*dy,'(c)'
+	FOR i=0,n(shots) DO BEGIN
+		load_nl04_data,shots[i],y,x
+		oplot,x,y*1.0e-20,color=color[i]
+	ENDFOR
+	xyouts,xlab,0.25,'nl04'
+
+	;RF power
+	i=2
+	pos=[0.13,0.08+i*del,0.9,0.08+(i+1)*del]
+	dy=4.0
+	plot, [0],[0],xr=xr,pos=pos,/xsty,chars=1.0*ls,xticks=nt,xminor=nm,yr=[0,dy],ytit='[MW]',xtickname=replicate(' ',nt+2),/noerase,/ysty,xthick=5.0,ythick=5.0
+	;xyouts,1.55,0.5*dy,'(d)'
+	FOR i=0,n(shots) DO BEGIN
+		load_rfnet_data,shots[i],y,x
+		oplot,x,y,color=color[i]
+	ENDFOR
+	xyouts,xlab,dy*ylab,'P!lICRF!n'
+
+	;ASYM
+	i=0
+	pos=[0.13,0.08+i*del,0.9,0.08+(i+1)*del]
+	dy=1.55
+	rmpt=0.82
+	plot, [0],[0],xr=xr,pos=pos,/xsty,chars=1.0*ls,xticks=nt,xminor=nm,yr=[0.9,dy],ytit='LFS/HFS',/noerase,xtit='Time [sec]',/ysty,xthick=5.0,ythick=5.0
+	;xyouts,1.55,0.5*dy,'(e)'
+	FOR i=0,n(shots) DO BEGIN
+		calc_inout_ratio,shots[i],'axj',rmpt,y,x,delr=0.02
+		oplot,x,smooth(y,10),color=color[i]
+	ENDFOR
+	xyouts,xlab,1.4,'ASYM'
+	FOR i=0,n(shots) DO xyouts,1.65,1.0+i*0.4,num2str(shots[i],1),color=color[i],orient=90,chars=0.7
+	IF keyword_set(ps) THEN device, xsize=float(d_old.x_size)/d_old.x_px_cm,ysize=float(d_old.y_size)/d_old.y_px_cm,/port	
+
+END
+
+
+PRO axuv_upgrade,tor=tor
+
+	path='/home/mlreinke/idl/genie/data/info/axuv/'
+	mid1=path+'axuv_midplane_1.info'
+	mid2=path+'axuv_midplane_2.info'
+	z4=path+'axuv_zstack_4.info'
+	z3=path+'axuv_zstack_3.info'
+	z2=path+'axuv_zstack_2.info'
+	z1=path+'axuv_zstack_1.info'
+	div=path+'axuv_div_1.info'
+
+	info=genpos_planar_info(div)
+	divpos=genpos_planar2pos(info)
+	info=genpos_planar_info(mid1)
+	m1pos=genpos_planar2pos(info)
+	info=genpos_planar_info(mid2)
+	m2pos=genpos_planar2pos(info)
+	info=genpos_planar_info(z1)
+	z1pos=genpos_planar2pos(info)
+	info=genpos_planar_info(z2)
+	z2pos=genpos_planar2pos(info)
+	info=genpos_planar_info(z3)
+	z3pos=genpos_planar2pos(info)
+	info=genpos_planar_info(z4)
+	z4pos=genpos_planar2pos(info)
+
+	;line_path_plots,divpos,shot=1100903029,tpt=1.0,/bspline,/thick
+	line_path_plots,divpos,shot=1110317016,tpt=1.1,/bspline,/thick
+	oplot, m1pos[2,*],m1pos[1,*]-0.01,psym=4,color=200,symsize=0.75
+	oplot, m2pos[2,*],m2pos[1,*],psym=4,color=200,symsize=0.75
+	oplot, z1pos[2,*],z1pos[1,*],psym=4,color=200,symsize=0.75
+	oplot, z2pos[2,*],z2pos[1,*],psym=4,color=200,symsize=0.75
+	oplot, z3pos[2,*],z3pos[1,*],psym=4,color=200,symsize=0.75
+	oplot, z4pos[2,*],z4pos[1,*],psym=4,color=200,symsize=0.75
+
+	path='/home/mlreinke/idl/genie/data/info/axuv/'
+	mid1=path+'axuv_pedmid_1.info'
+	mid2=path+'axuv_midplane_2.info'
+	z4=path+'axuv_pedstack_4.info'
+	z3=path+'axuv_pedstack_3.info'
+	z2=path+'axuv_pedstack_2.info'
+	z1=path+'axuv_pedstack_1.info'
+	div1=path+'axuv_pdiv_1.info'
+	div2=path+'axuv_pdiv_2.info'
+
+	info=genpos_planar_info(div1)
+	d1pos=genpos_planar2pos(info)
+	info=genpos_planar_info(div2)
+	d2pos=genpos_planar2pos(info)
+	info=genpos_planar_info(mid1)
+	m1pos=genpos_planar2pos(info)
+	info=genpos_planar_info(mid2)
+	m2pos=genpos_planar2pos(info)
+	info=genpos_planar_info(z1)
+	z1pos=genpos_planar2pos(info)
+	info=genpos_planar_info(z2)
+	z2pos=genpos_planar2pos(info)
+	info=genpos_planar_info(z3)
+	z3pos=genpos_planar2pos(info)
+	info=genpos_planar_info(z4)
+	z4pos=genpos_planar2pos(info)
+
+	divpos=[[d1pos],[d2pos]]
+	line_path_plots,divpos,shot=1100903029,tpt=1.0,/bspline,/thick,tor=tor
+	oplot, m1pos[2,*],m1pos[1,*]-0.01,psym=4,color=200,symsize=0.75
+	;oplot, m2pos[2,*],m2pos[1,*],psym=4,color=200,symsize=0.75
+	oplot, z1pos[2,*],z1pos[1,*],psym=4,color=200,symsize=0.75
+	oplot, z2pos[2,*],z2pos[1,*],psym=4,color=200,symsize=0.75
+	oplot, z3pos[2,*],z3pos[1,*],psym=4,color=200,symsize=0.75
+	oplot, z4pos[2,*],z4pos[1,*],psym=4,color=200,symsize=0.75
+	stop
+END

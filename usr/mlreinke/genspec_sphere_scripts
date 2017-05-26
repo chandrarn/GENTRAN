@@ -1,0 +1,643 @@
+PRO plot_iontemp_effects,dlam=dlam,load=load
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0
+	IF NOT keyword_set(dlam) THEN dlam=0.0
+	cry_width=32.0
+	R=1.442
+	ti=[0.05,0.1,0.2,0.3,0.4,0.5,0.75,1.0,1.5,2.0,2.5,3.0,3.5,4.0]*1.0e3
+	n_ti=n(ti)+1
+	n_x=500
+	x=make(-5.0e-3,5.0e-3,n_x)
+	mean=fltarr(n_ti)
+	sigma=fltarr(n_ti)
+	line=fltarr(n_ti,n_x)
+
+
+	save_path='/home/mlreinke/hirex_sr/genspec_sphere_iontemp.dat'
+	IF NOT keyword_set(load) THEN BEGIN
+		FOR i=0,n_ti-1 DO BEGIN
+			dlam_i=dlam
+			xcis_lineshape,x,(cry_width*1.0e-3)/R,ti=ti[i],delta=dlam_i,mean=m,width=s,pix=pix,pow=pow
+			mean[i]=m
+			sigma[i]=s
+			line[i,*]=pow
+		ENDFOR
+		pixel=pix
+		save,mean,sigma,pixel,line,filename=save_path
+	ENDIF ELSE restore, save_path
+
+	labels={ilab:'T!li!n [keV]',jlab:'Pixel #',klab:'Normalized Power Deposited',ctit:'',itit:'',jtit:''}
+	genplt,line,ti*1.0e-3,pixel,label=labels,jr=mean[0]+[-10,10],ncntrs=50,cct=39,ps=ps
+	!p.multi=[0,0,2]
+	openwin,0
+	IF dlam EQ 0 THEN dlam_str='FOCUS' ELSE dlam_str=n2g('delta')+n2g('lambda')+'='+num2str(dlam,dp=1)+' [mAng]'
+	plot, ti*1.0e-3,mean,xr=[0,4],yr=[0,max(mean)*1.1],/ysty,/xsty,ytit='Line Center [pix]',tit='Line Center Variation @ '+dlam_str,chars=1.2
+	oplot,[min(ti),max(ti)]*1.0e-3,mean[0]*[1.0,1.0],color=200,linestyle=2.0
+	plot,ti*1.0e-3,(mean-mean[0])*1.0e3,xr=[0,4],/xsty,chars=1.2,xtit='T!li!n [keV]',ytit='Shift in Center [10!u-3!n pix]',yr=[-9,0],/ysty
+	openwin,1
+	m=(sigma[n_ti-1]-sigma[0])/(ti[n_ti-1]-ti[0])
+	sigmafit=m*(ti-ti[0])+sigma[0]
+
+	plot, ti*1.0e-3,sigma,xr=[0,4],/xsty,tit='Line Width Variation @ '+dlam_str,chars=1.2,ytit='Line Width [10!u-3!n pix]'
+	oplot,ti*1.0e-3,sigmafit,color=200,linestyle=2.0
+	plot,ti*1.0e-3,(sigma-sigmafit)*1.0e3,xr=[0,4],/xsty,chars=1.2,xtit='T!li!n [keV]',ytit='Difference in Width [10!u-3!n pix]',yr=[-0.2,0.05],/ysty
+
+	!p.multi=0
+
+
+END
+
+PRO plot_xcis_lineshape,load=load
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0
+	R=1.442
+	ti=1.0e3			;ion temperature [eV]
+	cry_width=[0.1,1,5,10,15,20,25,30,35,40,45,50,55,60]		;1/2 width of the crystal [mm]
+	dlam=[0,5,10,15,20,25,30,35,40,45,50,55,60,65,70]	;shift [mAng] from focused line
+	save_path='/home/mlreinke/hirex_sr/genspec_sphere_lineshape.dat'
+
+	n_w=n(cry_width)+1
+	n_l=n(dlam)+1
+	
+	mean=fltarr(n_w,n_l)
+	sigma=fltarr(n_w,n_l)
+	n_x=300
+	x=make(-5.0e-3,5.0e-3,n_x)
+	pixel=fltarr(n_w,n_l,n_x)
+	line=fltarr(n_w,n_l,n_x)
+
+	IF NOT keyword_set(load) THEN BEGIN
+		FOR i=0,n_w-1 DO BEGIN
+			print, i
+			FOR j=0,n_l-1 DO BEGIN
+				xcis_lineshape,x,(cry_width[i]*1.0e-3)/R,ti=ti,delta=dlam[j],mean=m,width=s,pix=pix,pow=pow
+				mean[i,j]=m
+				sigma[i,j]=s
+				pixel[i,j,*]=pix
+				line[i,j,*]=pow
+			ENDFOR
+		ENDFOR
+		save,mean,sigma,pixel,line,filename=save_path
+	ENDIF ELSE restore,save_path
+	
+	labels={ilab:'Crystal 1/2 Width [mm]',jlab:'Line Center Shift from Focus [mAng]',klab:'Approx. T!lINST!n [eV]',ctit:'',itit:'',jtit:''}
+	genplt,((sigma/sigma[0,0])^2-1.0)*ti,cry_width,dlam,ncntrs=25,cct=39,lab=labels,ps=ps,ir=[0,40],jr=[0,40]
+	
+	openwin,0
+	!p.multi=[0,0,2]
+	plot,dlam,mean[0,*],/xsty,/ysty,chars=1.2,ytit='Line Center [pix]',yr=[min(mean),0]
+	oplot,dlam,mean[n_w-1,*],linestyle=2.0
+
+	m=(mean[0,1]-mean[0,0])/(dlam[1]-dlam[0])
+	meanfit=m*(dlam-dlam[0])+mean[0,0]
+	mu_small=mean[0,*]-meanfit
+	mu_large=mean[n_w-1,*]-meanfit
+	minplt=min(mu_small) < min(mu_large)
+	maxplt=max(mu_small) > max(mu_large)
+
+	plot,dlam,mu_small,yr=[minplt,maxplt]*1.03,/ysty,/xsty,xtit='Wavelength from Focus [mAng]',ytit=n2g('Delta')+' From Linear [pix]',chars=1.2
+	oplot,dlam,mu_large,linestyle=2.0
+	xyouts,10,-3,'Crystal 1/2 Width [mm]'
+	xyouts,10,-4,'DASHED: '+num2str(cry_width[n_w-1],dp=1)
+	xyouts,10,-5,' SOLID: '+num2str(cry_width[0],dp=1)
+	!p.multi=0
+	
+
+	openwin,1
+	pts=[0,3,5,7,9,11,13]
+	colors=[0,30,70,100,130,150,200]
+	plot,pixel[0,0,*],line[0,0,*],xr=[-4,11],/xsty,yr=[0,1.03],/ysty,xtit='Pixel #',ytit='Normalized Power on Detector',chars=1.2,$
+		tit='Line Shape Varition @ Focus'
+	xyouts,3.75,0.9,'Crystal 1/2 Width [mm]',chars=1.4
+	xyouts,10,0.1,'T!li!n = '+num2str(ti*1.0e-3,dp=1)+ ' [kev]',orient=90
+
+	FOR i=0,n(pts) DO BEGIN
+		oplot,pixel[pts[i],0,*],line[pts[i],0,*],color=colors[i]
+		xyouts,5,0.85-i*0.075,num2str(cry_width[pts[i]],dp=1), color=colors[i]
+	ENDFOR
+	openwin,2
+	pts=[0,3,5,7,9,11,13]
+	colors=[0,30,70,100,130,150,200]
+	lpt=10
+	plot,pixel[0,lpt,*],line[0,lpt,*],/xsty,xr=[-167,-152],yr=[0,1.03],/ysty,xtit='Pixel #',ytit='Normalized Power on Detector',chars=1.2,$
+		tit='Line Shape Varition @ '+n2g('delta')+n2g('lambda')+'='+num2str(dlam[lpt],1)+' [mAng]'
+	xyouts,-159,0.9,'Crystal 1/2 Width [mm]',chars=1.4
+	xyouts,-153,0.1,'T!li!n = '+num2str(ti*1.0e-3,dp=1)+ ' [kev]',orient=90
+	FOR i=0,n(pts) DO BEGIN
+		oplot,pixel[pts[i],lpt,*],line[pts[i],lpt,*],color=colors[i]
+		xyouts,-157,0.85-i*0.075,num2str(cry_width[pts[i]],dp=1), color=colors[i]
+	ENDFOR
+	
+	stop
+END
+
+PRO gsi_zfocus_convergance,load=load
+	infosave='/home/mlreinke/idl/hirexsr/genspec/gsi_info_f3994.dat'
+	imagesave='/home/mlreinke/idl/hirexsr/genspec/gsi_zfocus_conv.dat'
+	restore,infosave
+
+	nrho=100
+	rho=make(0,1.1,nrho)
+
+	;set flat emissivity and ti profiles
+	ti=fltarr(nrho)+0.1
+	ti[nrho-3:nrho-1]=0.001
+	emiss=fltarr(nrho)+1.0
+	emiss[nrho-3:nrho-1]=0.0
+	w=fltarr(nrho)			;set velocity to zero for now
+	u=w
+	shot=1070830020
+	time=1.25
+	lam_o=[3.994]
+	z=[18]
+
+	num=10
+	numpix=info.det.n_xi
+	image2d=fltarr(numpix,num)
+	image1d=fltarr(numpix,num)
+	IF NOT keyword_set(load) THEN BEGIN
+		FOR i=1,num DO BEGIN
+			print,i
+			ny=i
+			nz=i
+			start_time=systime(/seconds)
+			image2d[*,i-1]=genspec_sphere_image(info,shot,time,lam_o,z,emiss,w,u,ti,rho,r_ap=1.0,verb=verb,ny=ny,nz=nz)
+			image1d[*,i-1]=genspec_sphere_image(info,shot,time,lam_o,z,emiss,w,u,ti,rho,r_ap=1.0,verb=verb,ny=ny,nz=1)
+			ctime=systime(/seconds)-start_time
+			print,ctime
+		ENDFOR
+		save,image1d,image2d,filename=imagesave
+	ENDIF ELSE restore, imagesave
+	xi=info.det.xi*1.0e3
+	image1d*=1.0e10
+	image2d*=1.0e10
+
+	openwin,0
+	plot,xi,image2d[*,0],xtit=n2g('xi')+' [mm]',ytit='Spectral Brightness [AU]',chars=1.2,xr=[4.7,5.9],/xsty,yr=[0,2.25],/ysty,tit='Convergance Test @ Focus'
+	color=[0,30,70,100,120,150,200]
+	pts=[0,1,2,3,5,7,9]
+	FOR i=0,n(pts) DO BEGIN
+		oplot,xi,image2d[*,pts[i]],color=color[i]
+		xyouts,5.6,2.0-0.2*i,'n!ly!n=n!lz!n='+num2str(pts[i]+1,1),color=color[i]
+	ENDFOR
+	
+
+	openwin,1
+	plot,xi,image2d[*,0],xtit=n2g('xi')+' [mm]',ytit='Spectral Brightness [AU]',chars=1.2,xr=[4.7,5.9],/xsty,yr=[0,2.25],/ysty,tit=n2g('lambda')+' = '+num2str(lam_o,dp=3)+'[Ang]   T = '$
+		+num2str(ti[0],dp=1)+' [keV]'
+	oplot,xi,image2d[*,num-1]
+	oplot,xi,image1d[*,0],linestyle=2.0,color=200
+	oplot,xi,image1d[*,num-1],linestyle=2.0,color=200
+	oplot,xi[maxloc(image2d[*,0])]*[1,1],[0,3],color=30,linestyle=3.0
+	oplot,xi[maxloc(image2d[*,num-1])]*[1,1],[0,3],color=30,linestyle=3.0
+	delta=xi[maxloc(image2d[*,num-1])]-xi[maxloc(image2d[*,0])]
+	xyouts,5.4,2.0,n2g('Delta')+' PEAK '+num2str(delta*1.0e3,dp=1)+' ['+n2g('mu')+'m]',chars=1.3,color=30
+	xyouts,4.8,2.0,'2-D Crystal'
+	xyouts,4.8,1.75,'1-D Crystal',color=200
+	
+
+	stop
+END
+
+PRO gsi_wfocus_convergance,load=load
+	infosave='/home/mlreinke/idl/hirexsr/genspec/gsi_info_f3944.dat'
+	imagesave='/home/mlreinke/idl/hirexsr/genspec/gsi_wfocus_conv.dat'
+	restore,infosave
+
+	nrho=100
+	rho=make(0,1.1,nrho)
+
+	;set flat emissivity and ti profiles
+	ti=fltarr(nrho)+0.1
+	ti[nrho-3:nrho-1]=0.001
+	emiss=fltarr(nrho)+1.0
+	emiss[nrho-3:nrho-1]=0.0
+	w=fltarr(nrho)			;set velocity to zero for now
+	u=w
+	shot=1070830020
+	time=1.25
+	lam_o=[3.944]
+	z=[18]
+
+	num=10
+	numpix=info.det.n_xi
+	image2d=fltarr(numpix,num)
+	image1d=fltarr(numpix,num)
+	IF NOT keyword_set(load) THEN BEGIN
+		FOR i=1,num DO BEGIN
+			print,i
+			ny=i
+			nz=i
+			start_time=systime(/seconds)
+			image2d[*,i-1]=genspec_sphere_image(info,shot,time,lam_o,z,emiss,w,u,ti,rho,r_ap=1.0,verb=verb,ny=ny,nz=nz)
+			image1d[*,i-1]=genspec_sphere_image(info,shot,time,lam_o,z,emiss,w,u,ti,rho,r_ap=1.0,verb=verb,ny=ny,nz=1)
+			ctime=systime(/seconds)-start_time
+			print,ctime
+		ENDFOR
+		save,image1d,image2d,filename=imagesave
+	ENDIF ELSE restore, imagesave
+	xi=info.det.xi*1.0e3
+	image1d*=1.0e10
+	image2d*=1.0e10
+
+	openwin,0
+	plot,xi,image2d[*,0],xtit=n2g('xi')+' [mm]',ytit='Spectral Brightness [AU]',chars=1.2,xr=[27.0,28.4],/xsty,yr=[0,2.25],/ysty
+	color=[30,70,100,120,150,200]
+	pts=[1,2,3,5,7,9]
+	FOR i=0,n(pts) DO BEGIN
+		oplot,xi,image2d[*,pts[i]],color=color[i]
+		xyouts,5.6,2.0-0.2*i,num2str(pts[i],1),color=color[i]
+	ENDFOR
+
+	openwin,1
+	plot,xi,image2d[*,0],xtit=n2g('xi')+' [mm]',ytit='Spectral Brightness [AU]',chars=1.2,/xsty,xr=[27.0,28.4],yr=[0,2.25],/ysty,tit=n2g('lambda')+' = '+num2str(lam_o,dp=3)+'[Ang]   T = '$
+		+num2str(ti[0],dp=1)+' [keV]'
+	oplot,xi,image2d[*,num-1]
+	oplot,xi,image1d[*,0],linestyle=2.0,color=200
+	oplot,xi,image1d[*,num-1],linestyle=2.0,color=200
+	oplot,xi[maxloc(image2d[*,0])]*[1,1],[0,3],color=30,linestyle=3.0
+	oplot,xi[maxloc(image2d[*,num-1])]*[1,1],[0,3],color=30,linestyle=3.0
+	delta=xi[maxloc(image2d[*,num-1])]-xi[maxloc(image2d[*,0])]
+	xyouts,27.9,2.0,n2g('Delta')+' PEAK '+num2str(delta*1.0e3,dp=1)+' ['+n2g('mu')+'m]',chars=1.5,color=30
+
+
+	stop
+END
+
+PRO gsi_oozfocus_convergance,load=load
+	infosave='/home/mlreinke/idl/hirexsr/genspec/gsi_info_f3994.dat'
+	imagesave='/home/mlreinke/idl/hirexsr/genspec/gsi_oozfocus_conv.dat'
+	restore,infosave
+
+	nrho=100
+	rho=make(0,1.1,nrho)
+
+	;set flat emissivity and ti profiles
+	ti=fltarr(nrho)+0.1
+	ti[nrho-3:nrho-1]=0.001
+	emiss=fltarr(nrho)+1.0
+	emiss[nrho-3:nrho-1]=0.0
+	w=fltarr(nrho)			;set velocity to zero for now
+	u=w
+	shot=1070830020
+	time=1.25
+	lam_o=[3.944]
+	z=[18]
+	info.det.xi+=28.3e-3
+
+	num=10
+	numpix=info.det.n_xi
+	image2d=fltarr(numpix,num)
+	image1d=fltarr(numpix,num)
+	IF NOT keyword_set(load) THEN BEGIN
+		FOR i=1,num DO BEGIN
+			print,i
+			ny=i
+			nz=i
+			start_time=systime(/seconds)
+			image2d[*,i-1]=genspec_sphere_image(info,shot,time,lam_o,z,emiss,w,u,ti,rho,r_ap=1.0,verb=verb,ny=ny,nz=nz)
+			image1d[*,i-1]=genspec_sphere_image(info,shot,time,lam_o,z,emiss,w,u,ti,rho,r_ap=1.0,verb=verb,ny=ny,nz=1)
+			ctime=systime(/seconds)-start_time
+			print,ctime
+		ENDFOR
+		save,image1d,image2d,filename=imagesave
+	ENDIF ELSE restore, imagesave
+	xi=info.det.xi*1.0e3
+	image1d*=1.0e10
+	image2d*=1.0e10		
+
+	openwin,0
+	plot,xi,image2d[*,0],xtit=n2g('xi')+' [mm]',ytit='Spectral Brightness [AU]',chars=1.2,/xsty,yr=[0,2.25],/ysty,tit='Convergance Test Off Focus'
+	color=[0,30,70,100,120,150,200]
+	pts=[0,1,2,3,5,7,9]
+	FOR i=0,n(pts) DO BEGIN
+		oplot,xi,image2d[*,pts[i]],color=color[i]
+		xyouts,33.8,2.0-0.2*i,'n!ly!n=n!lz!n='+num2str(pts[i]+1,1),color=color[i]
+	ENDFOR
+	
+
+	openwin,1
+	plot,xi,image2d[*,0],xtit=n2g('xi')+' [mm]',ytit='Spectral Brightness [AU]',chars=1.2,/xsty,yr=[0,2.25],/ysty,tit=n2g('lambda')+' = '$
+		+num2str(lam_o,dp=3)+'[Ang]   T = '+num2str(ti[0],dp=1)+' [keV]'
+	oplot,xi,image2d[*,num-1]
+	oplot,xi,image1d[*,0],linestyle=2.0,color=200
+	oplot,xi,image1d[*,num-1],linestyle=2.0,color=200
+	oplot,xi[maxloc(image2d[*,0])]*[1,1],[0,3],color=30,linestyle=3.0
+	oplot,xi[maxloc(image2d[*,num-1])]*[1,1],[0,3],color=30,linestyle=3.0
+	delta=xi[maxloc(image2d[*,num-1])]-xi[maxloc(image2d[*,0])]
+	xyouts,33.5,2.0,n2g('Delta')+' PEAK '+num2str(delta*1.0e3,dp=1)+' ['+n2g('mu')+'m]',chars=1.5,color=30
+	xyouts,33.8,1.5,'2-D Crystal'
+	xyouts,33.8,1.25,'1-D Crystal',color=200
+	stop
+END
+
+
+PRO gsi_oowfocus_convergance,load=load
+	infosave='/home/mlreinke/idl/hirexsr/genspec/gsi_info_f3944.dat'
+	imagesave='/home/mlreinke/idl/hirexsr/genspec/gsi_oowfocus_conv.dat'
+	restore,infosave
+
+	nrho=100
+	rho=make(0,1.1,nrho)
+
+	;set flat emissivity and ti profiles
+	ti=fltarr(nrho)+0.1
+	ti[nrho-3:nrho-1]=0.001
+	emiss=fltarr(nrho)+1.0
+	emiss[nrho-3:nrho-1]=0.0
+	w=fltarr(nrho)			;set velocity to zero for now
+	u=w
+	shot=1070830020
+	time=1.25
+	lam_o=[3.994]
+	z=[18]
+	info.det.xi-=27.5e-3
+
+	num=10
+	numpix=info.det.n_xi
+	image2d=fltarr(numpix,num)
+	image1d=fltarr(numpix,num)
+	IF NOT keyword_set(load) THEN BEGIN
+		FOR i=1,num DO BEGIN
+			print,i
+			ny=i
+			nz=i
+			start_time=systime(/seconds)
+
+			image2d[*,i-1]=genspec_sphere_image(info,shot,time,lam_o,z,emiss,w,u,ti,rho,r_ap=1.0,verb=verb,ny=ny,nz=nz)
+			image1d[*,i-1]=genspec_sphere_image(info,shot,time,lam_o,z,emiss,w,u,ti,rho,r_ap=1.0,verb=verb,ny=ny,nz=1)
+			ctime=systime(/seconds)-start_time
+			print,ctime
+		ENDFOR
+		save,image1d,image2d,filename=imagesave
+	ENDIF ELSE restore, imagesave
+	xi=info.det.xi*1.0e3
+	image1d*=1.0e10
+	image2d*=1.0e10		
+
+	openwin,0
+	plot,xi,image2d[*,0],xtit=n2g('xi')+' [mm]',ytit='Spectral Brightness [AU]',chars=1.2,/xsty,yr=[0,2.25],/ysty
+	color=[30,70,100,120,150,200]
+	pts=[1,2,3,5,7,9]
+	FOR i=0,n(pts) DO BEGIN
+		oplot,xi,image2d[*,pts[i]],color=color[i]
+		xyouts,5.6,2.0-0.2*i,num2str(pts[i],1),color=color[i]
+	ENDFOR
+	
+
+	openwin,1
+	plot,xi,image2d[*,0],xtit=n2g('xi')+' [mm]',ytit='Spectral Brightness [AU]',chars=1.2,/xsty,yr=[0,2.25],/ysty,tit=n2g('lambda')+' = '$
+		+num2str(lam_o,dp=3)+'[Ang]   T = '+num2str(ti[0],dp=1)+' [keV]'
+	oplot,xi,image2d[*,num-1]
+	oplot,xi,image1d[*,0],linestyle=2.0,color=200
+	oplot,xi,image1d[*,num-1],linestyle=2.0,color=200
+	oplot,xi[maxloc(image2d[*,0])]*[1,1],[0,3],color=30,linestyle=3.0
+	oplot,xi[maxloc(image2d[*,num-1])]*[1,1],[0,3],color=30,linestyle=3.0
+	delta=xi[maxloc(image2d[*,num-1])]-xi[maxloc(image2d[*,0])]
+	xyouts,5.5,2.0,n2g('Delta')+' PEAK '+num2str(delta*1.0e3,dp=1)+' ['+n2g('mu')+'m]',chars=1.5,color=30
+	stop
+END
+
+
+
+PRO gsi_zfocus_gamma,load=load
+	infosave='/home/mlreinke/idl/hirexsr/genspec/gsi_info_f3994.dat'
+	imagesave='/home/mlreinke/idl/hirexsr/genspec/gsi_zfocus_gamma.dat'
+	restore,infosave
+
+	nrho=100
+	rho=make(0,1.1,nrho)
+
+	;set flat emissivity and ti profiles
+	ti=fltarr(nrho)+0.1
+	ti[nrho-3:nrho-1]=0.001
+	emiss=fltarr(nrho)+1.0
+	emiss[nrho-3:nrho-1]=0.0
+	w=fltarr(nrho)			;set velocity to zero for now
+	u=w
+	shot=1070830020
+	time=1.25
+	lam_o=[3.994]
+	z=[18]
+
+	gamma=[2.03,2.05,2.07,2.09]
+	num=n(gamma)+1
+	numpix=info.det.n_xi
+	image0d=fltarr(numpix,num)
+	image1d=fltarr(numpix,num)
+	IF NOT keyword_set(load) THEN BEGIN
+		FOR i=0,num-1 DO BEGIN
+			print,i
+			info.m.rot[2]=gamma[i]
+			start_time=systime(/seconds)
+			image0d[*,i]=genspec_sphere_image(info,shot,time,lam_o,z,emiss,w,u,ti,rho,r_ap=1.0,verb=verb,ny=1,nz=1,/flat)
+			image1d[*,i]=genspec_sphere_image(info,shot,time,lam_o,z,emiss,w,u,ti,rho,r_ap=1.0,verb=verb,ny=50,nz=1,/flat)
+			stop
+			ctime=systime(/seconds)-start_time
+			print,ctime
+		ENDFOR
+		save,image0d,image1d,filename=imagesave
+	ENDIF ELSE restore, imagesave
+	xi=info.det.xi*1.0e3
+	image0d*=1.0e10
+	image1d*=1.0e10
+
+	openwin,0
+	
+
+
+	stop
+END
+
+PRO hirexsr_calib_test,load=load,ny=ny,nz=nz
+	IF NOT keyword_set(ny) THEN ny=8		;setup crystal gridding
+	IF NOT keyword_set(nz) THEN nz=8
+	imagesave='/home/mlreinke/idl/hirexsr/genspec/gsi_calibtest_ny'+num2str(ny,1)+'nz'+num2str(nz,1)+'.dat'
+
+	IF NOT keyword_set(load) THEN BEGIN
+
+		shot=1070830014
+		time=1.05
+	
+		cs_path='/home/mlreinke/idl/hirexsr/genspec/gsi_csden_test.dat'				;te,ne,rmaj,csden
+		restore,cs_path
+		nrmaj=n(rmaj)+1
+		axis=line_getaxis(shot)
+		etime=line_gettimes(shot)
+		zmid=fltarr(nrmaj)+axis[ipt(etime,time),1]
+		rho=efit_rz2rho(rmaj,zmid,[time],shot=shot)						;rmaj in r/a
+
+		;loadinfo
+		info_path='/home/mlreinke/idl/genie/data/info/hirexsr/hirexsr_gsi_detalign.info'
+		info=genpos_spherical_info(info_path)
+		pos=genpos_spherical2pos(info)
+		pos=reform(pos,4,info.det.n_xi,info.det.n_zeta)
+
+		;get line wavelengths
+		restore,'/usr/local/cmod/idl/HIREXSR/hirexsr_wavelengths.dat'
+		line=['w','x','y','q','r','a','k','z']
+		nline=n(line)+1
+		lambda=[lam_o[where(z EQ 18 AND label EQ line[0])]]
+		FOR i=1,nline-1 DO lambda=[lambda,lam_o[where(z EQ 18 AND label EQ line[i])]]
+
+		zimp=intarr(nline)+18
+
+		;form emissivity
+		emiss=fltarr(nrmaj,nline)
+		FOR i=0,nline-1 DO BEGIN
+			read_ar_line_rates,line[i],te,rec,exc,ion,/load,num_elec=n
+			emiss[*,i]=dens*(interpol(rec,te,temp)*csden[18-n+1,*]+interpol(exc,te,temp)*csden[18-n,*]+interpol(ion,te,temp)*csden[18-n-1,*])*1.0e20*1.0e20
+		ENDFOR
+		w=fltarr(nrmaj)
+		u=fltarr(nrmaj)
+
+		image=genspec_sphere_image(info,shot,time,lambda,zimp,emiss,w,u,temp,rho,n_s=n_s,ny=ny,nz=nz,uposload=uposload,rzbnd=rzbnd,/verb,r_ap=1.0)
+		image=reform(image,info.det.n_xi,info.det.n_zeta)
+		save,shot,time,rho,dens,temp,csden,emiss,info,lambda,line,pos,image,ny,nz,filename=imagesave
+	ENDIF ELSE restore,imagesave
+END
+
+PRO hirexsr_calib_plot
+	info_path='/home/mlreinke/idl/genie/data/info/hirexsr/hirexsr_gsi_detalign.info'
+	info=genpos_spherical_info(info_path)
+
+	path='/home/mlreinke/idl/hirexsr/genspec/gsi_calibtest_ny1nz1.dat'
+	restore,path
+	image11=image
+	path='/home/mlreinke/idl/hirexsr/genspec/gsi_calibtest_ny8nz1.dat'
+	restore,path
+	image81=image
+	path='/home/mlreinke/idl/hirexsr/genspec/gsi_calibtest_ny8nz8.dat'
+	restore,path
+	image88=image
+	
+	x=size(image)
+	line=['w','x','y','z']
+	
+	nline=n(line)+1
+	lambda=lambda[[0,1,2,7]]
+	nzeta=x[2]
+	nxi=x[1]
+	zeta=info.det.zeta[indgen(info.det.n_zeta)*info.det.n_xi]/info.det.size[1]	;zeta in "pixels"
+	;zeta-=zeta[0]
+	npix=max(zeta)-min(zeta)
+	z=make(min(zeta),max(zeta),npix)
+
+	;fit 11 crystal data
+	peak11=fltarr(nline,nzeta)
+	width11=fltarr(nline,nzeta)
+	FOR i=0,nzeta-1 DO BEGIN
+		spec=reverse(image11[*,i])			;fitting spectra assuming it's in the "image" coordinates
+		coefs=hirexsr_fit_he(spec/max(spec))
+		FOR j=0,nline-1 DO BEGIN
+			index=where(coefs.lab EQ line[j])
+			peak11[j,i]=(nxi-1)-coefs.c1[index[0]]
+			width11[j,i]=coefs.c2[index[0]]
+		ENDFOR
+	ENDFOR
+	xfit11=fltarr(npix,4)
+	xinfo=fltarr(npix,4)
+	FOR i=0,nline-1 DO BEGIN
+		coefs=nonlin_fit_ellipse(peak11[i,*],zeta,0.0001*peak11[i,*])
+		xfit11[*,i]=eq_ellipse(z,coefs)
+		qcoefs=genpos_spherical2quadcurve(info,lambda[i])
+		xinfo[*,i]=ellipse_xpt(qcoefs,z)
+	ENDFOR
+
+
+	;fit 81 crystal data
+	peak81=fltarr(nline,nzeta)
+	width81=fltarr(nline,nzeta)
+	FOR i=0,nzeta-1 DO BEGIN
+		spec=reverse(image81[*,i])
+		coefs=hirexsr_fit_he(spec/max(spec))
+		FOR j=0,nline-1 DO BEGIN
+			index=where(coefs.lab EQ line[j])
+			peak81[j,i]=(nxi-1)-coefs.c1[index[0]]
+			width81[j,i]=coefs.c2[index[0]]
+		ENDFOR
+	ENDFOR
+	xfit81=fltarr(npix,4)
+	FOR i=0,nline-1 DO BEGIN
+		coefs=nonlin_fit_ellipse(peak81[i,*],zeta,0.0001*peak81[i,*])
+		xfit81[*,i]=eq_ellipse(z,coefs)
+	ENDFOR
+
+
+	;fit 88 crystal data
+	peak88=fltarr(nline,nzeta)
+	width88=fltarr(nline,nzeta)
+	FOR i=0,nzeta-1 DO BEGIN
+		spec=reverse(image88[*,i])
+		coefs=hirexsr_fit_he(spec/max(spec))
+		FOR j=0,nline-1 DO BEGIN
+			index=where(coefs.lab EQ line[j])
+			peak88[j,i]=(nxi-1)-coefs.c1[index[0]]
+			width88[j,i]=coefs.c2[index[0]]
+		ENDFOR
+	ENDFOR
+	xfit88=fltarr(npix,4)
+	FOR i=0,nline-1 DO BEGIN
+		coefs=nonlin_fit_ellipse(peak88[i,*],zeta,0.0001*peak88[i,*])
+		xfit88[*,i]=eq_ellipse(z,coefs)
+	ENDFOR		
+
+
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0
+	d_old=!d
+	IF keyword_set(ps) THEN BEGIN
+		device, xsize=5.5,ysize=5.5*195/487.0,/inches
+	ENDIF ELSE openwin,0,xsize=487*1.5,ysize=195*1.5
+
+	makesym,9	
+	plot,[0],[0],yr=[0,195],xr=[min(zeta),max(zeta)],/ysty,/xsty
+	FOR i=0,nline-1 DO BEGIN
+		oplot,zeta,peak11[i,*],psym=8,color=30
+		oplot,z,xfit11[*,i],color=30,linestyle=2.0
+		oplot,zeta,peak81[i,*],psym=8,color=100
+		oplot,z,xfit81[*,i],color=100,linestyle=2.0
+		oplot,zeta,peak88[i,*],psym=8,color=200
+		oplot,z,xfit88[*,i],color=200,linestyle=2.0
+	ENDFOR
+	makesym,10
+	IF keyword_set(ps) THEN BEGIN
+		device, xsize=5.5,ysize=5.5*195/487.0*3.5,/inches
+	ENDIF ELSE openwin,1,xsize=487,ysize=195*4.0
+	!p.multi=[0,0,4]
+	FOR i=0,nline-1 DO BEGIN
+		IF i EQ 3 THEN xtit=n2g('zeta')+' [pix]' ELSE xtit=''
+		plot,[0],[0],yr=[-0.1,0.6],xr=[min(zeta),max(zeta)],/ysty,/xsty,noerase=noerase,chars=2.0,tit=line[i],xtit=xtit,ytit='
+		oplot,zeta,peak11[i,*]-interpol(xinfo[*,i],z,zeta),psym=-8,color=30
+		oplot,zeta,peak81[i,*]-interpol(xinfo[*,i],z,zeta),psym=-8,color=100
+		oplot,zeta,peak88[i,*]-interpol(xinfo[*,i],z,zeta),psym=-8,color=200
+	ENDFOR
+
+	IF keyword_set(ps) THEN BEGIN
+		device, xsize=5.5,ysize=5.5*195/487.0*3.5,/inches
+	ENDIF ELSE openwin,2,xsize=487,ysize=195*4.0
+
+	!p.multi=[0,0,4]
+	FOR i=0,nline-1 DO BEGIN
+		IF i EQ 3 THEN xtit=n2g('zeta')+' [pix]' ELSE xtit=''
+		plot,[0],[0],yr=[0,4.0],xr=[min(zeta),max(zeta)],/ysty,/xsty,noerase=noerase,chars=2.0,tit=line[i],xtit=xtit,ytit='w [pix]'
+		oplot,zeta,width11[i,*],psym=-8,color=30
+		oplot,zeta,width81[i,*],psym=-8,color=100
+		oplot,zeta,width88[i,*],psym=-8,color=200
+	ENDFOR
+
+	IF keyword_set(ps) THEN BEGIN
+		device, xsize=5.5,ysize=5.5*195/487.0*3.5,/inches
+	ENDIF ELSE openwin,3,xsize=487,ysize=195*4.0
+	!p.multi=[0,0,4]
+	FOR i=0,nline-1 DO BEGIN
+		IF i EQ 3 THEN xtit=n2g('zeta')+' [pix]' ELSE xtit=''
+		plot,[0],[0],yr=[0.01,1.0],xr=[min(zeta),max(zeta)],/ysty,/xsty,noerase=noerase,chars=2.0,tit=line[i],/ylog,xtit=xtit,ytit='f!lINST!n'
+		oplot,zeta,((width81[i,*]^2-width11[i,*]^2)/width11[i,*]^2),psym=-8,color=100
+		oplot,zeta,((width88[i,*]^2-wid		xyouts,5.6,2.0-0.2*i,num2str(pts[i],1),color=color[i]		th11[i,*]^2)/width11[i,*]^2),psym=-8,color=200
+	ENDFOR
+	!p.multi=0
+
+	IF keyword_set(ps) THEN device, xsize=float(d_old.x_size)/d_old.x_px_cm,ysize=float(d_old.y_size)/d_old.y_px_cm
+
+	stop
+END
+	
+	

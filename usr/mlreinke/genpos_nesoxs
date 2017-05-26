@@ -1,0 +1,73 @@
+FUNCTION nesoxs_pos, pixel=pixel, R_cry= R_cry, Z_cry= Z_cry, R_ccd, thz=thz, status = status,fy08=fy08
+	;R_cry:  Machine axis to cyrstal,m (horizontal)
+	;Z_cry:  Midplane to crystal,m (vertical, positive up)
+	;R_ccd:  distance from crystal to ccd ,m (all ways positive)
+	;theta:  incline of dectector, radians (positive down)
+	;pixel:  pixel# counted from the top of the CCD
+
+
+	IF NOT keyword_set(fy08) THEN BEGIN
+		IF NOT keyword_set(R_cry) THEN R_cry = 3.2218 ; [m]
+		IF NOT keyword_set(Z_cry) THEN Z_cry = -0.215  ; [m]
+		IF NOT keyword_set(R_ccd) THEN R_ccd =  1.04  ; [m]
+		IF NOT keyword_set(thz)   THEN thz   = 0.0    ; [radians]
+		ph =  22.5e-6  ; height of each pixel [m]
+		pixel_num =  1152     ; height of ccd in pixels
+		IF NOT keyword_set(pixel) THEN pixel=576 ;middle of the chip
+	ENDIF ELSE BEGIN
+		IF NOT keyword_set(R_cry) THEN R_cry = 2.87 ; [m]
+		IF NOT keyword_set(Z_cry) THEN Z_cry = 0.20  ; [m]
+		IF NOT keyword_set(R_ccd) THEN R_ccd =  1.04  ; [m]
+		IF NOT keyword_set(thz)   THEN thz   = 1.836/180*!pi    ; [radians]
+		ph =  20.0e-6  ; height of each pixel [m]
+		pixel_num =  1300     ; height of ccd in pixels
+		IF NOT keyword_set(pixel) THEN pixel=650 ;middle of the chip
+	ENDELSE
+
+	IF (pixel LT 0) OR (pixel GT pixel_num-1) THEN BEGIN
+	; pixel must be in range 0<=pixel<1152
+		status = -1
+		return, [0,0,0,0]
+	ENDIF
+
+	; location of crystal
+	x1 = R_cry    ; point1, x
+	y1 = z_cry    ; point1, y
+
+	;location of pixel wrt to crystal
+	x   = R_ccd
+	y   = ((pixel_num-1.)/2.-pixel)*ph
+	dtheta = atan(y/x)
+	x_r =  cos(thz)*x - y*sin(thz) ; rotated x
+	y_r =  sin(thz)*x + y*cos(thz) ; rotated y
+
+	;location of pixel in RZ coordinates
+	x2 = x_r + R_cry
+	y2 = y_r + Z_cry
+
+	;Equation of line for a given row of pixels
+	m = (y2-y1)/(x2-x1)
+	b = y2 - m*x2
+
+	;Generate outputs
+	R_t = 0        ; tangential radius (zero for a radial view)
+	R_o = 1.0      ; Convenient radius
+	Z_o = m*R_o +b ; Z value for the line of sight at R_o
+
+	RETURN, [R_o, Z_o, R_t, thz+dtheta]
+END
+
+PRO fy08pos_plot
+	xray_pos=xray_tomo_pos(array=1)
+	
+	pos_want=fltarr(4,3)
+	pos_curr=fltarr(4,3)
+	pix=[1,0,1299]
+
+	FOR i=0,2 DO pos_want[*,i]=nesoxs_pos(pixel=pix[i],/fy08,thz=-3.7*!pi/180.0,z_cry=0.2-3.5*2.54/100.0)
+	FOR i=0,2 DO pos_curr[*,i]=nesoxs_pos(pixel=pix[i],/fy08)
+	
+	line_path_plots,xray_pos,thick=1.0,shot=1070516005
+	line_path_plots,pos_want,thick=1.0,shot=1070516005
+	line_path_plots,pos_curr,thick=1.0,shot=1070516005
+END

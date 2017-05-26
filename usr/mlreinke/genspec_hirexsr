@@ -1,0 +1,2284 @@
+;+
+;NAME:
+;	HIREXSR_LOAD_LAMINT
+;
+;PURPOSE:
+;	This procedure is used to load wavelength and intensity data from the HIREXSR diagnostic.
+;	The outputs of this procedure are formatted to be the inputs to GENSPEC_LI_MOMENTS.
+;	
+;CALLING SEQUENCE:
+;	HIREXSR_LOAD_LAMINT,shot,label,lam,int,time,lam_o
+;	
+;INPUTS:
+;	shot:	LONG	shot number
+;	label: 	STR 	the line label to use.  'W', 'X', 'Y' or 'Z' for He-like Argon
+;						'LYA1' and 'LYA2' for H-like Argon
+;						'MOXXXIII' for Ne-like Moly
+;
+;OPTIONAL INPUTS:
+;	del_i:	INT	number of time points to sum over.  This will reform INT and TIME arrays and will
+;			screw up the last time point, which should be zero data anyway.
+;OUTPUTS:
+;	lam:	FLTARR 	[n_lam] of the wavelength values [mAng]
+;	int:	FLTARR 	[n_lam,n_ch,n_time] of the intensity values [counts/wavelength] at those wavelength values
+;	time:	FLTARR 	[n_time] of the time points [seconds]
+;	lam_o:	FLT 	of the unshifted wavelength of the line [mAng]
+;
+;OPTIONAL OUTPUTS:
+;	sz:	FLTARR	[n_ch] of the "z" in the spectrometer frame.  Ask Alex what this is cause I have no idea [mm]
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke - 7/20/07
+;	8-22-07:	ML Reinke - overhauled so that the data is loaded from the tree and uses new LAM format
+;				    added the del_i optional input for time smoothing
+;	10-25-07:	ML Reinke - fixed bug in the time smoothing section that made n_ch = 0 
+;	10-30-08:	ML Reinke - changed del_i from averaging to summing for purpose of being
+;				    able to calculate photon noise.  Also, divided int by lam[1]-lam[0]
+;				    to put it in units of dN/dlam
+;-
+
+PRO hirexsr_load_lamint,shot,label,lam,int,time,lam_o,sz=sz,del_i=del_i,exp_time=exp_time
+
+	;setup time smoothing optional inputs
+	IF NOT keyword_set(del_i) THEN del_i=1	
+	IF del_i MOD 2 EQ 0 THEN del_i-=1	
+	label_in=label							;make duplicate of label
+	IF strlowcase(label) EQ 'moxxxiii' THEN label='m32'
+
+	;load data from tree
+	mdsopen,'spectroscopy',shot
+	int=mdsvalue('\SPECTROSCOPY::TOP.HIREX_SR.ANALYSIS:LINES:'+label)
+	lam=mdsvalue('dim_of(\SPECTROSCOPY::TOP.HIREX_SR.ANALYSIS:LINES:'+label+',0)')
+	sz=mdsvalue('dim_of(\SPECTROSCOPY::TOP.HIREX_SR.ANALYSIS:LINES:'+label+',1)')
+	time=mdsvalue('dim_of(\SPECTROSCOPY::TOP.HIREX_SR.ANALYSIS:LINES:'+label+',2)')
+	lam_o=mdsvalue('dim_of(\SPECTROSCOPY::TOP.HIREX_SR.ANALYSIS:LINES:'+label+',3)')
+	exp_time=mdsvalue('\SPECTROSCOPY::TOP.HIREX_SR:EXP_TIME')
+	mdsclose,'spectroscopy',shot
+	dlam=lam[1]-lam[0]
+	int/=dlam
+
+	;start time smoothing if called
+	IF del_i NE 1 THEN BEGIN
+		n_ch=n(sz)+1
+		n_time=n(time)+1
+		n_lam=n(lam)+1
+		i = long((del_i-1)/2)
+		cntr=0
+		time_new = fltarr(floor(n_time/del_i))
+		int_new = fltarr(n_lam,n_ch,n(time_new)+1)
+		tmp = fltarr(n_lam,n_ch)
+		FOR cntr=0L,n(time_new) DO BEGIN
+			time_new[cntr]=time[i]
+			FOR j=i-(del_i-1)/2,i+(del_i-1)/2 DO tmp+=int[*,*,j]
+			int_new[*,*,cntr]=tmp
+			i+=del_i
+			tmp*=0.0
+		ENDFOR
+		time=time_new						;replace arrays				
+		int=int_new
+	ENDIF
+	label=label_in							;replace with duplicate label
+END
+
+
+;+
+;NAME:
+;	HIREXSR_LOAD_GPV
+;
+;PURPOSE:
+;	This procedure is used to load geometry information for the HIREXSR views
+;	The inputs are formatted for use with GENSPEC_MATRIX_INVERT
+;
+;CALLING SEQUENCE:
+;	HIREXSR_LOAD_GPV,shot,label,gpv,pos,ves_cent
+;
+;INPUTS:
+;	label: 	STR 	the line label to use.  'W', 'X', 'Y' or 'Z' for He-like Argon
+;						'LYA1' and 'LYA2' for H-like Argon
+;						'MOXXXIII' for Ne-like Moly;
+;
+;OUTPUTS:
+;	gpv:		FLTARR 	[n_ch, n_grid] of the GENPOS volume coefficients for each channel.  See GENPOS_VOL_COEFS
+;	pos:		FLTARR 	[4,n_ch] of the average POS vectors for each channel.  Used to calculate projection of Doppler shift
+;	ves_cent:	STRUCT 	the vessel grid structure generated from GENPOS_GRID or GRID_VES using /center, consistent with gpv
+;	
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke - 7/20/07
+;	8-22-07:	ML Reinke - overhauled so that the data is loaded from the tree
+;
+;-
+
+PRO hirexsr_load_gpv,shot,label,gpv,pos,ves_cent
+	label_in=label
+	mdsopen,'spectroscopy',shot
+	IF label EQ 'lya1' OR label EQ 'lya2' OR label EQ 'moxxxiii' OR label EQ 'moxxxii' THEN label='h'
+	gpv=mdsvalue('\SPECTROSCOPY::TOP.HIREX_SR:GEOMETRY:'+label+':GPV')
+	pos=mdsvalue('\SPECTROSCOPY::TOP.HIREX_SR:GEOMETRY:'+label+':POS')
+	pnts=mdsvalue('\SPECTROSCOPY::TOP.HIREX_SR:GEOMETRY:VES_CENT:PNTS')
+	n=mdsvalue('\SPECTROSCOPY::TOP.HIREX_SR:GEOMETRY:VES_CENT:N')
+	area=mdsvalue('\SPECTROSCOPY::TOP.HIREX_SR:GEOMETRY:VES_CENT:AREA')
+	mdsclose,'spectroscopy',shot
+	ves_cent={pnts:pnts, area:area, n:n}
+	label=label_in
+END
+
+PRO hirexsr_load_raw,shot,int,lam,time,h=h,sz=sz,exp_time=exp_time,del_i=del_i
+	IF NOT keyword_set(del_i) THEN del_i = 1
+	IF del_i MOD 2 EQ 0 THEN del_i-=1
+	IF NOT keyword_set(h) THEN path='\SPECTROSCOPY::TOP.HIREX_SR.RAW_DATA:HE_LIKE:' ELSE path='\SPECTROSCOPY::TOP.HIREX_SR.RAW_DATA:H_LIKE:'
+	mdsopen,'spectroscopy',shot
+	int=mdsvalue(path+'INTEN')
+	lam=mdsvalue(path+'LAM')
+	sz=mdsvalue(path+'SZ')
+	time=mdsvalue(path+'TIME')
+	exp_time=mdsvalue('\SPECTROSCOPY::TOP.HIREX_SR:EXP_TIME')
+	mdsclose,'spectroscopy',shot
+
+	;start time smoothing if called
+	IF del_i NE 1 THEN BEGIN
+		n_ch=n(sz)+1
+		n_time=n(time)+1
+		n_lam=n(lam)+1
+		i = long((del_i-1)/2)
+		cntr=0
+		time_new = fltarr(floor(n_time/del_i))
+		int_new = fltarr(n_lam,n_ch,n(time_new)+1)
+		tmp = fltarr(n_lam,n_ch)
+		FOR cntr=0L,n(time_new) DO BEGIN
+			time_new[cntr]=time[i]
+			FOR j=i-(del_i-1)/2,i+(del_i-1)/2 DO tmp+=int[*,*,j]
+			int_new[*,*,cntr]=tmp
+			i+=del_i
+			tmp*=0.0
+		ENDFOR
+		time=time_new						;replace arrays				
+		int=int_new
+	ENDIF
+END
+
+FUNCTION hirexsr_simple_ti,lam,int,lam_o,z,plot=plot,speed=speed
+	c=3.0e8 	;speed of light
+	e=1.60e-19			;conversion for eV -> J
+	mconv=1.66e-27			;conversion for amu -> kg
+	mass=read_atomic_mass(z)
+	conv_factor=(lam_o/c)^2*(e*1.0e3/(mass*mconv))
+	n_ch=n(int[0,*,0])+1
+	n_time=n(int[0,0,*])+1
+	
+	ti=fltarr(n_ch,n_time)
+	speed=fltarr(n_ch,n_time)
+	FOR i=0,n_ch-1 DO BEGIN
+		FOR j=0,n_time-1 DO BEGIN
+			IF total(int[*,i,j] NE 0) THEN BEGIN
+				out=gaussfit(lam,int[*,i,j],a,nterms=3)
+				IF keyword_set(plot) THEN BEGIN
+					plot,lam,int[*,i,j],psym=4
+					oplot,lam,out
+					oplot,lam,a[0]*exp(-(lam-a[1])^2/(2.0*a[2]^2)),color=100
+					stop
+				ENDIF
+				ti[i,j]=a[2]^2/conv_factor
+				speed[i,j]=(1.0-a[1]/lam_o)*c
+			ENDIF
+		ENDFOR
+	ENDFOR
+	
+	output=ti
+	RETURN,ti
+END
+	
+;+
+;NAME:
+;	HIREXSR_GENSPEC_PROFILES
+;
+;PURPOSE:
+;	This procedure contains the fury within a protective layer of plotting routines.  Multiple time slices of HIREXSR
+;	data are inverted to find line emissivity, toroidal rotation frequency and ion temperature.  Keywords allow plotting
+;	of MIST simulations and Te profiles for comparison.  The moment check profiles are also plotted for each time slice.
+;
+;CALLING SEQUENCE:
+;	HIREXSR_GENSPEC_PROFILES,shot,t,label
+;
+;INPUTS:
+;	shot 	LONG shot number
+;	t:	FLTARR of time points at which to perform inversions and plot results
+;	label:	STR of the line label to use.  	Currently supporting 'W', 'X', 'Y' or 'Z' for He-like Argon
+;						'LYA1' and 'LYA2' for H-like Argon and 'MOXXXIII' for Ne-like Moly
+;	
+;OPTIONAL INPUTS:
+;	data:		STRUCT	structure filled with input data.  See MLR for format.
+;	lr:		FLTARR 	[2] (lam_low, lam_high) of the inclusive wavelength region to truncate dataset.  DEFAULTS:
+;					'w' 		:	lr=[3946.5,3951.9]
+;					'x'		 :	lr=0.0
+;					'y'		 :	lr=0.0
+;					'z' 		:	lr=[3991.6,3997.0]
+;					'lya1'		:	lr=0.0
+;					'lya2'		:	lr=0.0
+;					'moxxxiii'	:	lr=0.0
+;	del_i:		INT	number of time points to average over. DEFAULT: NOT USED
+;	ikplot:		FLTARR 	[2] of the (i,k) (ch, time) point that you only want to plot. 
+;	good:		INTARR 	[n_ch] with 1's (use) or 0's (do not use) indicating which channels to use during the inversion	
+;	eta:		FLT	weighting factor for the edge zero (see GENSPEC_MATRIX_INVERT for DEFAULT)
+;	eps_em:		FLT	emissivity profile smoothing factor (see GENSPEC_MATRIX_INVERT for DEFAULT)
+;	eps_w:		FLT	toroidal rotation profile smoothing factor. (see GENSPEC_MATRIX_INVERT for DEFAULT)
+;	eps_ti:		FLT	ion temperature profile smoothing factor. (see GENSPEC_MATRIX_INVERT for DEFAULT)
+;	ti_inst:	FLT	instrumental ion temperature [eV] to be subtracted from inverted profile and simple if invoked
+;	n_rho:		INT	number of points from 0.0 < rho < 1.0 (inclusive) to be used in inversion (see GENSPEC_MATRIX_INVERT for DEFAULT)
+;	rho_vec:	FLTARR 	the actually rho points to be used (see GENSPEC_MATRIX_INVERT for DEFAULT)
+;	plotwin:	INT 	of the plot window to use with moment checks using plotwin+1 DEFAULT: 30
+;	colors:		INTARR 	of length of t of color values
+;
+;KEYWORD PARAMETERS
+;	/backsub and /double carried over to GENSPEC_LI_MOMENTS
+;	novel:		/novel will zero out the first moment profile.  Necessary if getting large invsersion errors that are affecting
+;			the ion temperature profile
+;	te:		/te will plot the Thomson Te points over the ion temperature plots.  Closest time point used
+;	gpc2:		/gpc2 will plot the GPC2 Te points instead of Thomson.  Data averaged over HIREXSR time resolution
+;	simple:		/simple calls HIREXSR_SIMPLE_TI and GENPOS_POS2RMIDTANG to oplot the simple Ti and w profiles as open circles.
+;	mist:		/mist runs a MIST simulation to find line emissivity and plots as a dotted line over the inversion result.
+;			Optional input TRES and keyword /FIT are carred over.  The MIST profile is normalized to to have the same
+;			level at the core.  NOTE: MIST not run in time dependent mode, so choose quasi-steady state time points
+;	nocheck:	/nocheck supresses the moment check output plots.
+;	debug:		/debug stops the procedure at the end
+;
+;OUTPUTS:
+;	Outputs are sent to the currently selected graphics device with window managment and label re-sizing done automatically
+;	=================================================================================================================================
+;	PLOTWIN:	Three plots of the output profiles from GENSPEC_MATRIX_INVERT at the time points selected.
+;			If /mist is envoked the mist profiles will be displayed as dotted line on the emissivity profiles
+;			If /te is envoked the Thomson (or GPC2 if /gpc2) will be plotted as filled circles over the ion temperature plots
+;			***Currently, the zero on the toroidal rotation is floating so units are erroneous***
+;	PLOTWIN+1:	Three plots of the moment checks for the inversions.  Each time point will be plotted seperately in the same window
+;			with a STOP command in between (unless plotting to PS).  The blue points are the moments from the experiment data,
+;			the black line is the moments calculated from the inverted profiles for the data points used.  The dashed red line
+;			in the 0th moment plot uses GRID_PROFILE to form the 2D emissivity to calculate the 0th moment for all data points
+;			when only part of the array is used.
+;
+;OPTIONAL OUTPUTS:
+;	out:		STRUC of the plotted data so that you can play HIREX_GENSPEC_PROFILES the home game.
+;			=========================================================================================================
+;   			*.emiss		FLTARR		[n_rho, n_time] line emissivity [AU]
+;  			*.w             FLTARR		[n_rho, n_time] toroidal rotation frequency [kHz]
+;   			*.ti            FLTARR		[n_rho, n_time] ion temperature [keV]
+;  	 		*.r             FLTARR		[n_rho, n_time] major radius [m]
+;   			*.time          FLTARR		[n_time] time points [sec]
+;			*.moments       FLTARR		[3, n_ch, n_time] of the moments calculated using GENSPEC_LI_MOMENTS [AU]
+;			*.ch            INTARR   	[n_ch] of the channel labels for the moments 
+;			*.genpos	FLTARR     	[n_ch,n_time] of the full moment check calculated using GENPOS_GRID [AU]
+;   			*.brchk         STRUCT   	with brightness check data
+;   				*.br    FLTARR		[3, n_good, n_time] of the brightness check profiles [AU]
+;   				*.ch    INTARR		[n_good] of the good channel numbers used, consistent with *.ch
+;			*.mist		STRUCT		with MIST reconstruction data
+;				*.emiss	FLTARR		[51, n_time] line emissivity from mist [AU]
+;				*.r	FLTARR		[51, n_time] major radial points [m]
+;			*.temp		STRUCT		with electron temperature data
+;				*.te	FLTARR		[n_r, n_time] electron temperature [keV]
+;				*.r	FLTARR		[n_r, n_time] major radial points [m]
+;			*.simp		STRUC		with the simple Ti data
+;				*.w	FLTARR		[n_ch, n_time] of the line-integrated "w" [kHz]
+;				*.ti	FLTARR		[n_ch, n_time] of the line-integrated "Ti" [keV]
+;				*.rmid	FLTARR		[n_ch, n_time] of the midplane major radii of the tangent flux surface [m]
+;
+;PROCEDURE:
+;	HIREXSR_LOAD_GPV is used to load geometry data
+;	HIREXSR_LOAD_LAMINT is used to load spectral brightness data
+;	CMOD_TS is used to load Te data
+;	GPC2 data is loaded directly from the tree at \ELECTRONS::TOP.GPC_2.RESULTS
+;	MIST is run using ZZ_UNCALIBRATED_MIST which should be loaded using @mist_ini.bat
+;	
+;	GENSPEC and GENPOS are obviously used heavily.  Use @genspec_ini.bat to compile correctly
+;
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke - 7/22/07
+;	8-09-07:	ML Reinke - added the ti_inst optional input	
+;	8-15-07:	ML Reinke - added the eta optional input
+;	8-22-07:	ML Reinke - changed the calling for data loading scripts and removed old optional input GPV_FILE
+;				    changed the code to handle a 1D lam vector instead of 3D
+;	8-23-07:	ML Reinke - added better legend for Te as well as eta and eps labels on the moment checks
+;	9-11-07:	ML Reinke - added the data optional input to allow for non-tree data to be processed.
+;	10-24-07:	ML Reinke - added the simple Ti output to the optional output structure: out
+;	11-01-07:	ML Reinke - updated simple optional input to plot a simple w profile
+;	3-06-07:	ML Reinke - added lr defaults for lya and moxxxiii (need to use bsub)
+;	10-30-08:	ML Reinke - overhauled the moment check plotting to include residuals and error bars.  Included inversion error bars
+;-
+
+PRO hirexsr_genspec_profiles,shot,t,label,lr=lr,del_i=del_i,backsub=backsub,double=double,ikplot=ikplot,novel=novel,good=good,$
+		eps_em=eps_em,eps_w=eps_w,eps_ti=eps_ti,n_rho=n_rho,rho_vec=rho_vec,nofirst=nfirst,$
+		plotwin=plotwin,nocheck=nocheck,colors=colors,te=te,gpc2=gpc2,ti_inst=ti_inst,simple=simple,simp_plot=simp_plot,$
+		mist=mist,tres=tres,fit=fit,out=out,debug=debug,eta=eta,data=data,poloidal=poloidal,iterate=iterate
+	
+	dev=!d.name
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0
+	IF NOT keyword_set(good) THEN BEGIN
+		IF strlowcase(label) EQ 'lya1' OR strlowcase(label) EQ 'lya2' OR strlowcase(label) EQ 'moxxxiii' THEN BEGIN
+			good=intarr(16)+1
+		ENDIF ELSE BEGIN
+			good=intarr(48)+1
+			good[26:27]=0
+			good[0:20]=0
+		ENDELSE
+	ENDIF
+
+	IF NOT keyword_set(plotwin) THEN plotwin=30
+	IF NOT keyword_set(ti_inst) THEN ti_inst=0.0
+	IF strlowcase(label) EQ 'moxxxiii' THEN z=42 ELSE z=18
+
+	;load EFIT time data
+	efit_times=line_gettimes(shot)
+	efit_i=ipt(efit_times,t)
+	t_tmp=fltarr(n(t)+1)
+	efit_i=fltarr(n(t)+1)
+	FOR i=0,n(t) DO BEGIN
+		efit_i[i]=ipt(efit_times,t[i])
+		t_tmp[i]=efit_times[efit_i[i]]
+		print, 'Using t='+num2str(t_tmp[i],dp=3)+' as nearest EFIT time'
+	ENDFOR
+	t=t_tmp
+
+	IF NOT keyword_set(data) THEN BEGIN
+		hirexsr_load_gpv,shot,strlowcase(label),gpv,pos,ves_cent
+		hirexsr_load_lamint,shot,strlowcase(label),lam,int,time,lam_o,del_i=del_i,exp_time=exp_time
+	ENDIF ELSE BEGIN
+		gpv=data.gpv
+		pos=data.pos
+		ves_cent=data.ves_cent
+		lam=data.lam
+		int=data.inten
+		time=data.times
+		lam_o=data.lam_o
+	ENDELSE
+	IF NOT keyword_set(lr) THEN $
+		CASE strlowcase(label) OF
+			'w' 		:	lr=[3946.5,3951.9]
+			'x' 		:	lr=0.0
+			'y'		:	lr=0.0
+			'z' 		:	lr=[3991.6,3997.0]
+			'lya1'		:	lr=[3727.81,3734.39]
+			'lya2'		:	lr=0.0
+			'moxxxiii'	:	lr=[3737.66,3741.94]
+		ENDCASE
+	IF lr[0] EQ -1 THEN lr = 0
+	t_tmp=fltarr(n(t)+1)
+	ipts=fltarr(n(t)+1)
+	FOR i=0,n(t) DO BEGIN
+		hirex_i=ipt(time,t[i])
+		t_tmp[i]=time[hirex_i]
+		ipts[i]=hirex_i
+		print, 'Using t='+num2str(t_tmp[i],dp=3)+' as nearest HIREXSR time'
+	ENDFOR
+	t=t_tmp
+
+	int=int[*,*,ipts]
+	IF keyword_set(ikplot) THEN moments_plot=1
+	moments=genspec_li_moments(lam,int,lam_o,lr=lr,backsub=backsub,double=double,ikplot=ikplot,plot=moments_plot,err=moments_err)
+	IF keyword_set(novel) THEN moments[1,*,*]=0.0
+	IF total(moments[0,*,*]) EQ 0.0 THEN BEGIN
+		print, 'ERROR - 0th moment:  CHECK DATA'
+		IF keyword_set(debug) THEN stop
+		RETURN
+	ENDIF
+	IF keyword_set(poloidal) THEN BEGIN
+		solidbody=0
+		bfield=0
+	ENDIF  ELSE BEGIN
+		solidbody=1
+		bfield=-1
+	ENDELSE
+
+	out=genspec_matrix_invert(moments,gpv,pos,shot,t,ves_cent,lam_o,z,bfield=bfield,good=good,eps_em=eps_em,eps_w=eps_w,eps_ti=eps_ti,$
+		n_rho=n_rho,rho_vec=rho_vec,nofirst=nofirst,solidbody=solidbody,iterate=iterate,eta=eta,err=moments_err)
+	emiss=out.emiss
+	ti=out.ti
+	w=out.w
+	u=out.u
+	rho=out.rho
+	brchk=out.brchk
+	ch_chk=out.ch
+	inverr=out.inverr
+	IF keyword_set(novel) THEN inverr[1,*]=0
+
+	IF keyword_set(debug) THEN stop
+	IF keyword_set(mist) THEN BEGIN
+		CASE strlowcase(label) OF 
+			'w' 		: 	line=0
+			'x' 		: 	line=1
+			'y' 		: 	line=2
+			'z' 		: 	line=3
+			'lya1'		:	line=6
+			'lya2'		:	line=7
+			'moxxxiii'	:	line=66			
+		ENDCASE
+		IF strlowcase(label) EQ 'moxxxiii' THEN mist_z=42 ELSE mist_z=18
+		start_time=systime(/seconds)
+		IF NOT keyword_set(tres) THEN tres=0.1
+		zz_uncalibrated_mist,mist_z,shot,t[0],tres,lam,q_lam,radpts,em,csden,fit=fit,h_mode=h_mode,/local
+		mist_emiss=fltarr(n(em[line,*])+1,n(t)+1)
+		mist_r=fltarr(n(radpts)+1,n(t)+1)
+		mist_emiss[*,0]=em[line,*]
+		mist_r[*,0]=radpts
+		FOR i=1,n(t) DO BEGIN
+			zz_uncalibrated_mist,18,shot,t[i],tres,lam,q_lam,radpts,em,csden,fit=fit,h_mode=h_mode,/local
+			mist_emiss[*,i]=em[line,*]
+			mist_r[*,i]=radpts
+		ENDFOR
+		ctime=systime(/seconds)-start_time
+		IF NOT keyword_set(quiet) THEN print, 'MIST emissivity profiles calculated: '+num2str(ctime,dp=2)
+	ENDIF
+
+	em_level=fltarr(n(t)+1)
+	FOR i=0,n(t) DO BEGIN
+		em_level[i]=ipt(emiss[*,i],max(emiss[*,i])*0.075)
+		IF em_level[i] EQ -1 THEN em_level[i]=n(emiss[*,i])
+	ENDFOR
+
+
+	axis=line_getaxis(shot)
+	rmid=line_getrmid(shot)
+	Ro=axis[efit_i,0]
+	a=rmid[efit_i,n(rmid[0,*])]-rmid[efit_i,0]
+	r_fit=fltarr(n(rho)+1,n(t)+1)
+	bp=fltarr(n(rho)+1,n(t)+1)
+	FOR i=0,n(t) DO BEGIN
+		Ro=axis[efit_i[i],0]
+		a=rmid[efit_i[i],n(rmid[0,*])]-rmid[efit_i[i],0]
+		r_fit[*,i]=rho*a+Ro
+		psi=efit_rz2psi(r_fit[*,i],fltarr(n(rho)+1)+axis[efit_i[i],1],t[i],bz,br,shot=shot)
+		bp[*,i]=sqrt(bz^2+br^2)
+	ENDFOR
+	
+	ch=make(1,n(pos[0,*])+1,n(pos[0,*])+1)
+	IF keyword_set(simple) THEN BEGIN
+		ti_simp=hirexsr_simple_ti(lam,int,lam_o,z,plot=simp_plot,speed=speed)
+		rmid=genpos_pos2rmidtang(pos,shot,t)
+		w_simp=speed*0.0
+		FOR i=0,n(t) DO w_simp[*,i]=-1.0*speed[*,i]/((pos[2,*]*cos(pos[3,*]))*2.0*!pi*1.0e3)
+	ENDIF
+
+	;setup profile plotting window
+	IF keyword_set(ps) THEN BEGIN
+		xsize=7.0
+		ysize=7.0*1150/850.0
+		ls=0.5
+	ENDIF ELSE BEGIN
+		xsize=700.0
+		ysize=1150.0
+		ls=1.0
+	ENDELSE
+	IF NOT keyword_set(ps) THEN BEGIN
+		device, window_state=var
+		IF var[plotwin] EQ 0 THEN window,plotwin,xsize=xsize,ysize=ysize,xpos=1610,ypos=670,title='output profiles,'+num2str(plotwin) $
+			ELSE wset,plotwin
+	ENDIF ELSE BEGIN
+		d_old=!d
+		device, xsize=xsize, ysize=ysize, /inches
+	ENDELSE	
+	
+	!p.multi=[0,0,4]
+	IF NOT keyword_set(colors) THEN colors=colormap(t)
+	IF n(colors) EQ 2 THEN colors=[0,100,200]
+
+	;emissivity
+	tmp=max(emiss)
+	tmp=strsplit(tmp,'+',/extract)
+	expon=tmp[1]
+	em_max=max(emiss)/10.0^(float(expon))
+	plot,r_fit[*,0],emiss[*,0]/10.0^(float(expon)),chars=3.0*ls,ytit='Line Emissivity ['+n2g('eta')+' x 10!u'+expon+'!n ph/s/m!u3!n]',$
+		thick=2.5,yr=[0.0,em_max],tit='HIREXSR Plotting Utility SHOT: '+num2str(shot,1)+' '+strupcase(label)+'-Line',$
+		xr=[min(r_fit)-0.01,0.9],/xsty
+	oploterror,r_fit[*,0],emiss[*,0]/10.0^(float(expon)),fltarr(n(r_fit[*,0])+1),inverr[0,*,0]/10.0^(float(expon))
+	xyouts,0.84+(ls-1.0)/40.0,0.9*em_max,'TIME =',chars=2.0*ls
+	xyouts, 0.870, 0.9*em_max,num2str(t[0],dp=2),chars=2.0*ls
+	IF keyword_set(mist) THEN BEGIN
+		ipt=ipt(r_fit[*,0],mist_r[0,0])
+		IF ipt EQ -1 THEN ipt=0
+		ff=emiss[ipt,0]/mist_emiss[0,0]
+		oplot, mist_r[*,0],mist_emiss[*,0]*ff/10^(float(expon)),thick=2.5,linestyle=2
+		xyouts,0.68,0.2*em_max,'--- MIST emissivity',chars=1.75*ls
+	ENDIF
+	FOR i=1,n(t) DO BEGIN 
+		oplot, r_fit[*,i],emiss[*,i]/10^(float(expon)),color=colors[i],thick=2.5
+		oploterror,r_fit[*,i],emiss[*,i]/10.0^(float(expon)),fltarr(n(r_fit[*,i])+1),inverr[0,*,i]/10.0^(float(expon)),color=colors[i],errcolor=colors[i]
+		xyouts, 0.870, (0.9-0.15*i)*em_max,num2str(t[i],dp=2),chars=2.0*ls,color=colors[i]
+		IF keyword_set(mist) THEN BEGIN
+			ipt=ipt(r_fit[*,i],mist_r[0,i])
+			IF ipt EQ -1 THEN ipt=0
+			ff=emiss[ipt,i]/mist_emiss[0,i]
+			oplot, mist_r[*,i],mist_emiss[*,i]*ff/10^(float(expon)),thick=2.5,linestyle=2,color=colors[i]
+		ENDIF		
+	ENDFOR
+
+	;toroidal rotation
+	max_w=0.0
+	min_w=0.0
+	FOR i=0,n(t) DO BEGIN
+		max_w = max_w > max(w[0:em_level[i],i])
+		min_w = min_w < min(w[0:em_level[i],i])
+	ENDFOR
+	plot,r_fit[*,0],w[*,0]*1.0e-3,chars=3.0*ls,ytit='Toroidal Rotation Freq [kHz]',thick=2.5,xr=[min(r_fit)-0.01,0.9],/xsty,$
+		yr=1.1e-3*[min_w,max_w],/ysty
+	oploterror,r_fit[*,0],w[*,0]*1.0e-3,fltarr(n(r_fit[*,0])+1),inverr[1,*,0]*1.0e-3
+	FOR i=1,n(t) DO BEGIN
+		oplot, r_fit[*,i],w[*,i]*1.0e-3,color=colors[i],thick=2.5
+		oploterror,r_fit[*,i],w[*,i]*1.0e-3,fltarr(n(r_fit[*,i])+1),inverr[1,*,i]*1.0e-3,color=colors[i],errcolor=colors[i]	
+	ENDFOR
+	IF keyword_set(simple) THEN BEGIN
+		makesym,9
+		tmp=where(good EQ 1)
+		oplot, rmid[tmp,0],w_simp[tmp,0],psym=8,symsize=2.0*ls
+		FOR i=1,n(t) DO oplot, rmid[tmp,i],w_simp[tmp,i],psym=8,symsize=2.0*ls,color=colors[i]
+	ENDIF
+
+	;poloidal rotation
+	max_u=0.0
+	min_u=0.0
+
+	FOR i=0,n(t) DO BEGIN
+		vp=u[*,i]*bp[*,i]
+		max_u = max_u > max(vp[0:em_level[i]])
+		min_u = min_u < min(vp[0:em_level[i]])
+	ENDFOR
+	plot,r_fit[*,0],u[*,0]*1.0e-3*bp[*,0],chars=3.0*ls,ytit='Poloidal Rotation [km/s]',thick=2.5,xr=[min(r_fit)-0.01,0.9],/xsty,$
+		yr=1.1e-3*[min_u,max_u],/ysty
+	oploterror,r_fit[*,0],u[*,0]*1.0e-3*bp[*,0],fltarr(n(r_fit[*,0])+1),inverr[3,*,0]*1.0e-3
+	FOR i=1,n(t) DO BEGIN
+		oplot, r_fit[*,i],u[*,i]*1.0e-3*bp[*,i],color=colors[i],thick=2.5
+		oploterror,r_fit[*,i],u[*,i]*1.0e-3*bp[*,i],fltarr(n(r_fit[*,i])+1),inverr[3,*,i]*1.0e-3,color=colors[i],errcolor=colors[i]
+	ENDFOR
+
+
+
+	;ion temperature
+	max_ti=0.0
+	FOR i=0,n(t) DO max_ti = max_ti > max(ti[0:em_level[i],i])
+	plot,r_fit[*,0],ti[*,0]-ti_inst*1.0e-3,chars=3.0*ls,xtit='Midplane Major Radius [m]',ytit='Ion Temp [keV]',thick=2.5,$
+		xr=[min(r_fit)-0.01,0.9],/xsty,yr=[0.0,max_ti*1.1],/ysty
+	oploterror,r_fit[*,0],ti[*,0]-ti_inst*1.0e-3,fltarr(n(r_fit[*,0])+1),inverr[2,*,0]
+	IF keyword_set(te) THEN BEGIN
+		IF keyword_set(gpc2) THEN BEGIN
+			mdsopen, 'electrons', (shot)
+			gpc_te=mdsvalue('\ELECTRONS::TOP.GPC_2.RESULTS:GPC2_TE')
+			gpc_t=mdsvalue('dim_of(\ELECTRONS::TOP.GPC_2.RESULTS:GPC2_TE)')
+			gpc_r=mdsvalue('\ELECTRONS::TOP.GPC_2.RESULTS:RADII')
+			gpc_r_t=mdsvalue('dim_of(\ELECTRONS::TOP.GPC_2.RESULTS:RADII,0)')
+			mdsclose, 'electrons', (shot)
+			te=fltarr(n(gpc_r[0,*])+1,n(t)+1)
+			te_r=fltarr(n(gpc_r[0,*])+1,n(t)+1)
+			FOR i=0,n(t) DO BEGIN
+				te_r[*,i]=gpc_r[ipt(gpc_r_t,t[i]),*]
+				ilow=ipt(gpc_t,time[ipts[i]]-exp_time/2.0)
+				ihigh=ipt(gpc_t,time[ipts[i]]+exp_time/2.0)				
+				te[*,i]=sum_array(gpc_te[ilow:ihigh,*],/j)/(ihigh-ilow+1.0)
+			ENDFOR
+			te_str='GPC2'
+		ENDIF ELSE BEGIN
+			cmod_ts,shot,ts
+			te=fltarr(n(ts.r[0,*])+1,n(t)+1)
+			te_r=fltarr(n(ts.r[0,*])+1,n(t)+1)
+			FOR i=0,n(t) DO BEGIN
+				te_r[*,i]=ts.r[ipt(ts.time,t[i]),*]
+				te[*,i]=ts.te[ipt(ts.time,t[i]),*]
+			ENDFOR
+			te_str='THOM'
+		ENDELSE
+			
+		makesym,10
+		non_zero=where(te[*,0] NE 0)		
+		oplot, te_r[non_zero,0],te[non_zero,0],psym=8,symsize=2.0*ls
+		oplot, [min(r_fit)],[0.1*max_ti],psym=8,symsize=1.5*ls
+		xyouts,min(r_fit)+0.01,[0.08*max_ti],te_str,chars=1.5*ls
+	ENDIF
+	IF keyword_set(simple) THEN BEGIN
+		makesym,9
+		tmp=where(good EQ 1)
+		oplot, rmid[tmp,0],ti_simp[tmp,0]-ti_inst*1.0e-3,psym=8,symsize=2.0*ls
+	ENDIF
+	FOR i=1,n(t) DO BEGIN
+		oplot, r_fit[*,i],ti[*,i]-ti_inst*1.0e-3,color=colors[i],thick=2.0
+		oploterror,r_fit[*,i],ti[*,i]-ti_inst*1.0e-3,fltarr(n(r_fit[*,i])+1),inverr[2,*,i],color=colors[i],errcolor=colors[i]
+		IF keyword_set(te) THEN BEGIN
+			makesym,10
+			non_zero=where(te[*,i] NE 0)
+			oplot, te_r[non_zero,i],te[non_zero,i],psym=8,symsize=2.0*ls,color=colors[i]			
+		ENDIF
+		IF keyword_set(simple) THEN BEGIN
+			makesym,9
+			tmp=where(good EQ 1)
+			oplot, rmid[tmp,i],ti_simp[tmp,i]-ti_inst*1.0e-3,psym=8,symsize=2.0*ls,color=colors[i]
+		ENDIF
+	ENDFOR
+	IF ti_inst NE 0 THEN xyouts, 0.825,0.85*max_ti,'T!lINST!n = '+num2str(ti_inst*1.0e-3,dp=2)+' keV',chars=1.5*ls
+	
+
+	;setup moment check plotting window
+	!p.multi=0
+	tmp=where(good EQ 1)
+	IF NOT keyword_set(nocheck) THEN BEGIN
+		IF keyword_set(ps) THEN BEGIN
+			xsize=7.0
+			ysize=7.0*1150/850.0
+			ls=0.5
+		ENDIF ELSE BEGIN
+			xsize=850.0
+			ysize=1150.0
+			ls=1.0
+		ENDELSE
+		IF NOT keyword_set(ps) THEN BEGIN
+			device, window_state=var
+			IF var[plotwin+1] EQ 0 THEN window,plotwin+1,xsize=xsize,ysize=ysize,xpos=2340,ypos=670,$
+				title='moment checks,'+num2str(plotwin+1) ELSE wset,plotwin+1
+		ENDIF ELSE BEGIN
+			device, xsize=xsize, ysize=ysize, /inches
+		ENDELSE
+
+		genpos_check=fltarr(n(ch)+1,n(t)+1)
+		makesym,10
+				
+		FOR i=0,n(t) DO BEGIN
+			;0th moment
+			em_grid=grid_profile(ves_cent,emiss[*,i],r_fit[*,i],[t[i]],shot,tpts=t[i])
+			FOR j=0,n(ch) DO BEGIN
+				non_zero=where(gpv[j,*] GT 0)
+				IF non_zero[0] NE -1 THEN genpos_check[j,i]=total(gpv[j,non_zero]*em_grid[non_zero])
+			ENDFOR
+			yr=[0.0,max(moments[0,*,i])]
+			plot,ch_chk+1,brchk[0,*,i],ytit='0!uth!n Moment',tit='Moment Checks SHOT: '+num2str(shot,1)+' TIME: '+num2str(t[i],dp=2),$
+				xr=[1,n(ch)+1],/xsty,yr=yr*1.1,/ysty,chars=1.5*ls,thick=2.5,pos=[0.125,0.75,0.975,0.95],xtick_get=nt
+			makesym,9
+			oploterror,ch,moments[0,*,i],fltarr(n(ch)+1),moments_err[0,*,i],color=100,psym=8,symsize=2.0*ls,errcolor=100
+			makesym,10
+			oplot,ch[tmp],moments[0,tmp,i],color=100,psym=8,symsize=2.0*ls
+			oplot,ch,genpos_check[*,i],color=200,linestyle=2,thick=2.5
+			xyouts,n(ch)-8,0.75*yr[1],'EPS='+num2str(eps_em,dp=2),chars=1.5*ls
+			xyouts,n(ch)-8,0.9*yr[1],'ETA='+num2str(float(eta),dp=2),chars=1.5*ls
+			yr=[min(moments[1,*,i]),max(moments[1,*,i])]
+			del_max=max(moments[0,tmp,i]-brchk[0,*,i])
+			del_min=min(moments[0,tmp,i]-brchk[0,*,i])
+			plot,[0],[0],xr=[1,n(ch)+1],yr=1.1*[del_min,del_max],ytit='Residual',chars=1.5*ls,pos=[0.125,0.65,0.975,0.75],/noerase,/xsty,/ysty,xtickname=replicate(' ',n(nt)+2)
+			oploterror,ch_chk+1,(moments[0,tmp,i]-brchk[0,*,i]),fltarr(n(ch_chk)+1),moments_err[0,tmp,i],psym=8,symsize=1.5*ls
+			oplot,[0,50],[0,0],linestyle=2.0
+
+			;1st moment
+			IF keyword_set(poloidal) THEN brchk_tot=brchk[3,*,i] ELSE brchk_tot=brchk[1,*,i]
+			plot,ch_chk+1,brchk_tot,ytit='1!ust!n Moment',xr=[1,n(ch)+1],/xsty,yr=yr*1.1,/ysty,chars=1.5*ls,thick=2.5,pos=[0.125,0.45,0.975,0.625],/noerase,xtick_get=nt
+			IF keyword_set(poloidal) THEN BEGIN
+				oplot, ch_chk+1,brchk[1,*,i],linestyle=2,color=30
+				;oplot,ch_chk+1,brchk[3,*,i]-brchk[1,*,i],linestyle=3,color=30
+			ENDIF
+			makesym,9
+			oploterror,ch,moments[1,*,i],fltarr(n(ch)+1),moments_err[1,*,i],color=100,psym=8,symsize=2.0*ls,errcolor=100
+			makesym,10
+			oplot,ch[tmp],moments[1,tmp,i],color=100,psym=8,symsize=2.0*ls
+			xyouts,n(ch)-8,0.75*(yr[1]-yr[0])+yr[0],'EPS='+num2str(eps_w,dp=2),chars=1.5*ls
+			xyouts,n(ch)-8,0.9*(yr[1]-yr[0])+yr[0],'ETA='+num2str(float(eta),dp=2),chars=1.5*ls
+			yr=[0.0,max(moments[2,*,i])]
+			del_max=max(moments[1,tmp,i]-brchk[1,*,i])
+			del_min=min(moments[1,tmp,i]-brchk[1,*,i])
+			plot,[0],[0],xr=[1,n(ch)+1],yr=1.1*[del_min,del_max],ytit='Residual',chars=1.5*ls,pos=[0.125,0.35,0.975,0.45],/noerase,/xsty,/ysty,xtickname=replicate(' ',n(nt)+2)
+			oploterror, ch_chk+1,(moments[1,tmp,i]-brchk_tot),fltarr(n(ch_chk)+1),moments_err[1,tmp,i],psym=8,symsize=1.5*ls
+			makesym,9
+			IF keyword_set(poloidal) THEN oploterror, ch_chk+1,(moments[1,tmp,i]-brchk[1,*,i]),fltarr(n(ch_chk)+1),moments_err[1,tmp,i],psym=8,symsize=1.5*ls,color=30,errcolor=30
+			oplot,[0,50],[0,0],linestyle=2.0
+
+			;2nd moment
+			plot,ch_chk+1,brchk[2,*,i],ytit='2!und!n Moment',xr=[1,n(ch)+1],/xsty,yr=yr*1.1,/ysty,chars=1.5*ls,thick=2.5,xtick_get=nt,$
+				pos=[0.125,0.15,0.975,0.325],/noerase
+			makesym,9
+			oploterror,ch,moments[2,*,i],fltarr(n(ch)+1),moments_err[2,*,i],color=100,psym=8,symsize=2.0*ls,errcolor=100
+			makesym,10
+			oplot,ch[tmp],moments[2,tmp,i],color=100,psym=8,symsize=2.0*ls
+			xyouts,n(ch)-8,0.75*yr[1],'EPS='+num2str(eps_w,dp=2),chars=1.5*ls
+			xyouts,n(ch)-8,0.9*yr[1],'ETA='+num2str(float(eta),dp=2),chars=1.5*ls
+			del_max=max(moments[2,tmp,i]-brchk[2,*,i])
+			del_min=min(moments[2,tmp,i]-brchk[2,*,i])
+			plot,[0],[0],xr=[1,n(ch)+1],yr=1.1*[del_min,del_max],ytit='Residual',chars=1.5*ls,pos=[0.125,0.05,0.975,0.15],/noerase,/xsty,/ysty,xtit='Channel #',$
+				xtickname=replicate(' ',n(nt)+2)
+			oploterror, ch_chk+1,(moments[2,tmp,i]-brchk[2,*,i]),fltarr(n(ch_chk)+1),moments_err[2,tmp,i],psym=8,symsize=1.5*ls
+			oplot,[0,50],[0,0],linestyle=2.0
+
+			IF NOT keyword_set(ps) AND i NE n(t) THEN stop
+
+		ENDFOR		
+	ENDIF
+	
+	IF keyword_set(mist) THEN mist={emiss:mist_emiss, r:mist_r} ELSE mist={emiss:-1,r:-1}
+	IF keyword_set(te) THEN	temp={te:te,r:te_r} ELSE temp={te:-1,r:-1}
+	IF keyword_set(simple) THEN simp={w:w_simp, ti:ti_simp, rmid:rmid} ELSE simp={w:-1,ti:-1, rmid:-1}
+	IF keyword_set(nocheck) THEN genpos_check=-1
+	brchk={br:out.brchk,ch:out.ch}
+	
+	out={emiss:emiss,w:w,ti:ti,r:r_fit,time:t,moments:moments,moments_err:moments_err,ch:ch,genpos:genpos_check,brchk:brchk,mist:mist,temp:temp,simp:simp,inverr:inverr}
+	
+	IF keyword_set(ps) THEN device, xsize=float(d_old.x_size)/d_old.x_px_cm,ysize=float(d_old.y_size)/d_old.y_px_cm
+	!p.multi=0
+	
+	IF keyword_set(debug) THEN stop
+
+END
+
+;+
+;NAME:
+;	LOG_HIREXSR
+;	
+;PURPOSE:
+;	This procedure creates a JPG of the HIREXSR_GENSPEC_PROFILES profiles and stores it in a properly indexed
+;	/usr/local/cmod/logbook subfolder of the user who ran it.  It then outputs to the terminal the
+;	text string which can be copied into the HTML-based logbook and display the image.  Sweet, huh...
+;
+;CALLING SEQUENCE:
+;	LOG_HIREXSR,shot
+;
+;INPUTS:
+;	shot	LONG shot number
+;	
+;OPTIONAL INPUTS:
+;	n	INT of the window number if you changed it using PLOTWIN optional input of HIREXSR_GENSPEC_PROFILES
+;
+;OUTPUTS:
+;	text to terminal like: img src="logbook/mlreinke/spectroscopy/1070518/hirexsr_1070518021.jpg" (but with <>) 
+;
+;MODFICATION HISTORY:
+;	Written by:	ML Reinke - 7/20/07
+;
+;-
+
+PRO log_hirexsr,shot,n=n
+	run=runs(shot)
+	run=run[0]
+	
+	IF NOT keyword_set(n) THEN n=30
+	wset,n
+	win_save,'hirexsr_'+num2str(shot,1)
+
+	basepath='/usr/local/cmod/logbook/'+logname()+'/spectroscopy/'
+	spawn, 'cd '+basepath, output,error
+	IF (strmatch(error, '*No such file or directory*') EQ 1) THEN $
+		spawn, 'mkdir '+basepath, output,error
+	runpath=basepath+num2str(run,1)+'/'
+	spawn, 'cd '+runpath, output,error
+	IF (strmatch(error, '*No such file or directory*') EQ 1) THEN $
+		spawn, 'mkdir '+runpath, output,error
+	
+	spawn,'mv hirexsr_'+num2str(shot,1)+'.jpg '+runpath,output,error
+	print, error
+	print, ''
+	print, '<img src="logbook/'+logname()+'/spectroscopy/'+num2str(run,1)+'/hirexsr_'+num2str(shot,1)+'.jpg">
+END
+
+;+
+;NAME:
+;	HIREXSR_GENSPEC_INVERT
+;
+;PURPOSE:
+;	This procedure unleashes the full power of the fury.  Wear protective gear to operate.  Multiple time slices of HIREXSR
+;	data are inverted to find line emissivity, toroidal rotation frequency and ion temperature.  Keywords allow plotting
+;	of MIST simulations and Te profiles for comparison.  The moment check profiles are also plotted for each time slice.
+;
+;CALLING SEQUENCE:
+;	HIREXSR_GENSPEC_INVERT,shot,label,emiss,w,ti,rho,time
+;
+;INPUTS:
+;	shot 	LONG shot number
+;	label:	STR of the line label to use.  	Currently supporting 'W', 'X', 'Y' or 'Z' for He-like Argon
+;						'LYA1' and 'LYA2' for H-like Argon and 'MOXXXIII' for Ne-like Moly	
+;OPTIONAL INPUTS:
+;	data:		STRUCT	structure filled with input data.  See MLR for format.
+;	trange:		FLTARR  [2] time interval over which to perform inversion but must be inside EFIT
+;				If both values are equal than the time point nearest to that value will be run
+;	lr:		FLTARR 	[2] (lam_low, lam_high) of the inclusive wavelength region to truncate dataset.  DEFAULTS:
+;					'w' 		:	lr=[3946.5,3951.9]
+;					'x' 		:	lr=0.0
+;					'y' 		:	lr=0.0
+;					'z' 		:	lr=[3991.6,3997.0]
+;					'lya1'		:	lr=0.0
+;					'lya2'		:	lr=0.0
+;					'moxxxiii'	:	lr=0.0
+;	del_i:		INT	number of time points to average over. DEFAULT: NOT USED	
+;	good:		INTARR 	[n_ch] with 1's (use) or 0's (do not use) indicating which channels to use during the inversion	
+;	eps_em:		FLT	emissivity profile smoothing factor (see GENSPEC_MATRIX_INVERT for DEFAULT)
+;	eps_w:		FLT	toroidal rotation profile smoothing factor. (see GENSPEC_MATRIX_INVERT for DEFAULT)
+;	eps_ti:		FLT	ion temperature profile smoothing factor. (see GENSPEC_MATRIX_INVERT for DEFAULT)
+;	eta:		FLT	weighting factor for the edge zero (see GENSPEC_MATRIX_INVERT for DEFAULT)
+;	n_rho:		INT	number of points from 0.0 < rho < 1.0 (inclusive) to be used in inversion (see GENSPEC_MATRIX_INVERT for DEFAULT)
+;	rho_vec:	FLTARR 	the actually rho points to be used (see GENSPEC_MATRIX_INVERT for DEFAULT)
+;	rhopts:		FLTARR	[n_grid, n_time] of the rho values corresponding to the (R,Z) grid points.  This will be calculated
+;				by GENSPEC_MATRIX_INVERT but is an optional output that can be reused on different spectral lines to
+;				save computation time.
+;	bfield:		STRUC	see GENPOS_GRID_BFIELD for structure but like rhopts, this needs only be calculated once per shot
+;
+;KEYWORD PARAMETERS
+;	/backsub and /double carried over to GENSPEC_LI_MOMENTS
+;	novel:		/novel will zero out the first moment profile.  Necessary if getting large inversion errors that are affecting
+;			the ion temperature profile
+;	debug:		/debug stops the procedure at various locations
+;
+;OUTPUTS:
+;	emiss: 		FLTARR 	[n_rho, n_time] of the line emissivities [photons/s/m^3] or "power"/m^3
+;	w:		FLTARR	[n_rho, n_time] of the "w/2pi" profile or toroidal rotation frequency [kHz]
+;	ti:		FLTARR  [n_rho, n_time] of the impurity ion temperature [keV]
+;	rho:		FLTARR 	[n_rho] of the rho values at which each profile has been calculated
+;	time:		FLTARR 	[n_time] of the time points, truncated to the interval where EFIT has been ran
+;
+;OPTIONAL OUTPUTS:
+;	r_major:	FLTARR 	[n_rho, n_time] of the major radius points for the output profiles  [m]
+;	brchk:		STRUCT	with brightness check data
+;   				*.br    FLTARR	[3, n_good, n_time] of the brightness check profiles [AU]
+;   				*.ch    INTARR	[n_good] of the good channel numbers used (first channel is channel 1 not 0)
+;PROCEDURE:
+;	This procedure calls HIREXSR_LOAD_GPV, HIREXSR_LOAD_LAMINT, GENSPEC_LI_MOMENTS and GENSPEC_MATRIX_INVERT to
+;	make the magic happen.
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke - 7/22/07
+;	8/15/05:	ML Reinke - updated to use lya1, lya2 and moxxxiii labels.  Added eta optional input
+;	8-22-07:	ML Reinke - changed the calling for data loading scripts and removed old optional input GPV_FILE
+;				    changed the code to handle a 1D lam vector instead of 3D
+;				    modified optional input TRANGE so that if both values are equal it does the nearest time slice only
+;	9-11-07:	ML Reinke - added the data optional input to allow for non-tree data to be proces
+;-
+
+PRO hirexsr_genspec_invert,shot,label,emiss,w,ti,rho,time,r_major=r_major,brchk=brchk,lr=lr,del_i=del_i,$
+		good=good,eps_em=eps_em,eps_w=eps_w,eps_ti=eps_ti,n_rho=n_rho,rho_vec=rho_vec,rhopts=rhopts,bfield=bfield,double=double,$
+		debug=debug,backsub=backsub,novel=novel,trange=trange,eta=eta,data=data,moments=moments
+
+	IF NOT keyword_set(lr) THEN $
+		CASE strlowcase(label) OF
+			'w'		 :	lr=[3946.5,3951.9]
+			'x' 		:	lr=0.0
+			'y' 		:	lr=0.0
+			'z' 		:	lr=[3991.6,3997.0]
+			'lya1'		:	lr=[3727.81,3734.39]
+			'lya2'		:	lr=0.0
+			'moxxxiii'	:	lr=[3737.66,3741.94]
+		ENDCASE
+	IF label EQ 'moxxxiii' THEN z=42 ELSE z=18
+
+	IF NOT keyword_set(data) THEN BEGIN
+		hirexsr_load_gpv,shot,strlowcase(label),gpv,pos,ves_cent
+		hirexsr_load_lamint,shot,strlowcase(label),lam,int,time,lam_o,del_i=del_i,exp_time=exp_time
+	ENDIF ELSE BEGIN
+		gpv=data.gpv
+		pos=data.pos
+		ves_cent=data.ves_cent
+		lam=data.lam
+		int=data.inten
+		time=data.times
+		lam_o=data.lam_o
+	ENDELSE
+	IF NOT keyword_set(good) THEN BEGIN
+		IF n(gpv[*,0]) EQ 47 THEN BEGIN
+			good=intarr(48)+1
+			good[26:27]=0
+			good[0:20]=0
+		ENDIF ELSE good = intarr(n(gpv[*,0])+1)+1
+	ENDIF
+
+	;truncate dataset to where EFIT has been run
+	efit_times=line_gettimes(shot)
+	IF NOT keyword_set(trange) THEN trange=[efit_times[0],efit_times[n(efit_times)]]
+	t_low=trange[0] > efit_times[0]
+	t_high=trange[1] <  efit_times[n(efit_times)]
+	IF t_low EQ t_high THEN tmp=ipt(time, t_low) ELSE tmp=where(time GE t_low AND time LE t_high)
+	int=int[*,*,tmp]
+	time=time[tmp]
+	IF keyword_set(debug) THEN stop
+
+	moments=genspec_li_moments(lam,int,lam_o,lr=lr,backsub=backsub,double=double)
+	IF keyword_set(novel) THEN moments[1,*,*]=0.0
+	IF keyword_set(debug) THEN stop
+
+	out=genspec_matrix_invert(moments,gpv,pos,shot,time,ves_cent,lam_o,z,bfield=-1.0,good=good,rhopts=rhopts,$
+			eps_em=eps_em,eps_w=eps_w,eps_ti=eps_ti,n_rho=n_rho,rho_vec=rho_vec,/solidbody,eta=eta)
+	emiss=out.emiss
+	ti=out.ti
+	w=out.w*1.0e-3
+	rho=out.rho
+	time=out.time
+	brchk={br:out.brchk,ch:out.ch}
+
+	axis=line_getaxis(shot)
+	rmid=line_getrmid(shot)
+	efit_times=line_gettimes(shot)
+	r_major=fltarr(n(rho)+1,n(time)+1)
+	FOR i=0,n(time) DO BEGIN
+		efit_i=ipt(efit_times,time[i])
+		Ro=axis[efit_i,0]
+		a=rmid[efit_i,n(rmid[0,*])]-rmid[efit_i,0]
+		r_major[*,i]=rho*a+Ro
+	ENDFOR
+	IF keyword_set(debug) THEN stop
+END
+
+;+
+;NAME:
+;	HIREXSR_WN_FUNCTION
+;
+;PURPOSE:
+;	This procedure is to be used with CURVEFIT for a variable number of gaussians.
+;
+;CALLING SEQUENCE:
+;	HIREXSR_WN_FUNCTION,lam,a,int
+;
+;INPUTS:
+;	lam:	FLTARR [n_lam] of the wavelength values
+;	a:	FLTARR [3*n_gauss] of the [eo, lam_o, w] (repeated) for each gaussian
+;
+;OUTPUTS:
+;	int:	FLTARR [n_lam] of the sum of all n_gaussians
+;
+;PROCEDURE:
+;	Generating function is: eo/(w*sqrt(2.0*!pi))*exp(-(lam-lam_o)^2/(2.0*w^2))
+;
+;MODIFICATION HISTORY:
+;	Written by: 	ML Reinke - Fall 2007
+;
+;-
+
+
+PRO hirexsr_wn_function,lam,a,int
+	int=fltarr(n(lam)+1)
+	FOR i=0,floor((n(a)+1)/3)-1 DO BEGIN
+		eo=a[i*3]
+		lam_o=a[i*3+1]
+		w=a[i*3+2]
+		int+=eo/(w*sqrt(2.0*!pi))*exp(-(lam-lam_o)^2/(2.0*w^2))
+	ENDFOR
+	IF floor((n(a)+1)/3) NE (n(a)+1)/3.0 THEN int+=a[n(a)]
+
+END
+
+;+
+;NAME:
+;	HIREXSR_TE_WNFIT
+;
+;PURPOSE:
+;	This function uses three gaussians to fit the w+n>=3 spectra and returns the n=3 brightness for use
+;	in HIREXSR_TE codes
+;
+;CALLING SEQUENCE:
+;	result=HIREXSR_TE_WNFIT(lam,int,lr)
+;
+;INPUTS:
+;	lam:	FLTARR 	[n_lam] of the wavelength values [mAng]
+;	int:	FLTARR 	[n_lam,n_ch,n_time] of the intensity values [arbitrary "power/pixel" units] at those wavelength values
+;	lr:	FLTARR	[2] of the minimum and maximum lambda to truncate dataset to before fiting.
+;
+;OPTIONAL INPUTS:
+;	cr:	FLTARR 	[2] of the minimum -> maximum channel number to do fits to save time DEFAULT all channels
+;	tr:	FLTARR	[2] of the minimum -> maximum time to do fits [ipt NOT time] DEFAULT: all time points
+;
+;KEYWORD PARAMETERS:
+;	debug:	/debug will stop the code before the RETURN statement
+;	plot:	/plot will plot the results of the fit for each time slice for each channel
+;
+;OUTPUTS:
+;	result:	FLTARR	[n_ch,n_time] of the integral over the "third" gaussian, which should be the n=3 line.
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke: Fall 2007
+;
+;-	
+	
+FUNCTION hirexsr_te_wnfit,lam,int,lr,cr=cr,tr=tr,debug=debug,plot=plot
+	
+	;convert to floats to save processing time with insignificant change in accuracy
+	back_lam=lam	;make backups of lam and int
+	back_int=int
+	int=float(int[ipt(lam,lr[0]):ipt(lam,lr[1]),*,*])
+	lam=float(lam[ipt(lam,lr[0]):ipt(lam,lr[1])])
+		
+	x=size(int)
+	IF x[0] EQ 3 THEN BEGIN		;full dataset
+		n_time=x[3]
+		n_ch=x[2]
+		n_lam=x[1]
+	ENDIF
+	IF x[0] EQ 2 THEN BEGIN		;assume one time slice, but all channels
+		n_time=1
+		n_ch=x[2]
+		n_lam=x[1]
+	ENDIF
+	br_n3=fltarr(n_ch,n_time)
+
+	IF NOT keyword_set(cr) THEN cr = [0,n_ch-1]
+	IF NOT keyword_set(tr) THEN tr = [0,n_time-1]
+
+	;seed the initial solver
+	seed=fltarr(9,n_ch,n_time)
+	FOR i=tr[0],tr[1] DO BEGIN
+		FOR j=cr[0],cr[1] DO BEGIN
+			maxpt=maxloc(int[*,j,i])
+			d1=deriv(int[*,j,i])
+			IF minloc(d1) GT maxloc(d1) THEN BEGIN
+				x=lam[maxloc(d1):minloc(d1)]
+				y=d1[maxloc(d1):minloc(d1)]
+				coefs=poly_fit(x,y,1)
+				w=sqrt(-int[maxpt,j,i]/coefs[1])/5.0
+			ENDIF ELSE w=0.5
+			seed[0,j,i]=int[maxpt,j,i]*(w*sqrt(2.0*!pi))
+			seed[1,j,i]=lam[maxpt]
+			seed[2,j,i]=w
+			seed[3,j,i]=seed[0,j,i]/10.0
+			seed[4,j,i]=seed[1,j,i]+2.5
+			seed[5,j,i]=w
+			seed[6,j,i]=seed[0,j,i]/10.0
+			seed[7,j,i]=seed[1,j,i]+7.0
+			seed[8,j,i]=w
+		ENDFOR
+	ENDFOR
+
+	;perform the fits
+	FOR i=cr[0],cr[1] DO BEGIN
+		FOR j=tr[0],tr[1] DO BEGIN
+			fit_param=seed[*,i,j]
+			yfit=curvefit(lam,reform(int[*,i,j]),weights,fit_param,/noderiv,function_name='hirexsr_wn_function',yerror=1.0e-6)
+			br_n3[i,j]=fit_param[6]		;assumes the n=3 line is the third gaussian
+			IF keyword_set(plot) THEN BEGIN
+				makesym,8
+				openwin,0
+				plot,lam,reform(int[*,i,j]),psym=8,symsize=1.25,xtit='Wavelength [mAng]',ytit='Spec Bright',chars=1.25,tit='CH: '+num2str(i,1)+$
+					' TIME: '+num2str(j,1)
+				oplot,lam,yfit,color=100,thick=2.0
+				hirexsr_wn_function,lam,fit_param[0:2],fit1
+				hirexsr_wn_function,lam,fit_param[3:5],fit2
+				hirexsr_wn_function,lam,fit_param[6:8],fit3
+				oplot,lam,fit1,color=200,thick=2.0
+				oplot,lam,fit2,color=200,thick=2.0
+				oplot,lam,fit3,color=200,thick=2.0
+				stop
+			ENDIF
+		ENDFOR
+	ENDFOR
+	
+	output=br_n3
+	IF keyword_set(debug) THEN stop
+	lam=back_lam	;replace lam and int with backups
+	int=back_int
+	RETURN,output
+END
+
+
+;+
+;NAME:
+;	HIREXSR_TE_KJZFIT
+;
+;PURPOSE:
+;	This function uses two gaussians to fit the k and j+z spectra and returns the k brightness for use
+;	in HIREXSR_TE codes
+;
+;CALLING SEQUENCE:
+;	result=HIREXSR_TE_WNFIT(lam,int,lr)
+;
+;INPUTS:
+;	lam:	FLTARR 	[n_lam] of the wavelength values [mAng]
+;	int:	FLTARR 	[n_lam,n_ch,n_time] of the intensity values [arbitrary "power/pixel" units] at those wavelength values
+;	lr:	FLTARR	[2] of the minimum and maximum lambda to truncate dataset to before fiting.
+;
+;OPTIONAL INPUTS:
+;	cr:	FLTARR 	[2] of the minimum -> maximum channel number to do fits to save time DEFAULT all channels
+;	tr:	FLTARR	[2] of the minimum -> maximum time to do fits [ipt NOT time] DEFAULT: all time points
+;
+;KEYWORD PARAMETERS:
+;	debug:	/debug will stop the code before the RETURN statement
+;	plot:	/plot will plot the results of the fit for each time slice for each channel
+;
+;OUTPUTS:
+;	result:	FLTARR	[n_ch,n_time] of the integral over the "third" gaussian, which should be the n=3 line.
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke: 12/8/2008 (branched from WNFIT)
+;
+;-	
+	
+FUNCTION hirexsr_te_kjzfit,lam,int,lr,cr=cr,tr=tr,debug=debug,plot=plot
+	
+	;convert to floats to save processing time with insignificant change in accuracy
+	back_lam=lam	;make backups of lam and int
+	back_int=int
+	int=float(int[ipt(lam,lr[0]):ipt(lam,lr[1]),*,*])
+	lam=float(lam[ipt(lam,lr[0]):ipt(lam,lr[1])])
+		
+	x=size(int)
+	IF x[0] EQ 3 THEN BEGIN		;full dataset
+		n_time=x[3]
+		n_ch=x[2]
+		n_lam=x[1]
+	ENDIF
+	IF x[0] EQ 2 THEN BEGIN		;assume one time slice, but all channels
+		n_time=1
+		n_ch=x[2]
+		n_lam=x[1]
+	ENDIF
+	br_k=fltarr(n_ch,n_time)
+
+	IF NOT keyword_set(cr) THEN cr = [0,n_ch-1]
+	IF NOT keyword_set(tr) THEN tr = [0,n_time-1]
+
+	;seed the initial solver
+	seed=fltarr(7,n_ch,n_time)
+	FOR i=tr[0],tr[1] DO BEGIN
+		FOR j=cr[0],cr[1] DO BEGIN
+			maxpt=maxloc(int[*,j,i])
+			d1=deriv(int[*,j,i])
+			IF minloc(d1) GT maxloc(d1) THEN BEGIN
+				x=lam[maxloc(d1):minloc(d1)]
+				y=d1[maxloc(d1):minloc(d1)]
+				coefs=poly_fit(x,y,1)
+				w=sqrt(-int[maxpt,j,i]/coefs[1])/5.0*2.0
+			ENDIF ELSE w=0.5
+			seed[0,j,i]=int[maxpt,j,i]*(w*sqrt(2.0*!pi))
+			seed[1,j,i]=lam[maxpt]
+			seed[2,j,i]=w
+			seed[3,j,i]=seed[0,j,i]/8.0
+			seed[4,j,i]=seed[1,j,i]-4.1
+			seed[5,j,i]=w
+			seed[6,j,i]=min(y)
+		ENDFOR
+	ENDFOR
+
+	;perform the fits
+	FOR i=cr[0],cr[1] DO BEGIN
+		FOR j=tr[0],tr[1] DO BEGIN
+			fit_param=seed[*,i,j]
+			yfit=curvefit(lam,reform(int[*,i,j]),weights,fit_param,/noderiv,function_name='hirexsr_wn_function',yerror=1.0e-6)
+			br_k[i,j]=fit_param[3]		;assumes the n=3 line is the third gaussian
+			IF keyword_set(plot) THEN BEGIN
+				makesym,8
+				openwin,0
+				plot,lam,reform(int[*,i,j]),psym=8,symsize=1.25,xtit='Wavelength [mAng]',ytit='Spec Bright',chars=1.25,tit='CH: '+num2str(i,1)+$
+					' TIME: '+num2str(j,1)
+				oplot,lam,yfit,color=100,thick=2.0
+				hirexsr_wn_function,lam,fit_param[0:2],fit1
+				hirexsr_wn_function,lam,fit_param[3:5],fit2
+				hirexsr_wn_function,lam,seed[0:2,i,j],seed1
+				hirexsr_wn_function,lam,seed[3:5,i,j],seed2
+				oplot,lam,fit1,color=200,thick=2.0
+				oplot,lam,fit2,color=200,thick=2.0
+				oplot,lam,seed1,color=30,thick=2.0
+				oplot,lam,seed2,color=30,thick=2.0
+				oplot,lam,fltarr(n(lam)+1)+fit_param[6],color=200,linestyle=2.0
+				
+				stop
+			ENDIF
+		ENDFOR
+	ENDFOR
+	
+	output=br_k
+	IF keyword_set(debug) THEN stop
+	lam=back_lam	;replace lam and int with backups
+	int=back_int
+	RETURN,output
+END
+
+;+
+;NAME:
+;	HIREXSR_TE_PROFILES
+;
+;PURPOSE:
+;	This procedure uses HIREXSR experimental data and line emission data from CALC_GROUP_RATIO to form electron temperature
+;	profiles from line ratios.  Results and debugging information is plotted.
+;	
+;CALLING SEQUENCE
+;	HIREXSR_TE_PROFILES,shot,t
+;
+;INPUTS:
+;	shot:		LONG 	shot number
+;	t:		FLTARR	[n_time] of time points to run the code [sec]
+;
+;OPTIONAL INPUTS:
+;	num_eps:	FLT	of the smoothing factor for the numerator DEFAULT: 0.75
+;	den_eps:	FLT	of the smoothing factor for the denominator DEFAULT: 0.75
+;	eps:		FLT 	use to assign the same smoothing factor to both num & den
+;	eta:		FLT	edge zero weighting factor DEFAULT: 0
+;	n_rho:		INT	of the number of rho points to use in inversion DEFAULT: see GENPOS_EMISS_INVERT
+;	rho_vec:	FLTARR	[n_rho] of the rho point to use DEFAULT: see GENPOS_EMISS_INVERT
+;	good:		INTARR	[n_ch] of 1's and 0's to determine which channels should be use in the inversion
+;	plotwin:	INT	of the plotting window to use (+1 and -1) DEFAULT: 28
+;
+;KEYWORD PARAMETERS:
+;	bsub:		/bsub performs a DC offset background subtraction on the spectra prior to analysis
+;	h:		/h uses the hydrogen-like line pair
+;	k:		/k uses w+n>=3 and the k-line
+;	z:		/z uses the w+n>=3 and the z-line
+;	nocheck:	/nocheck does not show the moment checking plots
+;	nogpc2:		/nogpc2 does not show GPC2 Te data with the result
+;	nothom:		/nothom does not show Thomson Te data with the result
+;	nosimp:		/nosimp does not show Te from line brightness ratios
+;	specfit:	/specfit runs HIREXSR_TE_WNFIT to calculate the n=3 brightness
+;	specplot:	/specplot invokes /plot in HIREXSR_TE_WNFIT to evaluate the fits
+;	debug:		/debug stops the code in various places for debugging.	
+;	
+;OUTPUTS:
+;	All outputs are sent to plotting windows
+;
+;OPTIONAL OUTPUTS:
+;	out:		STRUC of the plotted data so that you can play HIREX_TE_PROFILES the home game.
+;			=========================================================================================================
+;			*.te		FLTARR		[n_r,n_time] of the Te values from emissivity ratios [keV]
+;			*.r		FLTARR		[n_r,n_time] of the major radius values [m]
+;			*.gpc		STRUC		gpc temperature data
+;			*.*.te		FLTARR		[n_gpc, n_time] of the GPC2 Te values averaged over the HIREXSR integration time [keV]
+;			*.*.r		FLTARR		[n_gpc, n_time] of the major radius values [m]
+;			*.thom		STRUC		thomson temperature data
+;			*.*.te		FLTARR		[n_thom, n_time] of the Thomson Te values (nearest time point) [keV]
+;			*.*.r		FLTARR		[n_thom, n_time] of the major radius values [m]
+;			*.simp		STRUC		simple temperature data using brightness ratios
+;			*.*.te		FLTARR		[n_good, n_time] of the HIREXSR brightness ratio Te values [keV]
+;			*.*.r		FLTARR		[n_good, n_time] of the major radius values of the tangency points (POS2RMIDTANG) [m]			
+;			*.num		STRUC		output of GENPOS_EMISS_INVERT for numerator
+;			*.den		STRUC		output of GENPOS_EMISS_INVERT for denominator
+;
+;RESTRICTIONS:
+;	This code uses CALC_GROUP_RATES which itself calls other functions in /home/mlreinke/idl/impurities/read_ark_table
+;	This file should be compiled prior to compiling genspec_hirexsr
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke - Fall 2007
+;	1-29-08:	ML Reinke - fixed bug that would cause crash when using /h
+;-
+
+PRO hirexsr_te_profiles,shot,t,eps=eps,eta=eta,n_rho=n_rho,rho_vec=rho_vec,bsub=bsub,h=h,k=k,z=z,debug=debug,plotwin=plotwin,good=good,den_eps=den_eps,num_eps=num_eps,$
+		out=out,nocheck=nocheck,nogpc2=nogpc2,nothom=nothom,nosimp=nosimp,specfit=specfit,specplot=specplot,del_i=del_i
+	dev=!d.name
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0
+	IF NOT keyword_set(plotwin) THEN plotwin=28
+	
+	;setup parameters for different line ratios
+	IF keyword_set(h) THEN BEGIN
+		label_num='lya1'
+		label_den='lya1'
+		IF NOT keyword_set(good) THEN BEGIN
+			IF shot LT 1071201000 THEN BEGIN
+				good=intarr(32)
+				good[5:16]=1
+				good[20:31]=1
+			ENDIF ELSE good=intarr(16)+1
+		ENDIF
+		br_fake=fltarr(16)
+		num_lr=[3.727,3.734]*1.0e3
+		den_lr=[3.770,3.775]*1.0e3
+		s1=7
+		s2=11
+		s3=14
+		cs=17
+	ENDIF ELSE BEGIN
+		label_num='w'		
+		IF NOT keyword_set(good) THEN BEGIN
+			good=intarr(48)
+			good[23:47]=1
+		ENDIF
+		IF keyword_set(k) OR keyword_set(z) THEN BEGIN
+			label_den='z' 
+			IF keyword_set(k) THEN den_lr=[3.98775,3.992]*1.0e3 ELSE den_lr=[3.988,3.999]*1.0e3
+			num_lr=[3.945,3.960]*1.0e3
+		ENDIF ELSE BEGIN
+			label_den='w'
+			den_lr=[3.9542,3.960]*1.0e3
+			num_lr=[3.945,3.9541]*1.0e3
+		ENDELSE
+		s1=24
+		s2=34
+		s3=38
+		cs=16
+	ENDELSE
+	IF keyword_set(eps) THEN BEGIN
+		den_eps=eps
+		num_eps=eps
+	ENDIF
+	IF NOT keyword_set(den_eps) THEN den_eps=0.75
+	IF NOT keyword_set(num_eps) THEN num_eps=0.75
+
+	;load EFIT time data
+	efit_times=line_gettimes(shot)
+	efit_i=ipt(efit_times,t)
+	t_tmp=fltarr(n(t)+1)
+	efit_i=fltarr(n(t)+1)
+	FOR i=0,n(t) DO BEGIN
+		efit_i[i]=ipt(efit_times,t[i])
+		t_tmp[i]=efit_times[efit_i[i]]
+		print, 'Using t='+num2str(t_tmp[i],dp=3)+' as nearest EFIT time'
+	ENDFOR
+
+	;determine closest HIREXSR times
+	t_tmp=fltarr(n(t)+1)
+	ipts=fltarr(n(t)+1)
+	hirexsr_load_raw,shot,int,lam,time,h=h,exp_time=exp_time,del_i=del_i
+	FOR i=0,n(t) DO BEGIN
+		hirex_i=ipt(time,t[i])
+		t_tmp[i]=time[hirex_i]
+		ipts[i]=hirex_i
+		print, 'Using t='+num2str(t_tmp[i],dp=3)+' as nearest HIREXSR time'
+	ENDFOR
+	t=t_tmp
+
+	;setup brightness inputs from raw spectra
+	n_t=n(t)+1
+	n_ch=n(int[0,*,0])+1
+	IF keyword_set(h) AND shot LT 1071201000 THEN n_ch+=n(br_fake)+1
+	br_num=fltarr(n_ch,n_t)
+	br_den=fltarr(n_ch,n_t)
+	br_den_fit=fltarr(n_ch,n_t)
+	FOR i=0,n_t-1 DO BEGIN	
+		IF keyword_set(bsub) THEN BEGIN
+			int_i=int[*,*,ipts[i]]
+			tmp=where(int_i EQ 0)
+			IF tmp[0] NE -1 THEN int_i[tmp]=max(int_i)
+			list=sort(int_i)
+			back=median(int_i[list[0:20]])
+			int[*,*,ipts[i]]-=back
+		ENDIF
+;		IF keyword_set(h) THEN br_den[*,i]=[reform(sum_array(int[ipt(lam,den_lr[0]):ipt(lam,den_lr[1]),*,ipts[i]],/j)),br_fake] ELSE $
+;			br_den[*,i]=reform(sum_array(int[ipt(lam,den_lr[0]):ipt(lam,den_lr[1]),*,ipts[i]],/j))
+;		IF keyword_set(h) THEN br_num[*,i]=[reform(sum_array(int[ipt(lam,num_lr[0]):ipt(lam,num_lr[1]),*,ipts[i]],/j)),br_fake] ELSE $
+;			br_num[*,i]=reform(sum_array(int[ipt(lam,num_lr[0]):ipt(lam,num_lr[1]),*,ipts[i]],/j))
+		IF keyword_set(h) AND shot LT 1071201000 THEN BEGIN
+			FOR j=0,n_ch-1-(n(br_fake)+1) DO BEGIN
+				br_den[j,i]=int_tabulated(lam[ipt(lam,den_lr[0]):ipt(lam,den_lr[1])],int[ipt(lam,den_lr[0]):ipt(lam,den_lr[1]),j,ipts[i]])
+				br_num[j,i]=int_tabulated(lam[ipt(lam,num_lr[0]):ipt(lam,num_lr[1])],int[ipt(lam,num_lr[0]):ipt(lam,num_lr[1]),j,ipts[i]])
+			ENDFOR
+		ENDIF ELSE BEGIN
+			FOR j=0,n_ch-1 DO BEGIN
+				br_den[j,i]=int_tabulated(lam[ipt(lam,den_lr[0]):ipt(lam,den_lr[1])],int[ipt(lam,den_lr[0]):ipt(lam,den_lr[1]),j,ipts[i]])
+				br_num[j,i]=int_tabulated(lam[ipt(lam,num_lr[0]):ipt(lam,num_lr[1])],int[ipt(lam,num_lr[0]):ipt(lam,num_lr[1]),j,ipts[i]])
+			ENDFOR
+			IF keyword_set(specfit) THEN BEGIN
+				IF keyword_set(k) THEN br_den_fit[*,i]=hirexsr_te_kjzfit(lam,int[*,*,ipts[i]],[min(den_lr),3998.0],cr=[20,47],plot=specplot) ELSE $
+					br_den_fit[*,i]=hirexsr_te_wnfit(lam,int[*,*,ipts[i]],[min(num_lr),max(den_lr)],cr=[20,42],plot=specplot)
+			ENDIF
+		ENDELSE
+	ENDFOR
+	IF keyword_set(specfit) THEN BEGIN
+		openwin,plotwin-1
+		plot,br_den,xtit='CH #', ytit='DEN Bright',chars=1.3,/nodata,yr=[0,max(br_den)]
+		colors=colormap(br_den[0,*])
+		FOR i=0,n_t-1 DO BEGIN
+			oplot, br_den,color=colors[i]
+			makesym,8
+			oplot,br_den_fit,psym=8,color=colors[i]
+		ENDFOR
+		tmp=where(br_den_fit[*,0] NE 0)
+		FOR i=0,n_t-1 DO br_den[tmp,i]=br_den_fit[tmp,i]			
+	ENDIF
+		
+	;load GPV data and invert
+	hirexsr_load_gpv,shot,label_den,gpv_den,pos,ves_cent
+	den=genpos_emiss_invert(br_den,gpv_den,shot,t,ves_cent,good=good,eps=den_eps,eta=eta,rhopts=rhopts,rho_vec=rho_vec,n_rho=n_rho)
+	den_rtang=genpos_pos2rmidtang(pos,shot,t)
+
+	IF label_num NE label_den THEN hirexsr_load_gpv,shot,label_num,gpv_num,pos,ves_cent ELSE gpv_num=gpv_den
+	num=genpos_emiss_invert(br_num,gpv_num,shot,t,ves_cent,good=good,eps=num_eps,eta=eta,rhopts=rhopts,rho_vec=rho_vec)
+	IF label_num NE label_den THEN num_rtang=genpos_pos2rmidtang(pos,shot,t) ELSE num_rtang=den_rtang
+
+	;load te vs ratio data and interpolate to find te
+	calc_group_ratio,num_lr*1.0e-3,den_lr*1.0e-3,cs,te,ratio
+	ratio=ratio[where(te GT 0.17)] 
+	te=te[where(te GT 0.17)]
+	te_emiss=fltarr(n_rho,n_t)
+	te_bright=fltarr(n_ch,n_t)
+	FOR i=0,n_t-1 DO BEGIN
+		te_emiss[*,i]=interpol(te, ratio, num.emiss[*,i]/den.emiss[*,i])
+		te_bright[*,i]=interpol(te,ratio, br_num[*,i]/br_den[*,i])
+	ENDFOR
+
+	IF keyword_set(debug) THEN stop
+
+	;adjust rho output to major radius
+	axis=line_getaxis(shot)
+	rmid=line_getrmid(shot)
+	r_fit=fltarr(n_rho,n_t)
+	FOR i=0,n(t) DO BEGIN
+		Ro=axis[efit_i[i],0]
+		a=rmid[efit_i[i],n(rmid[0,*])]-rmid[efit_i[i],0]
+		r_fit[*,i]=rho_vec*a+Ro		
+	ENDFOR
+	ch=make(1,n(pos[0,*])+1,n(pos[0,*])+1)
+
+	;setup profile plotting window for x-window and ps
+	IF keyword_set(ps) THEN BEGIN
+		xsize=6.0
+		ysize=6.0*1000/850.0
+		ls=0.5
+	ENDIF ELSE BEGIN
+		xsize=700.0
+		ysize=950.0
+		ls=1.0
+	ENDELSE
+	IF NOT keyword_set(ps) THEN BEGIN
+		device, window_state=var
+		IF var[plotwin] EQ 0 THEN window,plotwin,xsize=xsize,ysize=ysize,xpos=1610,ypos=670,title='output profiles,'+num2str(plotwin) $
+			ELSE wset,plotwin
+	ENDIF ELSE BEGIN
+		d_old=!d
+		device, xsize=xsize, ysize=ysize, /inches
+	ENDELSE		
+	!p.multi=[0,0,3]
+	IF NOT keyword_set(colors) THEN colors=colormap(t)
+	IF n(colors) EQ 2 THEN colors=[0,100,200]
+
+	;plot numerator emissivity profiles
+	tmp=max(num.emiss)
+	tmp=strsplit(tmp,'+',/extract)
+	expon=tmp[1]
+	em_max=max(num.emiss)/10.0^(float(expon))
+	plot,r_fit[*,0],num.emiss[*,0]/10.0^(float(expon)),chars=3.0*ls,ytit='NUM Emissivity ['+n2g('eta')+' x 10!u'+expon+'!n ph/s/m!u3!n]',$
+		thick=2.5,yr=[0.0,em_max],tit='HIREXSR Line Ratio Utility SHOT: '+num2str(shot,1),xr=[min(r_fit)-0.01,0.9],/xsty
+	xyouts,0.84+(ls-1.0)/40.0,0.9*em_max,'TIME =',chars=2.0*ls
+	xyouts, 0.870, 0.9*em_max,num2str(t[0],dp=2),chars=2.0*ls
+	FOR i=1,n(t) DO BEGIN 
+		oplot, r_fit[*,i],num.emiss[*,i]/10^(float(expon)),color=colors[i],thick=2.5
+		xyouts, 0.870, (0.9-0.15*i)*em_max,num2str(t[i],dp=2),chars=2.0*ls,color=colors[i]		
+	ENDFOR
+
+	;plot denominator emissivity profiles
+	tmp=max(den.emiss)
+	tmp=strsplit(tmp,'+',/extract)
+	expon=tmp[1]
+	em_max=max(den.emiss)/10.0^(float(expon))
+	plot,r_fit[*,0],den.emiss[*,0]/10.0^(float(expon)),chars=3.0*ls,ytit='DEN Emissivity ['+n2g('eta')+' x 10!u'+expon+'!n ph/s/m!u3!n]',$
+		thick=2.5,yr=[0.0,em_max],/xsty
+	FOR i=1,n(t) DO BEGIN 
+		oplot, r_fit[*,i],den.emiss[*,i]/10^(float(expon)),color=colors[i],thick=2.5		
+	ENDFOR
+	
+	;plot te profiles from line ratio and thomson/gpc2
+	em_level=fltarr(n(t)+1)
+	FOR i=0,n(t) DO BEGIN
+		em_level[i]=ipt(num.emiss[*,i],max(num.emiss[*,i])*0.075)
+		IF em_level[i] EQ -1 THEN em_level[i]=n(num.emiss[*,i])
+	ENDFOR
+	mdsopen, 'electrons', (shot)						;load GPC2 data
+	gpc_te=mdsvalue('\ELECTRONS::TOP.GPC_2.RESULTS:GPC2_TE')
+	gpc_t=mdsvalue('dim_of(\ELECTRONS::TOP.GPC_2.RESULTS:GPC2_TE)')
+	gpc_r=mdsvalue('\ELECTRONS::TOP.GPC_2.RESULTS:RADII')
+	gpc_r_t=mdsvalue('dim_of(\ELECTRONS::TOP.GPC_2.RESULTS:RADII,0)')
+	mdsclose, 'electrons', (shot)
+	te_gpc=fltarr(n(gpc_r[0,*])+1,n(t)+1)
+	te_r_gpc=fltarr(n(gpc_r[0,*])+1,n(t)+1)
+	FOR i=0,n(t) DO BEGIN
+		te_r_gpc[*,i]=gpc_r[ipt(gpc_r_t,t[i]),*]
+		ilow=ipt(gpc_t,time[ipts[i]]-exp_time/2.0)
+		ihigh=ipt(gpc_t,time[ipts[i]]+exp_time/2.0)				
+		te_gpc[*,i]=sum_array(gpc_te[ilow:ihigh,*],/j)/(ihigh-ilow+1.0)
+	ENDFOR
+	cmod_ts,shot,ts								;load THOMSON data
+	te_thom=fltarr(n(ts.r[0,*])+1,n(t)+1)
+	te_r_thom=fltarr(n(ts.r[0,*])+1,n(t)+1)
+	FOR i=0,n(t) DO BEGIN
+		te_r_thom[*,i]=ts.r[ipt(ts.time,t[i]),*]
+		te_thom[*,i]=ts.te[ipt(ts.time,t[i]),*]
+	ENDFOR
+	max_te=0.0		
+	FOR i=0,n(t) DO max_te = max_te > max(te_emiss[0:em_level[i],i]) > max(te_gpc)*(1.0-keyword_set(nogpc2)) > max(te_thom)*(1.0-keyword_set(nothom))
+	plot,r_fit[*,0],te_emiss[*,0],chars=3.0*ls,xtit='Midplane Major Radius [m]',ytit='Electron Temp [keV]',thick=2.5,$
+		xr=[min(r_fit)-0.01,0.9],/xsty,yr=[0.0,max_te*1.1],/ysty
+	IF NOT keyword_set(nogpc2) THEN BEGIN
+		makesym,10
+		non_zero=where(te_gpc[*,0] NE 0)		
+		oplot, te_r_gpc[non_zero,0],te_gpc[non_zero,0],psym=8,symsize=2.0*ls
+		oplot, [min(r_fit)],[0.1*max_te],psym=8,symsize=1.5*ls
+		xyouts,min(r_fit)+0.01,[0.08*max_te],'GPC2',chars=1.5*ls
+	ENDIF
+	IF NOT keyword_set(nothom) THEN BEGIN
+		makesym,12
+		non_zero=where(te_thom[*,0] NE 0)		
+		oplot, te_r_thom[non_zero,0],te_thom[non_zero,0],psym=8,symsize=2.0*ls
+		oplot, [min(r_fit)],[0.2*max_te],psym=8,symsize=1.5*ls
+		xyouts,min(r_fit)+0.01,[0.18*max_te],'THOM',chars=1.5*ls
+	ENDIF
+	IF NOT keyword_set(nosimp) THEN BEGIN
+		makesym,9
+		oplot, num_rtang[where(good EQ 1),0],te_bright[where(good EQ 1),0],psym=8,symsize=2.0*ls
+		oplot, [min(r_fit)],[0.3*max_te],psym=8,symsize=1.5*ls
+		xyouts,min(r_fit)+0.01,[0.28*max_te],'SIMP',chars=1.5*ls
+	ENDIF
+	FOR i=1,n(t) DO BEGIN
+		oplot, r_fit[*,i],te_emiss[*,i],color=colors[i],thick=2.0
+		IF NOT keyword_set(nogpc2) THEN BEGIN
+			makesym,10
+			non_zero=where(te_gpc[*,i] NE 0)		
+			oplot, te_r_gpc[non_zero,i],te_gpc[non_zero,i],psym=8,symsize=2.0*ls,color=colors[i]
+		ENDIF
+		IF NOT keyword_set(nothom) THEN BEGIN
+			makesym,12
+			non_zero=where(te_thom[*,i] NE 0)		
+			oplot, te_r_thom[non_zero,i],te_thom[non_zero,i],psym=8,symsize=2.0*ls,color=colors[i]
+		ENDIF
+		IF NOT keyword_set(nosimp) THEN BEGIN
+			makesym,9
+			oplot, num_rtang[where(good EQ 1),i],te_bright[where(good EQ 1),i],psym=8,symsize=2.0*ls,color=colors[i]
+		ENDIF
+	ENDFOR
+	
+	;setup moment check plotting window
+	IF NOT keyword_set(nocheck) THEN BEGIN
+		IF keyword_set(ps) THEN BEGIN
+			xsize=6.0
+			ysize=6.0*1000/850.0
+			ls=0.5
+		ENDIF ELSE BEGIN
+			xsize=850.0
+			ysize=850.0
+			ls=1.0
+		ENDELSE
+		IF NOT keyword_set(ps) THEN BEGIN
+			device, window_state=var
+			IF var[plotwin+1] EQ 0 THEN window,plotwin+1,xsize=xsize,ysize=ysize,xpos=2340,ypos=670,$
+				title='moment checks,'+num2str(plotwin+1) ELSE wset,plotwin+1
+		ENDIF ELSE BEGIN
+			device, xsize=xsize, ysize=ysize, /inches
+		ENDELSE
+
+		genpos_check=fltarr(n_ch,n_t)
+		makesym,10
+		FOR i=0,n(t) DO BEGIN
+			;plot numerator brightness check
+			em_grid=grid_profile(ves_cent,num.emiss[*,i],r_fit[*,i],[t[i]],shot,tpts=t[i])
+			FOR j=0,n(ch) DO BEGIN
+				non_zero=where(gpv_num[j,*] GT 0)
+				IF non_zero[0] NE -1 THEN genpos_check[j,i]=total(gpv_num[j,non_zero]*em_grid[non_zero])
+			ENDFOR
+			yr=[0.0,max(br_num[*,i])]
+			plot,den.ch+1,num.brchk[*,i],ytit='NUM Bright',tit='Brightness Checks SHOT: '+num2str(shot,1)+' TIME: '+num2str(t[i],dp=2),$
+				xr=[1,n(ch)+1],/xsty,yr=yr*1.1,/ysty,chars=3.0*ls,thick=2.5
+			oplot,ch,br_num[*,i],color=100,psym=8,symsize=1.5*ls
+			oplot,ch,genpos_check[*,i],color=200,linestyle=2,thick=2.5
+			xyouts,n(ch)-8,0.75*yr[1],'EPS='+num2str(num_eps,dp=2),chars=1.5*ls
+			xyouts,n(ch)-8,0.9*yr[1],'ETA='+num2str(float(eta),dp=2),chars=1.5*ls
+
+			;plot denominator brightness check
+			em_grid=grid_profile(ves_cent,den.emiss[*,i],r_fit[*,i],[t[i]],shot,tpts=t[i])
+			FOR j=0,n(ch) DO BEGIN
+				non_zero=where(gpv_den[j,*] GT 0)
+				IF non_zero[0] NE -1 THEN genpos_check[j,i]=total(gpv_den[j,non_zero]*em_grid[non_zero])
+			ENDFOR
+			yr=[0.0,max(br_den[*,i])]
+			plot,num.ch+1,den.brchk[*,i],ytit='DEN Bright',xr=[1,n(ch)+1],/xsty,yr=yr*1.1,/ysty,chars=3.0*ls,thick=2.5,xtit='Channel #'
+			oplot,ch,br_den[*,i],color=100,psym=8,symsize=1.5*ls
+			oplot,ch,genpos_check[*,i],color=200,linestyle=2,thick=2.5
+			xyouts,n(ch)-8,0.75*yr[1],'EPS='+num2str(den_eps,dp=2),chars=1.5*ls
+			xyouts,n(ch)-8,0.9*yr[1],'ETA='+num2str(float(eta),dp=2),chars=1.5*ls
+
+			;plot spectra with numerator and denominator regions of interest
+			maxpt=max(int[*,s1,ipts[i]]) > max(int[*,s2,ipts[i]])
+			plot,lam,int[*,s1,ipts[i]],/xsty,xtit='Wavelength [mAng]',chars=3.0*ls,yr=[1.0,maxpt*1.1],/ysty,tit='NUM and DEN Wavelength Region',$
+				thick=2.0,/ylog
+			oplot,lam,int[*,s2,ipts[i]],linestyle=2,thick=2.0
+			oplot,lam,int[*,s3,ipts[i]],linestyle=4,thick=2.0
+			oplot, [num_lr[0],num_lr[0]],[0.01,2.0*maxpt],color=200
+			oplot, [num_lr[1],num_lr[1]],[0.01,2.0*maxpt],color=200
+			oplot, [den_lr[0],den_lr[0]],[0.01,2.0*maxpt],color=100
+			oplot, [den_lr[1],den_lr[1]],[0.01,2.0*maxpt],color=100
+	
+			xyouts,den_lr[1]-0.05*(den_lr[1]-den_lr[0]),0.1*maxpt,'DEN',color=100,orient=90,chars=1.5*ls
+			xyouts,num_lr[1]-0.05*(num_lr[1]-num_lr[0]),0.1*maxpt,'NUM',color=200,orient=90,chars=1.5*ls
+			!p.multi=0
+			IF NOT keyword_set(ps) AND i NE n(t) THEN stop
+			!p.multi=[0,0,3]
+		ENDFOR		
+	ENDIF
+	
+	;setup optional output with data
+	gpc={te:te_gpc,r:te_r_gpc}
+	thom={te:te_thom,r:te_r_thom}
+	simp={te:te_bright,r:num_rtang}
+	out={te:te_emiss, r:r_fit, gpc:gpc, thom:thom,simp:simp,num:num, den:den}
+	IF keyword_set(debug) THEN stop
+
+	;reset plotting defaults
+	IF keyword_set(ps) THEN device, xsize=float(d_old.x_size)/d_old.x_px_cm,ysize=float(d_old.y_size)/d_old.y_px_cm
+	!p.multi=0	
+END
+
+PRO hirexsr_te_invert,shot,te,rho,time,r_major=r_major,eps=eps,eta=eta,n_rho=n_rho,bsub=bsub,h=h,debug=debug,trange=trange
+	IF keyword_set(h) THEN BEGIN
+		label_num='lya1'
+		label_den='lya1'
+		good=intarr(32)
+		good[5:16]=1
+		good[20:31]=1
+		br_fake=fltarr(16)
+		num_lr=[3.727,3.734]*1.0e3
+		den_lr=[3.770,3.775]*1.0e3
+		s1=5
+		s2=9
+		s3=14
+		cs=17
+	ENDIF ELSE BEGIN
+		label_num='w'
+		label_den='w'
+		good=intarr(48)
+		good[20:47]=1
+		den_lr=[3.9542,3.960]*1.0e3
+		num_lr=[3.945,3.9541]*1.0e3
+		s1=24
+		s2=34
+		s3=40
+		cs=16
+	ENDELSE
+	hirexsr_load_raw,shot,int,lam,time,h=h,sz=sz
+
+	;truncate dataset to where EFIT has been run
+	efit_times=line_gettimes(shot)
+	IF NOT keyword_set(trange) THEN trange=[efit_times[0],efit_times[n(efit_times)]]
+	t_low=trange[0] > efit_times[0]
+	t_high=trange[1] <  efit_times[n(efit_times)]
+	IF t_low EQ t_high THEN tmp=ipt(time, t_low) ELSE tmp=where(time GE t_low AND time LE t_high)
+	
+	int=int[*,*,tmp]
+	time=time[tmp]
+
+	n_time=n(time)+1
+	n_ch=n(int[0,*,0])+1
+	IF keyword_set(h) THEN n_ch+=n(br_fake)+1
+	br_num=fltarr(n_ch,n_time)
+	br_den=fltarr(n_ch,n_time)
+	FOR i=0,n_time-1 DO BEGIN	
+		IF keyword_set(bsub) THEN BEGIN
+			int_i=int[*,*,i]
+			tmp=where(int_i EQ 0)
+			IF tmp[0] NE -1 THEN int_i[tmp]=max(int_i)
+			list=sort(int_i)
+			back=median(int_i[list[0:20]])
+			int[*,*,i]-=back
+		ENDIF
+		IF keyword_set(h) THEN br_den[*,i]=[reform(sum_array(int[ipt(lam,den_lr[0]):ipt(lam,den_lr[1]),*,i],/j)),br_fake] ELSE $
+			br_den[*,i]=reform(sum_array(int[ipt(lam,den_lr[0]):ipt(lam,den_lr[1]),*,i],/j))
+
+		IF keyword_set(h) THEN br_num[*,i]=[reform(sum_array(int[ipt(lam,num_lr[0]):ipt(lam,num_lr[1]),*,i],/j)),br_fake] ELSE $
+			br_num[*,i]=reform(sum_array(int[ipt(lam,num_lr[0]):ipt(lam,num_lr[1]),*,i],/j))
+	ENDFOR
+		
+	hirexsr_load_gpv,shot,label_den,gpv,pos,ves_cent
+	den=genpos_emiss_invert(br_den,gpv,shot,time,ves_cent,good=good,eps=eps,eta=eta,rhopts=rhopts,rho_vec=rho_vec,n_rho=n_rho)
+	;den_rtang=genpos_pos2rmidtang(pos,shot,t)
+
+	IF label_num NE label_den THEN hirexsr_load_gpv,shot,label_num,gpv,pos,ves_cent
+	num=genpos_emiss_invert(br_num,gpv,shot,time,ves_cent,good=good,eps=eps,eta=eta,rhopts=rhopts,rho_vec=rho_vec)
+	;IF label_num NE label_den THEN num_rtang=genpos_pos2rmidtang(pos,shot,t) ELSE num_rtang=den_rtang
+
+	calc_group_ratio,num_lr*1.0e-3,den_lr*1.0e-3,cs,te_ratio,ratio
+	ratio=ratio[where(te_ratio GT 0.17)]
+	te_ratio=te_ratio[where(te_ratio GT 0.17)]
+	te=fltarr(n_rho,n_time)
+	te_bright=fltarr(n_ch,n_time)
+	FOR i=0,n_time-1 DO BEGIN
+		te[*,i]=interpol(te_ratio, ratio, num.emiss[*,i]/den.emiss[*,i])
+		te_bright[*,i]=interpol(te_ratio,ratio, br_num[*,i]/br_den[*,i])
+	ENDFOR
+	rho=rho_vec
+
+	IF keyword_set(debug) THEN stop
+
+	axis=line_getaxis(shot)
+	rmid=line_getrmid(shot)
+	efit_times=line_gettimes(shot)
+	r_major=fltarr(n(rho)+1,n(time)+1)
+	FOR i=0,n(time) DO BEGIN
+		efit_i=ipt(efit_times,time[i])
+		Ro=axis[efit_i,0]
+		a=rmid[efit_i,n(rmid[0,*])]-rmid[efit_i,0]
+		r_major[*,i]=rho*a+Ro
+	ENDFOR	
+	
+	
+END
+
+;+
+;NAME:
+;	HIREXSR_CS_PROFILES
+;	
+;PURPOSE:
+;	This procedure uses experimental data from HIREXSR Ar spectra to determine the charge state density
+;	profiles of H-like, He-like and Li-like Ar.  This program displays data to check the quality of the inversions.
+;	
+;CALLING SEQUENCE:
+;	HIREXSR_CS_PROFILES,shot,t
+;	
+;INPUTS:
+;	shot:		LONG	shot number
+;	t:		FLTARR	of time points to calculate the densities [sec]
+;
+;OPTIONAL INPUTS:
+;	eps:		FLT	weighting parameter for smoothing DEFAULT: 1.0
+;	eta:		FLT	weighting parameter for edge zero DEFAULT: 0.0
+;	n_rho:		INT	number of points in rho DEFAULT: see GENPOS_EMISS_INVERT
+;	plotwin		INT	windows to use to plot results (plotwin & plotwin+1) DEFAULT: 22
+;
+;KEYWORD PARAMETERS:
+;	bsub:		/bsub will do a background subtraction on the spectra before inversion (highly recommended)
+;	fits:		/fit will use Te and ne profiles from fiTS generated using GEN_FIT_DATA
+;	debug:		/debug will stop the code in various places for debugging
+;
+;OUTPUTS:
+;	All primary outputs are sent to the selected plotting device.
+;		PLOTWIN		: spatial profiles of the three emissivities, <sigma*v>, Te, ne, and the charge state densities
+;		PLOTWIN+1	: brightness profiles and checks for the three lines and spectra with ROI's for each charge state
+;
+;OPTIONAL OUTPUTS:
+;	r_major:	FLTARR	[n_rho,n_time] of the major radius scale [m]
+;	csden:		FLTARR	[19,n_rho,n_time] of the charge state density [AU] of each charge state indexed by ionization stage.  For example,
+;				csden[17,*,*] is the H-like argon density.
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke - Fall 2007
+;
+;-
+
+PRO hirexsr_cs_profiles,shot,t,eps=eps,eta=eta,n_rho=n_rho,bsub=bsub,debug=debug,fits=fits,plotwin=plotwin,r_major=r_major,csden=csden,rho_vec=rho_vec,data=data,del_i=del_i
+
+
+	dev=!d.name
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0	
+	IF NOT keyword_set(plotwin) THEN plotwin=22
+
+	;setup wl regions for line emission
+	z=18
+	wl_roi=fltarr(z+1,2)
+	wl_roi[16,*]=[3.9455,3.9600]*1.0e3
+	wl_roi[15,*]=[3.9780,3.9880]*1.0e3
+	wl_roi[17,*]=[3.7270,3.7385]*1.0e3
+	label=strarr(z+1)
+	label[15]='z'
+	label[16]='w'
+	label[17]='lya1'
+
+	xfactor=fltarr(18,3)+1.0
+	xfactor[15,0]=5.0
+	is_h=fltarr(z+1)
+	is_h[[15,16,17]]=[0,0,1]
+
+	s_he=24		;select which he-like choord to plot
+	s_h=8		;select which h-like choord to plot
+
+	;load raw spectral data
+	hirexsr_load_raw,shot,int,lam,time,del_i=del_i
+	hirexsr_load_raw,shot,int_h,lam_h,time_h,/h,del_i=del_i
+	
+	data=0
+	;load te and ne data from either fiTS or raw Thomson.  Put fiTS data into a structure in the same manner as CMOD_TS
+	IF keyword_set(fits) THEN BEGIN
+		datapath='/home/'+logname()+'/idl/data/'+num2str(shot,1)
+		spawn, 'cd '+datapath, output,error
+		IF (strmatch(error, '*No such file or directory*') EQ 0) THEN BEGIN
+			spawn, 'ls '+datapath+'/te_fit.save', output,error
+			IF (strmatch(output, '*te_fit.save*') EQ 1) THEN te_data=1 ELSE te_data=0
+			spawn, 'ls '+datapath+'/ne_fit.save', output,error
+			IF (strmatch(output, '*ne_fit.save*') EQ 1) THEN ne_data=1 ELSE ne_data=0
+			data=te_data AND ne_data			
+		ENDIF
+		IF (data) THEN BEGIN
+			restore,datapath+'/te_fit.save'
+			te_fit=fit
+			restore,datapath+'/ne_fit.save'
+			ne_fit=density_fit
+			fit_rho=te_fit.rmajor
+			axis=line_getaxis(shot)
+			rmid=line_getrmid(shot)
+			efit_times=line_gettimes(shot)
+			interp_a=interpol(rmid[*,n(rmid[0,*])]-rmid[*,0],efit_times,te_fit.time)
+			interp_Ro=interpol(axis[*,0],efit_times,te_fit.time)
+			te_rho=fltarr(te_fit.nt, te_fit.nr)
+			FOR i=0,te_fit.nt-1 DO te_rho[i,*]=(te_fit.rmajor[i,*]-interp_Ro[i])/interp_a[i]
+			;ne_rho=fltarr(ne_fit.nt, ne_fit.nr)
+			;FOR i=0,ne_fit.nt-1 DO ne_rho[i,*]=(ne_fit.rmajor[i,*]-interp_Ro[i])/interp_a[i]					
+			tene_data={time:te_fit.time, r:te_fit.rmajor,rho:te_rho, te:te_fit.temp, n_e:ne_fit.density}	
+		ENDIF
+	ENDIF
+	IF NOT data THEN cmod_ts,shot,tene_data
+
+	;load EFIT time data
+	efit_times=line_gettimes(shot)
+	efit_i=ipt(efit_times,t)
+	t_tmp=fltarr(n(t)+1)
+	efit_i=fltarr(n(t)+1)
+	FOR i=0,n(t) DO BEGIN
+		efit_i[i]=ipt(efit_times,t[i])
+		t_tmp[i]=efit_times[efit_i[i]]
+		print, 'Using t='+num2str(t_tmp[i],dp=3)+' as nearest EFIT time'
+	ENDFOR
+
+	;determine closest HIREXSR times
+	t_tmp=fltarr(n(t)+1)
+	ipts=fltarr(n(t)+1)
+	FOR i=0,n(t) DO BEGIN
+		hirex_i=ipt(time,t[i])
+		t_tmp[i]=time[hirex_i]
+		ipts[i]=hirex_i
+		print, 'Using t='+num2str(t_tmp[i],dp=3)+' as nearest HIREXSR time'
+	ENDFOR
+	t=t_tmp
+	
+	;truncate data sets to selected time points
+	int=int[*,*,ipts]
+	time=time[ipts]
+	int_h=int_h[*,*,ipts]
+	time_h=time_h[ipts]
+
+	;form brightness profiles for time points where WL_ROI is given
+	br_fake=fltarr(16)
+	n_time=n(time)+1
+	n_ch=n(int[0,*,0])+1
+	IF shot LT 1071201000 THEN n_ch_h=n(int_h[0,*,0])+1+n(br_fake)+1 ELSE n_ch_h=n(int_h[0,*,0])+1
+	ch=make(1,n_ch,n_ch)
+	ch_h=make(1,n_ch_h,n_ch_h)
+	br=fltarr(z+1,n_ch,n_time)
+	br_h=fltarr(z+1,n_ch_h,n_time)
+	FOR j=0,z DO IF total(wl_roi[j,*]) NE 0 THEN BEGIN
+		IF wl_roi[j,0] LT min(lam) THEN h=1 ELSE h=0
+		FOR i=0,n_time-1 DO BEGIN	
+			IF keyword_set(bsub) THEN BEGIN
+				IF h THEN int_i=int_h[*,*,i] ELSE int_i=int[*,*,i]
+				tmp=where(int_i EQ 0)
+				IF tmp[0] NE -1 THEN int_i[tmp]=max(int_i)
+				list=sort(int_i)
+				back=median(int_i[list[0:20]])
+				IF h THEN int_h[*,*,i]-=back ELSE int[*,*,i]-=back
+			ENDIF
+		IF h THEN BEGIN
+			IF shot LT 1071201000 THEN br_h[j,*,i]=[reform(sum_array(int_h[ipt(lam_h,wl_roi[j,0]):ipt(lam_h,wl_roi[j,1]),*,i],/j)),br_fake] ELSE $
+			br_h[j,*,i]=reform(sum_array(int_h[ipt(lam_h,wl_roi[j,0]):ipt(lam_h,wl_roi[j,1]),*,i],/j))
+		ENDIF ELSE br[j,*,i]=reform(sum_array(int[ipt(lam,wl_roi[j,0]):ipt(lam,wl_roi[j,1]),*,i],/j))
+		ENDFOR
+	ENDIF
+	
+
+	genpos_check=fltarr(z+1,n_ch,n_time)
+	ch_chk=fltarr(z+1,n_ch)
+	brchk=fltarr(z+1,n_ch,n_time)
+	genpos_check_h=fltarr(z+1,n_ch_h,n_time)
+	ch_chk_h=fltarr(z+1,n_ch_h)
+	brchk_h=fltarr(z+1,n_ch_h,n_time)
+	
+	;do inversion and calculate csden profiles for those charge states that have WL_ROI values
+	first_cs=1
+	FOR i=0,z DO IF total(wl_roi[i,*]) NE 0 THEN BEGIN
+		;setup cs specific good arrays
+		h=is_h[i]
+		CASE i OF 
+			17 :	BEGIN
+					IF shot LT 1071201000 THEN BEGIN
+						good=intarr(32)
+						good[5:16]=1
+						good[20:31]=1
+					ENDIF ELSE good=intarr(16)+1
+				END
+			16 : 	BEGIN
+					good=intarr(48)
+					good[24:47]=1
+					IF shot LT 1071201000 THEN good[[26,27]]=0					
+				END
+			15 : 	BEGIN
+					good=intarr(48)
+					good[24:47]=1
+					IF shot LT 1071201000 THEN good[[26,27]]=0	
+					good[38]=0
+				END
+		ENDCASE
+		hirexsr_load_gpv,shot,label[i],gpv,pos,ves_cent
+		IF h THEN br_input=reform(br_h[i,*,*]) ELSE br_input=reform(br[i,*,*])
+		out=genpos_emiss_invert(br_input,gpv,shot,time,ves_cent,good=good,eps=eps,eta=eta,rhopts=rhopts,rho_vec=rho_vec,n_rho=n_rho)
+		rho=out.rho
+		time=out.time
+		IF first_cs THEN BEGIN
+			csden=fltarr(z+1,n_rho,n_time)
+			te_interp=fltarr(n_rho,n_time)
+			ne_interp=fltarr(n_rho,n_time)
+			rates_interp=fltarr(z+1,n_rho,n_time)
+			emiss=fltarr(z+1,n_rho,n_time)
+			nel=fltarr(n(tene_data.rho[0,*])+1,n_time)
+			te=fltarr(n(tene_data.rho[0,*])+1,n_time)
+			tene_rmaj=fltarr(n(tene_data.rho[0,*])+1,n_time)
+			axis=line_getaxis(shot)
+			rmid=line_getrmid(shot)
+			efit_times=line_gettimes(shot)
+			r_major=fltarr(n_rho,n_time)
+			FOR j=0,n_time-1 DO BEGIN
+				efit_i=ipt(efit_times,time[j])
+				Ro=axis[efit_i,0]
+				a=rmid[efit_i,n(rmid[0,*])]-rmid[efit_i,0]
+				r_major[*,j]=rho*a+Ro
+			ENDFOR
+		ENDIF
+		emiss[i,*,*]=out.emiss
+		IF h THEN BEGIN
+			ch_chk_h[i,out.ch]=out.ch
+			brchk_h[i,out.ch,*]=out.brchk	
+		ENDIF ELSE BEGIN
+			ch_chk[i,out.ch]=out.ch
+			brchk[i,out.ch,*]=out.brchk
+		ENDELSE
+		calc_group_rates, reform(wl_roi[i,*])*1.0e-3, te_rates, rates
+
+		;interpolate te, ne and rate data onto the rho grid of the inversion and calculate charge state density
+		FOR j=0,n(time) DO BEGIN
+			IF first_cs THEN BEGIN 
+				bnd=ibound(tene_data.time,time[j])
+				nel[*,j]=tene_data.n_e[bnd[0],*]+(tene_data.n_e[bnd[1],*]-tene_data.n_e[bnd[0],*])/(tene_data.time[bnd[1]]-tene_data.time[bnd[0]])*$
+					(time[j]-tene_data.time[bnd[0]])
+				te[*,j]=tene_data.te[bnd[0],*]+(tene_data.te[bnd[1],*]-tene_data.te[bnd[0],*])/(tene_data.time[bnd[1]]-tene_data.time[bnd[0]])*$
+					(time[j]-tene_data.time[bnd[0]])
+				tene_rmaj[*,j]=tene_data.r[bnd[0],*]+(tene_data.r[bnd[1],*]-tene_data.r[bnd[0],*])/(tene_data.time[bnd[1]]-tene_data.time[bnd[0]])*$
+					(time[j]-tene_data.time[bnd[0]])
+				tene_rho=tene_data.rho[bnd[0],*]+(tene_data.rho[bnd[1],*]-tene_data.rho[bnd[0],*])/(tene_data.time[bnd[1]]-tene_data.time[bnd[0]])*$
+					(time[j]-tene_data.time[bnd[0]])
+				te_interp[*,j]=interpol(reform(te[*,j]),reform(tene_rho), rho)
+				ne_interp[*,j]=interpol(reform(nel[*,j]),reform(tene_rho),rho)
+			ENDIF			
+			rates_interp[i,*,j]=interpol(reform(rates[i,*]),te_rates,te_interp[*,j])
+			csden[i,*,j]=emiss[i,*,j]/(ne_interp[*,j]*rates_interp[i,*,j])
+			em_grid=grid_profile(ves_cent,emiss[i,*,j],r_major[*,j],[time[j]],shot,tpts=time[j])
+			IF h THEN BEGIN
+				FOR k=0,n_ch_h-1 DO BEGIN
+					non_zero=where(gpv[k,*] GT 0)
+					IF non_zero[0] NE -1 THEN  genpos_check_h[i,k,j]=total(gpv[k,non_zero]*em_grid[non_zero])
+				ENDFOR
+			ENDIF ELSE BEGIN
+				FOR k=0,n_ch-1 DO BEGIN
+					non_zero=where(gpv[k,*] GT 0)
+					IF non_zero[0] NE -1 THEN  genpos_check[i,k,j]=total(gpv[k,non_zero]*em_grid[non_zero])
+				ENDFOR
+			ENDELSE
+		ENDFOR
+		first_cs=0
+	ENDIF
+	data={te:te_interp, nel:ne_interp,sigmav:rates_interp,emiss:emiss,csden:csden,rho:rho_vec,rmaj:r_major,shot:shot,time:time}
+
+	color=fltarr(z+1)
+	color[[15,16,17]]=[200,0,100]
+
+	FOR j=0,n(time) DO BEGIN
+		;setup profile plotting window
+		IF keyword_set(ps) THEN BEGIN
+			xsize=6.0
+			ysize=6.0*1000/850.0
+			ls=0.5
+		ENDIF ELSE BEGIN
+			xsize=700.0
+			ysize=1150.0
+			ls=1.0
+		ENDELSE
+		IF NOT keyword_set(ps) THEN BEGIN
+			device, window_state=var
+			IF var[plotwin] EQ 0 THEN window,plotwin,xsize=xsize,ysize=ysize,xpos=1610,ypos=670,title='output profiles,'+num2str(plotwin) $
+				ELSE wset,plotwin
+		ENDIF ELSE BEGIN
+			IF j EQ 0 THEN d_old=!d
+			device, xsize=xsize, ysize=ysize, /inches
+		ENDELSE	
+		!p.multi=[0,0,4]
+
+		;plot emissivity profile
+		tmp=max(emiss[*,*,j])
+		tmp=strsplit(tmp,'+',/extract)
+		expon=tmp[1]
+		maxpt=max(emiss[*,*,j])/10.0^(float(expon))
+		plot,[0],[0],xr=[0.68,0.905],yr=[0.0,maxpt*1.1],/xsty,/ysty,ytit='Emissivity [10!u'+expon+'!n ph/m!u3!n/s]',$
+			tit='CSDEN Plotting Utility SHOT: '+num2str(shot,1)+' TIME: '+num2str(time[j],dp=2),chars=3.0*ls
+		FOR i=0,z DO IF total(wl_roi[i,*]) NE 0 THEN BEGIN
+			oplot,r_major[*,j],emiss[i,*,j]/10.0^(float(expon))*xfactor[i,0],color=color[i],thick=2.5
+			xyouts,0.87,maxpt*(0.95-(i-15)*0.15),'+'+num2str(i,1), color=color[i],chars=2.0*ls
+		ENDIF
+
+		;plot excitation rate profile
+		tmp=max(rates_interp[*,*,j])
+		tmp=strsplit(tmp,'-',/extract)
+		expon=tmp[1]
+		maxpt=max(rates_interp[*,*,j])*10.0^(float(expon))
+		plot,[0],[0],xr=[0.68,0.905],yr=[10.0^(-float(expon)-2),2.0*10.0^(-float(expon)+1)],/xsty,/ysty,ytit='<'+n2g('sigma')+'v> [m!u3!n/s]',$
+			chars=3.0*ls,/ylog
+		FOR i=0,z DO IF total(wl_roi[i,*]) NE 0 THEN oplot,r_major[*,j],rates_interp[i,*,j],color=color[i],thick=2.5
+		
+		;plot ne and te profiles
+		maxpt=max(nel[*,j])*1.0e-20 > max(te[*,j])
+		plot,[0],[0],xr=[0.68,0.905],yr=[0.0,maxpt*1.1],/xsty,/ysty,ytit='T!le!n [keV] n!le!n [10!u20!n m!u-3!n]',chars=3.0*ls	
+		oplot, tene_rmaj[*,j],nel[*,j]*1.0e-20,thick=2.5
+		oplot, tene_rmaj[*,j],te[*,j],thick=2.5
+
+		;plot csden profiles
+		max_r=0.83
+		tmp=max(csden[*,0:ipt(r_major[*,j], max_r),j])
+		tmp=strsplit(tmp,'+',/extract)
+		expon=tmp[1]
+		maxpt=max(csden[*,0:ipt(r_major[*,j], max_r),j])/10.0^(float(expon))
+		plot,[0],[0],xr=[0.68,0.905],yr=[0.0,maxpt*1.1],/xsty,/ysty,ytit='CS Density [AU]',xtit='Major Radius [m]',chars=3.0*ls
+		FOR i=0,z DO IF total(wl_roi[i,*]) NE 0 THEN oplot,r_major[*,j],csden[i,*,j]/10.0^(float(expon)),color=color[i]	,thick=2.5
+
+		;setup moment check window
+		IF keyword_set(ps) THEN BEGIN
+			xsize=6.0
+			ysize=6.0*1000/850.0
+			ls=0.5
+		ENDIF ELSE BEGIN
+			xsize=850.0
+			ysize=1150
+			ls=1.0
+		ENDELSE
+		IF NOT keyword_set(ps) THEN BEGIN
+			device, window_state=var
+			IF var[plotwin+1] EQ 0 THEN window,plotwin+1,xsize=xsize,ysize=ysize,xpos=2340,ypos=670,$
+				title='moment checks,'+num2str(plotwin+1) ELSE wset,plotwin+1
+		ENDIF ELSE BEGIN
+			device, xsize=xsize, ysize=ysize, /inches
+		ENDELSE
+		!p.multi=[0,0,5]
+
+		yr=[0.0,max(br[15,*,j])+1.0]
+		makesym,10
+		tmp=where(brchk[15,*,j] NE 0)
+		plot,ch_chk[15,tmp]+1,brchk[15,tmp,j],ytit='+15 ROI Bright',tit='Brightness Checks SHOT: '+num2str(shot,1)+' TIME: '+num2str(time[j],dp=2),$
+			xr=[1,n(ch)+1],/xsty,yr=yr*1.1,/ysty,chars=3.0*ls,thick=2.5
+		oplot,ch,br[15,*,j],color=100,psym=8,symsize=1.5*ls
+		oplot,ch,genpos_check[15,*,j],color=200,linestyle=2,thick=2.5
+		xyouts,n(ch)-8,0.75*yr[1],'EPS='+num2str(eps,dp=2),chars=1.5*ls
+		xyouts,n(ch)-8,0.9*yr[1],'ETA='+num2str(float(eta),dp=2),chars=1.5*ls
+
+		yr=[0.0,max(br[16,*,j])+1.0]
+		tmp=where(brchk[16,*,j] NE 0)
+		plot,ch_chk[16,tmp]+1,brchk[16,tmp,j],ytit='+16 ROI Bright',xr=[1,n(ch)+1],/xsty,yr=yr*1.1,/ysty,chars=3.0*ls,thick=2.5
+		oplot,ch,br[16,*,j],color=100,psym=8,symsize=1.5*ls
+		oplot,ch,genpos_check[16,*,j],color=200,linestyle=2,thick=2.5
+		xyouts,n(ch)-8,0.75*yr[1],'EPS='+num2str(eps,dp=2),chars=1.5*ls
+		xyouts,n(ch)-8,0.9*yr[1],'ETA='+num2str(float(eta),dp=2),chars=1.5*ls
+
+		yr=[0.0,max(br_h[17,*,j])+1.0]
+		tmp=where(brchk_h[17,*,j] NE 0)
+		plot,ch_chk_h[17,tmp]+1,brchk_h[17,tmp,j],ytit='+17 ROI Bright',xr=[1,n(ch_h)+1],/xsty,yr=yr*1.1,/ysty,chars=3.0*ls,thick=2.5,xtit='CH#'
+		oplot,ch_h,br_h[17,*,j],color=100,psym=8,symsize=1.5*ls
+		oplot,ch_h,genpos_check_h[17,*,j],color=200,linestyle=2,thick=2.5
+		xyouts,n(ch_h)-8,0.75*yr[1],'EPS='+num2str(eps,dp=2),chars=1.5*ls
+		xyouts,n(ch_h)-8,0.9*yr[1],'ETA='+num2str(float(eta),dp=2),chars=1.5*ls
+
+		;plot spectra with numerator and denominator regions of interest
+		maxpt=max(int[*,s_he,j])
+		plot,lam,int[*,s_he,j],/xsty,xtit='Wavelength [mAng]',chars=3.0*ls,yr=[1.0,maxpt*1.1],/ysty,tit='Core He-Like Spectra CH: '+num2str(s_he,1),$
+			thick=2.0,/ylog,ytit='Brightness [AU]'
+		FOR k=0,z DO IF total(wl_roi[k,*]) NE 0 THEN IF wl_roi[k,0] GE min(lam) THEN BEGIN
+			oplot, [wl_roi[k,0], wl_roi[k,0]],[0.01,maxpt*2.0],color=color[k],linestyle=2.0
+			oplot, [wl_roi[k,1], wl_roi[k,1]],[0.01,maxpt*2.0],color=color[k],linestyle=2.0
+			xyouts,wl_roi[k,1]-0.5*(wl_roi[k,1]-wl_roi[k,0]),0.005*maxpt,'+'+num2str(k,1),color=color[k],chars=2.0*ls
+		ENDIF
+
+		maxpt=max(int_h[*,s_h,j])
+		plot,lam_h,int_h[*,s_h,j],/xsty,xtit='Wavelength [mAng]',chars=3.0*ls,yr=[1.0,maxpt*1.1],/ysty,tit='Core H-Like Spectra CH: '+num2str(s_h,1),$
+			thick=2.0,/ylog,ytit='Brightness [AU]'
+		FOR k=0,z DO IF total(wl_roi[k,*]) NE 0 THEN IF wl_roi[k,0] GE min(lam_h) THEN BEGIN
+			oplot, [wl_roi[k,0], wl_roi[k,0]],[0.01,maxpt*2.0],color=color[k],linestyle=2.0
+			oplot, [wl_roi[k,1], wl_roi[k,1]],[0.01,maxpt*2.0],color=color[k],linestyle=2.0
+			xyouts,wl_roi[k,1]-0.5*(wl_roi[k,1]-wl_roi[k,0]),0.01*maxpt,'+'+num2str(k,1),color=color[k],chars=2.0*ls
+		ENDIF
+		!p.multi=0
+		IF NOT keyword_set(ps) AND j NE n(time) THEN stop
+		!p.multi=[0,0,4]		
+	ENDFOR	
+	!p.multi=0
+	IF keyword_set(debug) THEN stop
+
+
+	
+	
+END
+
+
+PRO hirexsr_cs_invert,shot,csden,rho,time,r_major=r_major,eps=eps,eta=eta,n_rho=n_rho,bsub=bsub,h=h,debug=debug,trange=trange,fit=fit,emiss=emiss,$
+		tene_data=tene_data
+
+	;setup wl regions for line emission
+	z=18
+	wl_roi=fltarr(z+1,2)
+	wl_roi[16,*]=[3.9455,3.9600]*1.0e3
+	wl_roi[15,*]=[3.9780,3.9880]*1.0e3
+	wl_roi[17,*]=[3.7270,3.7390]*1.0e3
+	label=strarr(z+1)
+	label[15]='z'
+	label[16]='w'
+	label[17]='lya1'
+
+	;setup which lines to use H-like module
+	is_h=fltarr(z+1)
+	is_h[[15,16,17]]=[0,0,1]
+
+	;load raw spectral data
+	hirexsr_load_raw,shot,int,lam,time
+	hirexsr_load_raw,shot,int_h,lam_h,time_h,/h
+	
+	data=0
+	;load te and ne data from either fiTS or raw Thomson.  Put fiTS data into a structure in the same manner as CMOD_TS
+	IF keyword_set(fit) THEN BEGIN
+		datapath='/home/'+logname()+'/idl/data/'+num2str(shot,1)
+		spawn, 'cd '+datapath, output,error
+		IF (strmatch(error, '*No such file or directory*') EQ 0) THEN BEGIN
+			spawn, 'ls '+datapath+'/te_fit.save', output,error
+			IF (strmatch(output, '*te_fit.save*') EQ 1) THEN te_data=1 ELSE te_data=0
+			spawn, 'ls '+datapath+'/ne_fit.save', output,error
+			IF (strmatch(output, '*ne_fit.save*') EQ 1) THEN ne_data=1 ELSE ne_data=0
+			data=te_data AND ne_data			
+		ENDIF
+		IF (data) THEN BEGIN
+			restore,datapath+'/te_fit.save'
+			te_fit=fit
+			restore,datapath+'/ne_fit.save'
+			ne_fit=density_fit
+			fit_rho=te_fit.rmajor
+			axis=line_getaxis(shot)
+			rmid=line_getrmid(shot)
+			efit_times=line_gettimes(shot)
+			interp_a=interpol(rmid[*,n(rmid[0,*])]-rmid[*,0],efit_times,te_fit.time)
+			interp_Ro=interpol(axis[*,0],efit_times,te_fit.time)
+			te_rho=fltarr(te_fit.nt, te_fit.nr)
+			FOR i=0,te_fit.nt-1 DO te_rho[i,*]=(te_fit.rmajor[i,*]-interp_Ro[i])/interp_a[i]
+			;ne_rho=fltarr(ne_fit.nt, ne_fit.nr)
+			;FOR i=0,ne_fit.nt-1 DO ne_rho[i,*]=(ne_fit.rmajor[i,*]-interp_Ro[i])/interp_a[i]					
+			tene_data={time:te_fit.time, r:te_fit.rmajor,rho:te_rho, te:te_fit.temp, n_e:ne_fit.density}	
+		ENDIF
+	ENDIF
+	IF NOT data THEN cmod_ts,shot,tene_data
+
+	;truncate dataset to where EFIT has been run
+	efit_times=line_gettimes(shot)
+	IF NOT keyword_set(trange) THEN trange=[efit_times[0],efit_times[n(efit_times)]]
+	t_low=trange[0] > efit_times[0] > min(tene_data.time)
+	t_high=trange[1] <  efit_times[n(efit_times)] < max(tene_data.time)
+	IF t_low EQ t_high THEN tmp=ipt(time, t_low) ELSE tmp=where(time GE t_low AND time LE t_high)
+	
+	int=int[*,*,tmp]
+	time=time[tmp]
+	int_h=int_h[*,*,tmp]
+	time_h=time_h[tmp]
+	n_time=n(time)+1
+
+	;form brightness profiles for time points where WL_ROI is given
+	br_fake=fltarr(16)
+	n_time=n(time)+1
+	n_ch=n(int[0,*,0])+1
+	IF shot LT 1071201000 THEN n_ch_h=n(int_h[0,*,0])+1+n(br_fake)+1 ELSE n_ch_h=n(int_h[0,*,0])+1
+	ch=make(1,n_ch,n_ch)
+	ch_h=make(1,n_ch_h,n_ch_h)
+	br=fltarr(z+1,n_ch,n_time)
+	br_h=fltarr(z+1,n_ch_h,n_time)
+	FOR j=0,z DO IF total(wl_roi[j,*]) NE 0 THEN BEGIN
+		IF wl_roi[j,0] LT min(lam) THEN h=1 ELSE h=0
+		FOR i=0,n_time-1 DO BEGIN	
+			IF keyword_set(bsub) THEN BEGIN
+				IF h THEN int_i=int_h[*,*,i] ELSE int_i=int[*,*,i]
+				tmp=where(int_i EQ 0)
+				IF tmp[0] NE -1 THEN int_i[tmp]=max(int_i)
+				list=sort(int_i)
+				back=median(int_i[list[0:20]])
+				IF h THEN int_h[*,*,i]-=back ELSE int[*,*,i]-=back
+			ENDIF
+		IF h THEN BEGIN
+			IF shot LT 1071201000 THEN br_h[j,*,i]=[reform(sum_array(int_h[ipt(lam_h,wl_roi[j,0]):ipt(lam_h,wl_roi[j,1]),*,i],/j)),br_fake] ELSE $
+			br_h[j,*,i]=reform(sum_array(int_h[ipt(lam_h,wl_roi[j,0]):ipt(lam_h,wl_roi[j,1]),*,i],/j))
+		ENDIF ELSE br[j,*,i]=reform(sum_array(int[ipt(lam,wl_roi[j,0]):ipt(lam,wl_roi[j,1]),*,i],/j))
+		ENDFOR
+	ENDIF
+
+	genpos_check=fltarr(z+1,n_ch,n_time)
+	ch_chk=fltarr(z+1,n_ch)
+	brchk=fltarr(z+1,n_ch,n_time)
+	genpos_check_h=fltarr(z+1,n_ch_h,n_time)
+	ch_chk_h=fltarr(z+1,n_ch_h)
+	brchk_h=fltarr(z+1,n_ch_h,n_time)
+	
+	;do inversion and calculate csden profiles for those charge states that have WL_ROI values
+	first_cs=1
+	FOR i=0,z DO IF total(wl_roi[i,*]) NE 0 THEN BEGIN
+		;setup cs specific good arrays
+		h=is_h[i]
+		CASE i OF 
+			17 :	BEGIN
+					IF shot LT 1071201000 THEN BEGIN
+						good=intarr(32)
+						good[5:16]=1
+						good[20:31]=1
+					ENDIF ELSE good=intarr(16)+1
+				END
+			16 : 	BEGIN
+					good=intarr(48)
+					good[20:47]=1
+				END
+			15 : 	BEGIN
+					good=intarr(48)
+					good[20:47]=1
+				END
+		ENDCASE
+		hirexsr_load_gpv,shot,label[i],gpv,pos,ves_cent
+		IF h THEN br_input=reform(br_h[i,*,*]) ELSE br_input=reform(br[i,*,*])
+		out=genpos_emiss_invert(br_input,gpv,shot,time,ves_cent,good=good,eps=eps,eta=eta,rhopts=rhopts,rho_vec=rho_vec,n_rho=n_rho)
+		rho=out.rho
+		time=out.time
+		IF first_cs THEN BEGIN
+			csden=fltarr(z+1,n_rho,n_time)
+			te_interp=fltarr(n_rho,n_time)
+			ne_interp=fltarr(n_rho,n_time)
+			rates_interp=fltarr(z+1,n_rho,n_time)
+			emiss=fltarr(z+1,n_rho,n_time)
+			nel=fltarr(n(tene_data.rho[0,*])+1,n_time)
+			te=fltarr(n(tene_data.rho[0,*])+1,n_time)
+			tene_rmaj=fltarr(n(tene_data.rho[0,*])+1,n_time)
+			axis=line_getaxis(shot)
+			rmid=line_getrmid(shot)
+			efit_times=line_gettimes(shot)
+			r_major=fltarr(n_rho,n_time)
+			FOR j=0,n_time-1 DO BEGIN
+				efit_i=ipt(efit_times,time[j])
+				Ro=axis[efit_i,0]
+				a=rmid[efit_i,n(rmid[0,*])]-rmid[efit_i,0]
+				r_major[*,j]=rho*a+Ro
+			ENDFOR
+		ENDIF
+		emiss[i,*,*]=out.emiss
+		IF h THEN BEGIN
+			ch_chk_h[i,out.ch]=out.ch
+			brchk_h[i,out.ch,*]=out.brchk	
+		ENDIF ELSE BEGIN
+			ch_chk[i,out.ch]=out.ch
+			brchk[i,out.ch,*]=out.brchk
+		ENDELSE
+		calc_group_rates, reform(wl_roi[i,*])*1.0e-3, te_rates, rates
+
+		;interpolate te, ne and rate data onto the rho grid of the inversion and calculate charge state density
+		FOR j=0,n(time) DO BEGIN
+			IF first_cs THEN BEGIN 
+				bnd=ibound(tene_data.time,time[j])
+				nel[*,j]=tene_data.n_e[bnd[0],*]+(tene_data.n_e[bnd[1],*]-tene_data.n_e[bnd[0],*])/(tene_data.time[bnd[1]]-tene_data.time[bnd[0]])*$
+					(time[j]-tene_data.time[bnd[0]])
+				te[*,j]=tene_data.te[bnd[0],*]+(tene_data.te[bnd[1],*]-tene_data.te[bnd[0],*])/(tene_data.time[bnd[1]]-tene_data.time[bnd[0]])*$
+					(time[j]-tene_data.time[bnd[0]])
+				tene_rmaj[*,j]=tene_data.r[bnd[0],*]+(tene_data.r[bnd[1],*]-tene_data.r[bnd[0],*])/(tene_data.time[bnd[1]]-tene_data.time[bnd[0]])*$
+					(time[j]-tene_data.time[bnd[0]])
+				tene_rho=tene_data.rho[bnd[0],*]+(tene_data.rho[bnd[1],*]-tene_data.rho[bnd[0],*])/(tene_data.time[bnd[1]]-tene_data.time[bnd[0]])*$
+					(time[j]-tene_data.time[bnd[0]])
+				te_interp[*,j]=interpol(reform(te[*,j]),reform(tene_rho), rho)
+				ne_interp[*,j]=interpol(reform(nel[*,j]),reform(tene_rho),rho)
+			ENDIF			
+			rates_interp[i,*,j]=interpol(reform(rates[i,*]),te_rates,te_interp[*,j])
+			csden[i,*,j]=emiss[i,*,j]/(ne_interp[*,j]*rates_interp[i,*,j])
+			em_grid=grid_profile(ves_cent,emiss[i,*,j],r_major[*,j],[time[j]],shot,tpts=time[j])
+			IF h THEN BEGIN
+				FOR k=0,n_ch_h-1 DO BEGIN
+					non_zero=where(gpv[k,*] GT 0)
+					IF non_zero[0] NE -1 THEN  genpos_check_h[i,k,j]=total(gpv[k,non_zero]*em_grid[non_zero])
+				ENDFOR
+			ENDIF ELSE BEGIN
+				FOR k=0,n_ch-1 DO BEGIN
+					non_zero=where(gpv[k,*] GT 0)
+					IF non_zero[0] NE -1 THEN  genpos_check[i,k,j]=total(gpv[k,non_zero]*em_grid[non_zero])
+				ENDFOR
+			ENDELSE
+		ENDFOR
+		first_cs=0
+	ENDIF
+	axis=line_getaxis(shot)
+	rmid=line_getrmid(shot)
+	efit_times=line_gettimes(shot)
+	r_major=fltarr(n(rho)+1,n(time)+1)
+	FOR i=0,n(time) DO BEGIN
+		efit_i=ipt(efit_times,time[i])
+		Ro=axis[efit_i,0]
+		a=rmid[efit_i,n(rmid[0,*])]-rmid[efit_i,0]
+		r_major[*,i]=rho*a+Ro
+	ENDFOR	
+	IF keyword_set(debug) THEN stop
+END
+

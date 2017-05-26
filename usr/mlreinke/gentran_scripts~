@@ -1,0 +1,1892 @@
+PRO fqplt_comp,z,load=load,adas=adas,nocomp=nocomp,tr=tr
+	rec=read_rec_data(z,load=load,adas=adas)
+	ion=read_ion_data(z,load=load,adas=adas)
+	temp=10^(make(0,4.3,200))
+	fq=calc_fracabund(ion,rec,te=temp)
+	IF keyword_set(tr) THEN xr=tr ELSE xr=[min(temp),max(temp)]
+	openwin,0
+	plot, [0],[0],xr=xr,/xlog,yr=[0,1.05],/ysty,/xsty,xtit='T!le!n [eV]',ytit='Fractional Abundance',chars=1.2
+	FOR i=0,z DO oplot, fq.temp,fq.fq[i,*]
+	fq,z,frac,te
+	IF NOT keyword_set(nocomp) THEN FOR i=0,z DO oplot, te,frac[i,*],color=200	
+END
+
+PRO fqmatt_comp,z,load=load,nocomp=nocomp,tr=tr,debug=debug
+	rec=read_rec_data(z,load=load,adas=adas)
+	ion=read_ion_data(z,load=load,adas=adas)
+	temp=10^(make(0,4.3,200))
+	fq=calc_fracabund(ion,rec,te=temp)
+	IF keyword_set(tr) THEN xr=tr ELSE xr=[min(temp),max(temp)]
+	openwin,0
+	plot, [0],[0],xr=xr,/xlog,yr=[0,1.05],/ysty,/xsty,xtit='T!le!n [eV]',ytit='Fractional Abundance',chars=1.2
+	FOR i=0,z DO oplot, fq.temp,fq.fq[i,*]
+	out=read_matt06_frac_data(z)
+	FOR i=0,z DO oplot, out.temp,out.frac[i,*],color=200
+	IF keyword_set(debug) THEN stop	
+END
+
+PRO fqadas_comp,z
+	rec=read_rec_data(z,load=load)
+	ion=read_ion_data(z,load=load)
+	temp=10^(make(0,4.6,500))
+	fqloch=calc_fracabund(ion,rec,te=temp)
+	rec=read_rec_data(z,load=load,/adas)
+	ion=read_ion_data(z,load=load,/adas)
+	fqadas=calc_fracabund(ion,rec,te=temp)
+	
+	
+	openwin,0
+	plot, [0],[0],xr=[min(temp),max(temp)],/xlog,yr=[0,1.05],/ysty,/xsty,xtit='T!le!n [eV]',ytit='Fractional Abundance',chars=1.2
+	FOR i=0,z DO oplot, fqloch.temp,fqloch.fq[i,*],color=200
+	FOR i=0,z DO oplot, fqadas.temp,fqadas.fq[i,*]	
+END
+
+
+PRO gentran_mist_comp,shot,t,fq=fq,verb=verb,exp=exp,k=k,nrho=nrho,double=double,del_i=del_i,back=back,eps=eps,eta=eta,invnrho=invnrho,$
+		mist=mist,cff=cff,dff=dff,xtomo=xtomo,strahl=strahl,adas=adas
+	IF NOT keyword_set(dff) THEN dff=1.0
+	IF NOT keyword_set(cff) THEN cff=1.0
+	IF NOT keyword_set(exp) THEN exp=1
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0
+	rhovec=[1.02]
+
+	;setup impurity transport structures diff [m^2/s], conv [m/s]
+	CASE exp OF
+		1 : BEGIN
+			diff=[1.0,1.0,1.0]*0.5
+			diff_rho=[0,0.5,1.0]*max(rhovec)
+			conv=[0.0,0.0,0.0]
+			conv_rho=[0,0.5,1.0]*max(rhovec)
+			mist_path='/home/mlreinke/idl/genie/data/gentran_mist_comp_V0D5000.dat'
+			strahl_path='/home/mlreinke/idl/genie/data/gentran_strahl_comp_V0D5000.dat'
+		END
+
+		2: BEGIN
+			diff=[1.0,1.0,1.0]*0.05
+			diff_rho=[0,0.5,1.0]*max(rhovec)
+			conv=[0.0,0.0,0.0]
+			conv_rho=[0,0.5,1.0]*max(rhovec)
+			mist_path='/home/mlreinke/idl/genie/data/gentran_mist_comp_V0D500.dat'
+			strahl_path='/home/mlreinke/idl/genie/data/gentran_strahl_comp_V0D500.dat'		
+		END
+
+		3: BEGIN
+			diff=[1.0,1.0,1.0]*0.005
+			diff_rho=[0,0.5,1.0]*max(rhovec)
+			conv=[0.0,0.0,0.0]
+			conv_rho=[0,0.5,1.0]*max(rhovec)
+			mist_path='/home/mlreinke/idl/genie/data/gentran_mist_comp_V0D50.dat'
+		
+		END
+		
+		4 : BEGIN
+			diff=[1.0,1.0,1.0]*0.5
+			diff_rho=[0,0.5,1.0]*max(rhovec)
+			conv=[0.0,-2.0,-4.0]
+			conv_rho=[0,0.5,1.0]*max(rhovec)
+			mist_path='/home/mlreinke/idl/genie/data/gentran_mist_comp_V4FULLD5000.dat'
+			strahl_path='/home/mlreinke/idl/genie/data/gentran_strahl_comp_V4FULLD5000.dat'
+		END
+
+		5 : BEGIN
+			diff=[1.0,1.0,1.0]*0.5
+			diff_rho=[0,0.5,1.0]*max(rhovec)
+			conv=[0.0,-2.0,0.0,0.0]
+			conv_rho=[0,0.475,0.5,1.0]*max(rhovec)
+			mist_path='/home/mlreinke/idl/genie/data/gentran_mist_comp_V2HALFD5000.dat'
+		END
+
+		6 : BEGIN
+			diff=[0.01,0.1,1.0]*0.5
+			diff_rho=[0,0.5,1.0]*max(rhovec)
+			conv=[0.0,0.0,0.0]
+			conv_rho=[0,0.5,1.0]*max(rhovec)
+			mist_path='/home/mlreinke/idl/genie/data/gentran_mist_comp_V0DFULL.dat'
+		END
+
+		7 : BEGIN
+			diff=[500,500,2500,5000,5000]/10000.0
+			;diff=[5000,5000,5000,5000,5000]/10000.0
+			diff_rho=[0,0.45,0.475,0.5,1.0]*max(rhovec)
+			conv=[0,0,-3,0,0]
+			conv_rho=[0,0.45,0.475,0.5,1.0]*max(rhovec)
+			mist_path='/home/mlreinke/idl/genie/data/gentran_mist_comp_ITB.dat'
+		END
+
+		8 : BEGIN
+			diff=[1.0,1.0,1.0]*0.5
+			diff_rho=[0,0.5,1.0]*max(rhovec)
+			conv=[0.0,-0.5,-1.0]*4.0
+			;conv=[0,-0.5,-1,-5.0,-5.0,0.0,0.0]
+			conv_rho=[0,0.5,1.0]*max(rhovec)
+			
+			mist_path='/home/mlreinke/idl/genie/data/gentran_mist_comp_V4FULLD5000.dat'
+	
+		END
+
+		9 : BEGIN
+			diff=[1.0,1.0,1.0]*0.5
+			diff_rho=[0,0.5,1.0]*max(rhovec)
+			conv=[0.0,-0.5,-1.0]
+			conv_rho=[0,0.5,1.0]*max(rhovec)	
+			mist_path='/home/mlreinke/idl/genie/data/gentran_mist_comp_V4FULLD5000.dat'
+	
+		END
+
+		10 : BEGIN
+			diff_rho=[0,0.5,1.0]*max(rhovec)
+			diff=[1.0,1.0,1.0]*0.5
+			;diff=diff_rho^2*0.5+0.5
+			conv_rho=[0.0,0.1,0.25,0.45,0.75,1.0]*max(rhovec)	
+			conv=[0.0,0.0,0.75,-0.5,-0.5,-0.5]	
+			mist_path='/home/mlreinke/idl/genie/data/gentran_mist_comp_V4FULLD5000.dat'
+	
+		END
+
+
+	END
+	diff*=dff
+	conv*=cff
+
+	;get efit_data
+	mdsopen,'analysis',shot
+	rmid=mdsvalue('\efit_rmid')
+	efit_t=mdsvalue('dim_of(\efit_rmid)')
+	mdsclose,'analysis',shot
+	efit_i=ipt(efit_t,t)
+	ro=rmid[efit_i,0]
+	a=max(rmid[efit_i,*])-ro
+	minor_rad=a
+	major_rad=ro
+	IF keyword_set(mist) THEN BEGIN
+		restore,mist_path
+		mist_rho=(radpts-ro)/a
+		mist_csden=csden/total(csden[*,0])
+		mist_dens=dens
+		mist_temp=temp
+		print, 'MIST: '+num2str(shot,1)+' t='+num2str(time,dp=2)
+	ENDIF
+	IF keyword_set(strahl) THEN BEGIN
+		restore,strahl_path
+		ntime=n(data.time)+1
+		strahl_rho=data.rho
+		strahl_csden=data.csden[*,*,ntime-1]/total(data.csden[0,*,ntime-1])
+		strahl_dens=data.dens[*,ntime-1]
+		strahl_temp=data.temp[*,ntime-1]
+		print, 'STRAHL: '+num2str(data.shot,1)+' t='+num2str(mean(data.time),dp=2)
+	ENDIF	
+
+	;electron temperature and denisty structures
+	restore,'/home/mlreinke/presentations/APiP2009/fits_'+num2str(shot,1)+'.save'
+	ipt=ipt(ne_fit.time,t)
+	dens=reform(ne_fit.combined_fit_ne[ipt,*])
+	rho=(reform(ne_fit.rmajor[ipt,*])-ro)/a
+	dens={dens:dens,rho:rho,err:dens*0.0}	;m^-3
+	ipt=ipt(te_fit.time,t)
+	temp=reform(te_fit.te_comb_fit[ipt,*])*1.0e3
+	temp={temp:temp,rho:rho,err:temp*0.0}	;eV
+	neut=dens
+	neut.dens*=1.0e-20
+	
+
+	;setup impurity transport structures
+	diff={diff:diff,rho:diff_rho}
+	conv={conv:conv,rho:conv_rho}
+
+	out=gentran(shot,t,18,diff,conv,temp,dens,neut,rhomax=max(rhovec),nrho=nrho,k=k,/nodel,adas=adas)
+	csden=out.csden
+	rhovec=out.rho
+	ntot_theory=out.ntot_th
+	source=out.source
+
+	restore, out.irpath
+	restore, out.tpath
+	IF keyword_set(fq) THEN frac_abund=calc_fracabund(ion,rec,te=ionrec_coefs.t,nel=ionrec_coefs.d[0])
+
+	;setup profile plotting window
+	plotwin=10
+	IF keyword_set(ps) THEN BEGIN
+		xsize=7.0
+		ysize=7.0*1150/850.0
+		ls=1.4
+	ENDIF ELSE BEGIN
+		xsize=850.0
+		ysize=1150.0
+		ls=2.0
+	ENDELSE
+	IF NOT keyword_set(ps) THEN BEGIN
+		device, window_state=var
+		IF var[plotwin] EQ 0 THEN window,plotwin,xsize=xsize,ysize=ysize,xpos=1610,ypos=670,title='output profiles,'+num2str(plotwin) $
+			ELSE wset,plotwin
+	ENDIF ELSE BEGIN
+		d_old=!d
+		device, xsize=xsize, ysize=ysize, /inches
+	ENDELSE	
+	!p.multi=[0,0,3]
+	xr=[0,max(rhovec)*1.03]
+	qhigh=z
+	qlow=14
+
+	;plot the kinetic profile properties
+	maxd=max(ionrec_coefs.d/1.0e20)
+	maxt=max(ionrec_coefs.t/1.0e3)
+	plot,[0],[0],xr=xr,/xsty,xmargin=[10,8],ystyle=5,chars=1.2*ls,yr=[0,maxd*1.05],tit='SHOT: '+num2str(shot,1)+' TIME: '+num2str(t,dp=2)+' [sec]'
+	oplot, [0.05,0.13],[1.0,1.0]*0.21*maxd
+	xyouts,0.15,0.2*maxd,'n!lZ,TOT!n GENTRAN',chars=0.8*ls
+	oplot, [0.05,0.13],[1.0,1.0]*0.41*maxd,linestyle=2.0
+	xyouts,0.15,0.4*maxd,'n!lZ,TOT!n THEORY',chars=0.8*ls
+	IF keyword_set(mist) THEN BEGIN
+		oplot, [0.05,0.13],[1.0,1.0]*0.41*maxd,color=30
+		xyouts,0.15,0.4*maxd,'n!lZ,TOT!n MIST',chars=0.8*ls,color=30
+		oplot, mist_rho,sum_array(mist_csden,/j)*maxd,color=30
+		oplot,mist_rho,mist_dens,color=30,psym=-2,symsize=0.5*ls
+		oplot,mist_rho,mist_temp*maxd/maxt,color=30,psym=-2,symsize=0.5*ls
+
+	ENDIF
+	IF keyword_set(strahl) THEN BEGIN
+		oplot, [0.05,0.13],[1.0,1.0]*0.61*maxd,color=120
+		xyouts,0.15,0.6*maxd,'n!lZ,TOT!n STRAHL',chars=0.8*ls,color=120
+		oplot, strahl_rho,sum_array(strahl_csden,/i)*maxd,color=120
+		oplot, strahl_rho,strahl_dens/1.0e20,color=120,psym=-4,symsize=0.5*ls
+		oplot, strahl_rho,strahl_temp/1.0e3*maxd/maxt,color=120,psym=-4,symsize=0.5*ls
+	ENDIF
+	oplot,rhovec,ionrec_coefs.d/1.0e20,color=100,psym=-8,symsize=0.5*ls
+	oplot,rhovec,ntot_theory/max(ntot_theory)*maxd,color=0,linestyle=2.0
+	oplot,rhovec,sum_array(csden,/j)*maxd/max(sum_array(csden,/j))
+	axis,color=100,yaxis=0,ytit='n!le!n [10!u20,m!u-3!n]',chars=1.2*ls
+	oplot,rhovec,ionrec_coefs.t/1.0e3*maxd/maxt,color=200,psym=-8,symsize=0.5*ls
+	axis,color=200,yaxis=1,ytit='T!le!n [keV]',chars=1.2*ls,yr=[0,maxd*1.05]*maxt/maxd,/ysty
+
+	;plot the transport properties
+	maxd=max(diff.diff) 
+	maxv=max(conv.conv) > 1.0
+	minv=min(conv.conv) < (-1.0)
+	plot,[0],[0],xr=xr,/xsty,xmargin=[10,8],ystyle=5,yr=[0,maxd*1.05],chars=1.2*ls
+	oplot,diff.rho,diff.diff,color=100,psym=-8
+	oplot,rhovec,source*maxd
+	axis,color=100,yaxis=0,ytit='D [m!u2!n/s]',chars=1.2*ls,yr=[0,maxd*1.05],/ysty
+	oplot,conv.rho,(conv.conv-minv*1.05)*maxd*1.05/(maxv-minv),color=200,psym=-8
+	axis,color=200,yaxis=1,ytit='v [m/s]',chars=1.2*ls,yr=[0,maxd*1.05]*(maxv-minv)/(maxd*1.05)+minv*1.05,/ysty
+	xyouts,0.925,0.1*maxd,'GENTRAN source',orient=90,chars=0.6*ls
+
+	;plot the CS profiles
+	plot,[0,0],[0,0],xr=xr,yr=[0,max(csden[qlow:qhigh,*])*1.1],xtit='r/a',ytit='n!lq!n/n!lz!n',tit=tit,/xsty,/ysty,chars=1.2*ls,xmargin=[10,8]
+	lstylelist=[0,2,3]
+	l_cntr=0
+	FOR i=qlow,qhigh DO BEGIN
+		IF l_cntr EQ n(lstylelist)+1 THEN l_cntr=0
+		oplot, rhovec, csden[i,*],linestyle=lstylelist[l_cntr]
+		IF keyword_set(mist) THEN oplot, mist_rho,mist_csden[i,*],linestyle=lstylelist[l_cntr],color=30
+		IF keyword_set(strahl) THEN oplot, strahl_rho,strahl_csden[*,i],linestyle=lstylelist[l_cntr],color=120
+		mloc=maxloc(reform(csden[i,*]))
+		xyouts,rhovec[mloc],csden[i,mloc]*1.01,num2str(i,1),color=100,charsize=0.8*ls
+		l_cntr+=1
+        ENDFOR
+END
+
+PRO rrvary
+
+	restore, '/home/mlreinke/presentations/APiP2009/rr_vary.dat'
+
+	openwin,0
+	plot,outm.lam,outm.th,yr=[0,5.0e21],xr=[210,230],/nodata
+	oplot,outm.lam,outm.th,color=30
+	oplot,outm2.lam,outm2.th,color=100
+	oplot,outmp5.lam,outmp5.th,color=200
+
+	openwin,1
+	maxpt=max(outhp5.h.th/outhp5.h.th[0])
+	plot,[0],[0],xr=[0,1],yr=[0,maxpt*1.05],xtit='r/a',ytit='Normalized Emissivity'
+	oplot, outh.rho,outh.h.th/outh.h.th[0],color=30
+	oplot,outh2.rho,outh2.h.th/outh2.h.th[0],color=100
+	oplot,outhp5.rho,outhp5.h.th/outhp5.h.th[0],color=200
+	oploterror,outh.h.gs.rho,outh.h.gs.em/outh.h.gs.em[0],outh.h.gs.emerr/outh.he.gs.em[0]
+
+	openwin,2
+	FOR i=1,3 DO BEGIN
+		maxpt=max(outhp5.he.th[*,i]/outhp5.he.th[0,i])
+		plot,[0],[0],xr=[0,1],yr=[0,maxpt*1.05],xtit='r/a',ytit='Normalized Emissivity'
+		oplot, outh.rho,outh.he.th[*,i]/outh.he.th[0,i],color=30
+		oplot,outh2.rho,outh2.he.th[*,i]/outh2.he.th[0,i],color=100
+		oplot,outhp5.rho,outhp5.he.th[*,i]/outhp5.he.th[0,i],color=200
+		oploterror,outh.he.gs.rho,outh.he.gs.em[*,i]/outh.he.gs.em[0,i],outh.he.gs.emerr[*,i]/outh.he.gs.em[0,i]
+		;stop
+	ENDFOR
+
+	openwin,2
+	!p.multi=[0,0,3]
+	color=[30,100,200]
+	maxpt=max(outh.he.gs.em[*,1:3])
+	plot,[0],[0],xr=[0,1],yr=[0,maxpt*1.2],xtit='r/a',ytit='Normalized Emissivity',/ysty
+	FOR i=1,3 DO BEGIN
+		oploterror,outh.he.gs.rho,outh.he.gs.em[*,i],outh.he.gs.emerr[*,i],color=color[i-1],errcolor=color[i-1]
+		norm=outh.he.gs.em[0,3]/outh.he.th[0,3]
+		oplot, outh.rho,outh.he.th[*,i]*norm,color=color[i-1],linestyle=2.0
+	ENDFOR
+
+	color=[30,100,200]
+	maxpt=max(outh.he.gs.em[*,1:3])
+	plot,[0],[0],xr=[0,1],yr=[0,maxpt*1.2],xtit='r/a',ytit='Normalized Emissivity',/ysty
+	FOR i=1,3 DO BEGIN
+		oploterror,outh.he.gs.rho,outh.he.gs.em[*,i],outh.he.gs.emerr[*,i],color=color[i-1],errcolor=color[i-1]
+		norm=outh.he.gs.em[0,3]/outhp5.he.th[0,3]
+		oplot, outh.rho,outhp5.he.th[*,i]*norm,color=color[i-1],linestyle=2.0
+	ENDFOR
+
+
+	color=[30,100,200]
+	maxpt=max(outh.he.gs.em[*,1:3])
+	plot,[0],[0],xr=[0,1],yr=[0,maxpt*1.2],xtit='r/a',ytit='Normalized Emissivity',/ysty
+	FOR i=1,3 DO BEGIN
+		oploterror,outh.he.gs.rho,outh.he.gs.em[*,i],outh.he.gs.emerr[*,i],color=color[i-1],errcolor=color[i-1]
+		norm=outh.he.gs.em[0,3]/outh2.he.th[0,3]
+		oplot, outh.rho,outh2.he.th[*,i]*norm,color=color[i-1],linestyle=2.0
+	ENDFOR
+	!p.multi=0
+
+END
+PRO diffvary
+
+	restore, '/home/mlreinke/presentations/APiP2009/diff_vary.dat'
+	outhp5=outhdp5
+	outh2=outhd2
+	outh=outhd
+
+
+	openwin,1
+	maxpt=max(outhp5.h.th/outhp5.h.th[0])
+	plot,[0],[0],xr=[0,1],yr=[0,maxpt*1.05],xtit='r/a',ytit='Normalized Emissivity'
+	oplot, outh.rho,outh.h.th/outh.h.th[0],color=30
+	oplot,outh2.rho,outh2.h.th/outh2.h.th[0],color=100
+	oplot,outhp5.rho,outhp5.h.th/outhp5.h.th[0],color=200
+	oploterror,outh.h.gs.rho,outh.h.gs.em/outh.h.gs.em[0],outh.h.gs.emerr/outh.he.gs.em[0]
+
+	openwin,2
+	FOR i=1,3 DO BEGIN
+		maxpt=max(outhp5.he.th[*,i]/outhp5.he.th[0,i])
+		plot,[0],[0],xr=[0,1],yr=[0,maxpt*1.05],xtit='r/a',ytit='Normalized Emissivity'
+		oplot, outh.rho,outh.he.th[*,i]/outh.he.th[0,i],color=30
+		oplot,outh2.rho,outh2.he.th[*,i]/outh2.he.th[0,i],color=100
+		oplot,outhp5.rho,outhp5.he.th[*,i]/outhp5.he.th[0,i],color=200
+		oploterror,outh.he.gs.rho,outh.he.gs.em[*,i]/outh.he.gs.em[0,i],outh.he.gs.emerr[*,i]/outh.he.gs.em[0,i]
+		;stop
+	ENDFOR
+
+	openwin,2
+	!p.multi=[0,0,3]
+	color=[30,100,200]
+	maxpt=max(outh.he.gs.em[*,1:3])
+	plot,[0],[0],xr=[0,1],yr=[0,maxpt*1.2],xtit='r/a',ytit='Normalized Emissivity',/ysty
+	FOR i=1,3 DO BEGIN
+		oploterror,outh.he.gs.rho,outh.he.gs.em[*,i],outh.he.gs.emerr[*,i],color=color[i-1],errcolor=color[i-1]
+		norm=outh.he.gs.em[0,3]/outh.he.th[0,3]
+		oplot, outh.rho,outh.he.th[*,i]*norm,color=color[i-1],linestyle=2.0
+	ENDFOR
+
+	color=[30,100,200]
+	maxpt=max(outh.he.gs.em[*,1:3])
+	plot,[0],[0],xr=[0,1],yr=[0,maxpt*1.2],xtit='r/a',ytit='Normalized Emissivity',/ysty
+	FOR i=1,3 DO BEGIN
+		oploterror,outh.he.gs.rho,outh.he.gs.em[*,i],outh.he.gs.emerr[*,i],color=color[i-1],errcolor=color[i-1]
+		norm=outh.he.gs.em[0,3]/outhp5.he.th[0,3]
+		oplot, outh.rho,outhp5.he.th[*,i]*norm,color=color[i-1],linestyle=2.0
+	ENDFOR
+
+
+	color=[30,100,200]
+	maxpt=max(outh.he.gs.em[*,1:3])
+	plot,[0],[0],xr=[0,1],yr=[0,maxpt*1.2],xtit='r/a',ytit='Normalized Emissivity',/ysty
+	FOR i=1,3 DO BEGIN
+		oploterror,outh.he.gs.rho,outh.he.gs.em[*,i],outh.he.gs.emerr[*,i],color=color[i-1],errcolor=color[i-1]
+		norm=outh.he.gs.em[0,3]/outh2.he.th[0,3]
+		oplot, outh.rho,outh2.he.th[*,i]*norm,color=color[i-1],linestyle=2.0
+	ENDFOR
+	!p.multi=0
+
+END
+;gentran_profiles,1080130025,18,1.0,1.3,k=3,/fit,tph=0.922,/hirexsr,/back,xph=0.92,tpt=0.995,/xtomo,/axuv,/foil,exp=9,cff=30.0,dff=1.5,nz=0.5e18 
+
+
+PRO diffrr_vary
+
+	restore, '/home/mlreinke/presentations/APiP2009/rr_vary.dat'
+	restore, '/home/mlreinke/presentations/APiP2009/diff_vary.dat'
+
+	openwin,0
+	plot,[0],[0],xr=[0,1],yr=[0,2.75],xtit='r/a',ytit='Normalized Emissivity',/ysty,tit='z+j+k Line Group'
+	norm=outh.he.gs.em[0,3]/outh2.he.th[0,3]
+
+	i=3
+	oplot, outh.rho,outh2.he.th[*,i]/outh.he.th[0,i],linestyle=2.0,color=30
+	oplot, outh.rho,outhp5.he.th[*,i]/outh.he.th[0,i],linestyle=2.0,color=120
+	;oplot, outh.rho,outh.he.th[*,i]/outh.he.th[0,i],linestyle=2.0
+	oplot, outh.rho,outhd2.he.th[*,i]/outhd.he.th[0,i],color=30
+	oplot, outh.rho,outhdp5.he.th[*,i]/outhd.he.th[0,i],color=120
+	oplot, outh.rho,outhd.he.th[*,i]/outhd.he.th[0,i]
+	xyouts,0.8,2.5,'f = 2.0',color=30,chars=1.5
+	xyouts,0.8,2.2,'f = 1.0',color=0,chars=1.5
+	xyouts,0.8,1.9,'f = 0.5',color=120,chars=1.5
+	oplot,[0.25,0.35],[0.5,0.5]
+	oplot,[0.25,0.35],[0.25,0.25],linestyle=2.0
+
+	xyouts,0.4,0.475, 'D*=f',chars=1.5
+	xyouts,0.4,0.225, 'REC*=f',chars=1.5
+	
+	IF !d.name EQ 'PS' THEN psc
+END
+
+PRO cxrvar
+	restore, '/home/mlreinke/presentations/APiP2009/cxrvary.dat'
+	qlow=14
+	qhigh=15
+	openwin,0
+	ls=0.75
+	plot,[0,0],[0,0],xr=[0.5,max(rhovec)],yr=[0,max(csden[qlow:qhigh,*])*1.1],xtit='r/a',ytit='n!lq!n/n!lz!n',tit=tit,/xsty,/ysty,chars=1.6*ls,xmargin=[10,8]
+	lstylelist=[0,2,3]
+	l_cntr=0
+	
+	qpts=[6,7,14,15]
+	FOR j=0,n(qpts) DO BEGIN
+		i=qpts[j]
+		IF l_cntr EQ n(lstylelist)+1 THEN l_cntr=0
+		oplot, rhovec, csden[i,*],linestyle=lstylelist[l_cntr]
+		mloc=maxloc(reform(csden[i,*]))
+		;xyouts,rhovec[mloc],csden[i,mloc]*1.01,num2str(i,1),color=00,charsize=0.8*ls
+	
+		oplot, rhovec, csdenp5[i,*],linestyle=lstylelist[l_cntr],color=200
+		oplot, rhovec, csden2[i,*],linestyle=lstylelist[l_cntr],color=100
+	l_cntr+=1
+        ENDFOR
+	xyouts,0.65,.095,'Li-like',orient=64
+	xyouts,0.72,.065,'Be-like',orient=60
+	xyouts,0.92,0.02,'Na-like',orient=80
+	xyouts,0.96,.13,'Mg-like',orient=80
+	xyouts,0.55,0.175,'n!lo!n doubled',color=100,chars=1.4
+	xyouts,0.55,0.15,'n!lo!n halved',color=200,chars=1.4
+
+
+	openwin,1
+	ls=0.75
+	plot,[0,0],[0,0],xr=[0.7,max(rhovec)],yr=[0,max(bolo2.emline)*1.1],xtit='r/a',ytit='n!lq!n/n!lz!n',tit=tit,/xsty,/ysty,chars=1.2*ls,xmargin=[10,8]
+	lstylelist=[0,2,3]
+	l_cntr=0
+
+	FOR i=qlow,qhigh DO BEGIN
+		oplot, rhovec, bolo.emline	
+		oplot, rhovec, bolop5.emline,color=200
+		oplot, rhovec, bolo2.emline,color=100
+	l_cntr+=1
+        ENDFOR
+
+restore, '/home/mlreinke/presentations/APiP2009/sourcevar.dat'
+	openwin,2
+	l_cntr=0
+	ls=0.75
+	qlow=0
+	qhigh=8
+
+	plot,[0,0],[0,0],xr=[0.9,max(rhovec)],yr=[0,max(csdenp1[qlow:qhigh,*])*1.1],xtit='r/a',ytit='n!lq!n/n!lz!n',tit=tit,/xsty,/ysty,chars=1.6*ls,xmargin=[10,8]
+	lstylelist=[0,2,3]
+
+	
+	FOR i=qlow,qhigh DO BEGIN
+		IF l_cntr EQ n(lstylelist)+1 THEN l_cntr=0
+		IF i EQ qlow THEN thick=7.0 ELSE thick=1.0
+		oplot, rhovec, csden1[i,*],linestyle=lstylelist[l_cntr],thick=thick
+		mloc=maxloc(reform(csden[i,*]))
+		;xyouts,rhovec[mloc],csden[i,mloc]*1.01,num2str(i,1),color=00,charsize=0.8*ls
+		
+		oplot, rhovec, csdenp1[i,*],linestyle=lstylelist[l_cntr],color=30,thick=thick
+		oplot, rhovec, csden10[i,*],linestyle=lstylelist[l_cntr],color=120,thick=thick
+		xyouts,0.925,0.21,'Neutral Argon [THICK]',chars=1.2
+		xyouts,0.935,0.19,'T!li!n = 10 [eV]',color=120
+		xyouts,0.935,0.17,'T!li!n = 1 [eV]',color=0
+		xyouts,0.935,0.15,'T!li!n = 0.1 [eV]',color=30
+		xyouts,0.915,0.075,'Ne-like',orient=60
+
+	l_cntr+=1
+        ENDFOR
+
+	
+	IF !d.name EQ 'PS' THEN psc
+	stop
+
+END
+
+PRO lyadvar
+
+	restore,'/home/mlreinke/presentations/APiP2009/lya_dvary.dat'
+	strucs=['outhrx','outhrxp2','outhrxp5','outhrx2','outhrx5']
+	rho=outhrx.h.th.rho
+	emth=fltarr(n(rho)+1,n(strucs)+1)
+	emerr=fltarr(n(rho)+1,n(strucs)+1)
+	xrho=outhrx.h.gs.rho
+	xem=outhrx.h.gs.em
+	xemerr=outhrx.h.gs.emerr
+	d=[0.5,0.1,0.25,1.0,2.5]
+	
+	FOR i=0,n(strucs) DO BEGIN
+		;out=execute('emth[*,i]='+strucs[i]+'.h.th.em*'+strucs[i]+'.norm[4]')
+		;out=execute('emerr[*,i]='+strucs[i]+'.h.th.emerr*'+strucs[i]+'.norm[4]')
+		out=execute('emth[*,i]='+strucs[i]+'.h.th.em')
+		out=execute('emerr[*,i]='+strucs[i]+'.h.th.emerr')
+		out=execute('print, '+strucs[i]+'.norm[4]')
+	ENDFOR
+	maxpt=max((emth+emerr)/emth[0])
+	pow=1.0e15
+	plot, [0],[0],xr=[0,max(rho)],/xsty,yr=[0,maxpt*1.1],/ysty,xtit='r/a',ytit='Normalized Emissivity'
+	tmp=[1,5,9,13,17]
+	color=[200,100,30,120,170]
+	FOR i=0,n(color) DO BEGIN
+		oplot,rho,emth[*,i]/emth[0,i],color=color[i]
+		oploterror, rho[tmp],emth[tmp,i]/emth[0,i],emerr[tmp,i]/emth[0,i],color=color[i],errcolor=color[i],psym=3
+	ENDFOR
+	oploterror, xrho,xem/xem[0],xemerr/xem[0]
+	stop
+END
+
+PRO sxrdvar
+	device, xsize=7.5, ysize=5.0, /inches
+	restore, '/home/mlreinke/presentations/APiP2009/sxrdvar.dat'
+	strucs=['outx','outxp5','outx2']
+	rho=outx.rho
+	emth=fltarr(n(rho)+1,n(strucs)+1)
+	emerr=fltarr(n(rho)+1,n(strucs)+1)
+	xrho=outx.xrho
+	xem=outx.xem
+	xemerr=outx.xemerr
+	FOR i=0,n(strucs) DO BEGIN
+		out=execute('emth[*,i]='+strucs[i]+'.em')
+		out=execute('emerr[*,i]='+strucs[i]+'.emerr')
+	ENDFOR
+	d=[0.5,0.25,1.0]
+	maxpt=max((emth+emerr))
+	plot, [0],[0],xr=[0,max(rho)],/xsty,yr=[0,maxpt*1.05],/ysty,xtit='r/a',ytit='Emissivity',chars=1.2
+	color=[200,30,100]
+	FOR i=1,n(color) DO BEGIN
+		oplot,rho,emth[*,i],color=color[i]
+		oploterror, rho,emth[*,i],emerr[*,i],color=color[i],errcolor=color[i],psym=3
+		xyouts,0.15,maxpt*(0.5-0.1*i),'D='+num2str(d[i])+' [m!u2!n/s]',color=color[i],chars=1.4
+	ENDFOR
+	oploterror, xrho,xem,xemerr
+	;xyouts,0.55,0.85*maxpt,'MEASUREMENT',chars=1.3
+	IF !d.name EQ 'PS' THEN psc
+END
+
+PRO strahl_gentran_wcomp
+	restore,'~/idl/impurities/w_strahl_ss_1100205014.dat'
+	shot=1100205014
+	d=0.5
+	v=0.0
+	t=1.35
+
+	mdsopen,'analysis',shot
+	rmid=mdsvalue('\efit_rmid')
+	etime=mdsvalue('dim_of(\efit_rmid,0)')
+	epsi=mdsvalue('dim_of(\efit_rmid,1)')
+	mdsclose,'analysis',shot
+	rmid=reform(rmid[ipt(etime,t),*])
+	rho=(rmid-rmid[0])/(last(rmid)-rmid[0])
+
+	index=ipt(time,t)
+	sepsi=sqrt(epsi)
+	intrho=interpol(rho,sepsi,spsi)
+	dens={dens:n_e[*,index]*1.0e6,rho:intrho,err:intrho*0.0}
+	temp={temp:t_e[*,index],rho:intrho,err:intrho*0.0}
+	neut={dens:n_e[*,index]*0.0,rho:intrho,err:intrho*0.0}
+	diff={diff:intrho*0.0+d,rho:intrho,err:intrho*0.0}
+	conv={conv:intrho*0.0,rho:intrho,err:intrho*0.0}
+
+	csden=gentran(shot,t,74,diff,conv,temp,dens,neut,/pt)
+
+	openwin,0
+	plot, [0],[0],yr=[0,0.3],xr=[0,1]
+	tot=sum_array(n_z[*,*,555],/i)
+	FOR i=30,44 DO oplot,spsi,n_z[*,i,555]/tot[0] 
+	cs_spsi=interpol(sepsi,rho,csden.rho)
+	FOR i=30,44 DO oplot,cs_spsi,csden.csden[i,*],color=200
+
+	stop
+END
+
+
+PRO gentran_trans_iter,data,z,diff,conv,eptr,sptr,eres,bres,rhomax=rhomax,nrho=nrho,k=k,adas=adas,plot=plot
+	out=gentran(data.shot,data.time,z,diff,conv,rhomax=rhomax,nrho=nrho,k=k,adas=adas,/double,/ptsource,/verb,/nodel,/norates,/noerr)
+	data.csden=rotate(out.csden,4)
+	data.cserr=rotate(out.cserr,4)
+	data.conv=conv.conv
+	CASE z OF 
+		18 : BEGIN
+			HIREXSR_GENRAD_ARGON,data.shot,data.time,data.time,data=data,sptr=sptr,tht=tht,eptr=-1,efit=-1
+		END
+		42 : BEGIN
+			HIREXSR_GENRAD_MOLY,data.shot,data.time,data.time,data=data,sptr=sptr,tht=tht,eptr=-1,efit=-1
+		END
+		ELSE : print, num2elem(z)+' not setup yet'
+	ENDCASE
+	hirexsr_genrad_resid,eptr,sptr,rhomean=rhomean,eres=eres,bres=bres
+	IF keyword_set(plot) THEN BEGIN
+		GENTRAN_PLOT,data,plotwin=plotwin
+		HIREXSR_GENRAD_PLOT,eptr,sptr,plotwin=plotwin+1,eres=eres,bres=bres
+	ENDIF
+END
+
+PRO gentran_delta_conv,eres,sptr,data,zfb,newconv,newrho
+	resid=*eres[0]
+	sdata=*sptr[0]
+	nerho=n(resid.rho)+1
+	delta=resid.res[1:nerho-2]/interpol(sdata.emiss/data.csden[*,zfb]*1e-3,sdata.rho,resid.rho[1:nerho-2])
+	tmp=where(abs(resid.err[1:nerho-2]/resid.res[1:nerho-2] GT 1.0))
+	IF tmp[0] NE -1 THEN delta[tmp]=0.0
+	newconv=[0.0,delta,0.0,0.0]
+	newrho=[0.0,resid.rho[1:nerho-2],last(resid.rho)*1.02,max(data.rho)]
+END
+
+PRO gentran_transport,shot,z,t1,t2,dff=dff,cff=cff,doff=doff,xff=xff,exp=exp,nrho=nrho,k=k,tht=tht,qfit=qfit,niter=niter,trshot=trshot
+
+	pcase=0
+	IF NOT keyword_set(niter) THEN niter=20
+	IF keyword_set(qfit) THEN pcase=1
+	CASE pcase OF
+		0 : BEGIN	;default is to use fiTS savefile from the user's home directory
+			path='/home/'+logname()+'/fits/fits_'+num2str(shot,1)+'.save'
+			gentran_tene_widgetfits,path,t1,t2-t1,temp,dens,ete=ete,ene=ene
+		END
+
+		1 : BEGIN	;use the "quick-fits"
+			gentran_tene_quickfits,shot,t1,t2-t1,temp,dens,ete=ete,ene=ene
+		END
+	ENDCASE
+	rhomax=max(temp.rho) > max(dens.rho)
+	IF keyword_set(trshot) THEN gentran_neut_transp,shot,trshot,t1,t2-t1,neut ELSE neut=calc_neutstr(shot,t1,t2-t1,temp,dens,eno=eno)
+
+	IF NOT keyword_set(exp) THEN exp=3
+	IF NOT keyword_set(k) THEN k=1.0
+	IF NOT keyword_set(dff) THEN dff=1.0
+	IF NOT keyword_set(cff) THEN cff=1.0
+	IF NOT keyword_set(xff) THEN xff=1.0
+	IF NOT keyword_set(doff) THEN doff=0.1
+	tpt=(t1+t2)/2.0
+
+	gentran_diffconv_profiles,exp,diff,conv,dff=dff,cff=cff,doff=doff
+	neut.dens=neut.dens*xff
+	out=gentran(shot,tpt,z,diff,conv,temp,dens,neut,rhomax=rhomax,nrho=nrho,k=k,adas=adas,/double,/ptsource,/verb,/nodel,/noerr)
+
+	csden=out.csden
+	cserr=out.cserr
+	rho=out.rho
+	ntot_theory=out.ntot_th
+	source=out.source
+
+	restore, out.irpath
+	temp=ionrec_coefs.t
+	temperr=ionrec_coefs.terr
+	dens=ionrec_coefs.d
+	denserr=ionrec_coefs.derr	
+	neut=ionrec_coefs.n
+	neuterr=ionrec_coefs.nerr
+
+	restore, out.tpath
+	spawn, 'rm '+out.tpath
+	
+	data={shot:shot,time:0.5*(t1+t2),temp:temp,terr:temperr,dens:dens,derr:denserr,neut:neut,nerr:neuterr,rho:rho,rmaj:out.rmaj,$
+		csden:rotate(csden,4),cserr:rotate(cserr,4),diff:interpol(diff.diff,diff.rho,rho),conv:interpol(conv.conv,conv.rho,rho),$
+		dneo:rho*0.0,vneo:rho*0.0}
+	
+	GENTRAN_PLOT,data,plotwin=plotwin
+	CASE z OF 
+		18 : BEGIN
+			HIREXSR_GENRAD_ARGON,shot,t1,t2,data=data,tht=tht,sptr=sptr,eptr=eptr,efit=efit
+			zfb=17
+		END
+		42 : BEGIN
+			HIREXSR_GENRAD_MOLY,shot,t1,t2,data=data,tht=tht,sptr=sptr,eptr=eptr,efit=efit
+			zfb=32
+		END
+		ELSE : print,num2elem(z)+' not setup yet'
+	ENDCASE
+	HIREXSR_GENRAD_PLOT,eptr,sptr,plotwin=plotwin+1,eres=eres,bres=bres
+	resid=*eres[0]
+	nerho=n(resid.rho)+1
+
+	rmsresid=fltarr(niter+1)
+	maxresid=fltarr(niter+1)
+	fconv=fltarr(niter+1)
+
+	maxresid[0]=max(abs(resid.res[1:nerho-2]))
+	rmsresid[0]=sqrt(total(resid.res[1:nerho-2]^2))/(nerho-2)
+	fconv[0]=1.0						
+	IF NOT keyword_set(lperp) THEN lperp=0.2
+	nsmooth=int(lperp/(max(data.rho)/nrho))
+	print, 'Smooth change in CONV over r/a='+num2str(lperp,dp=2)+' NSMOOTH: '+num2str(nsmooth,1)
+
+	FOR i=1,niter DO BEGIN
+		diff={diff:data.diff,rho:data.rho}
+		conv={conv:data.conv,rho:data.rho}
+		gentran_delta_conv,eres,sptr,data,zfb,newconv,newrho
+		oldconv=conv.conv
+		conv.conv=oldconv+smooth(interpol(newconv,newrho,data.rho),nsmooth,/edge)*fconv[i-1]
+		gentran_trans_iter,data,z,diff,conv,eptr,sptr,eres,bres,rhomax=rhomax,nrho=nrho,k=k,adas=adas,/plot
+		resid=*eres[0]
+		maxresid[i]=max(abs(resid.res[1:nerho-2]))
+		rmsresid[i]=sqrt(total(resid.res[1:nerho-2]^2))/(nerho-2)
+		fconv[i]=fconv[i-1]
+		nred=1
+		WHILE rmsresid[i] GT 1.2*rmsresid[i-1] AND nred LE 3 DO BEGIN
+			print, 'Increase in RMS resdiual, dropping FCONV and re-running ('+num2str(nred,1)+' of 3)'
+			fconv[i-1]=fconv[i-1]/1.2
+			conv.conv=oldconv+interpol(newconv,newrho,data.rho)*fconv[i-1]
+			gentran_trans_iter,data,z,diff,conv,eptr,sptr,eres,bres,rhomax=rhomax,nrho=nrho,k=k,adas=adas,/plot
+			resid=*eres[0]
+			maxresid[i]=max(abs(resid.res[1:nerho-2]))
+			rmsresid[i]=sqrt(total(resid.res[1:nerho-2]^2))/(nerho-2)
+			nred+=1
+			fconv[i]=fconv[i-1]
+		ENDWHILE
+
+		IF fconv[i] EQ fconv[i-1] AND abs(rmsresid[i]-rmsresid[i-1])/(0.5*(rmsresid[i]+rmsresid[i-1])) LT 0.3 AND fconv[i] LT 20 THEN BEGIN
+			print, 'Convergence slowed, increasing FCONV for next iteration'
+			fconv[i]=fconv[i-1]*1.2
+		ENDIF
+		!p.multi=[0,0,2]
+		openwin,0
+		tmp=where(maxresid NE 0)
+		plot,maxresid[tmp],psym=-5,xr=[0,niter]
+		oplot,rmsresid[tmp]*5.0,color=200,psym=-7
+		plot,fconv[tmp],xr=[0,niter],yr=[0.01,30.0],/ylog
+		!p.multi=[0]
+	ENDFOR
+	stop
+END
+
+;@~/GENIE/genie_ini.bat
+; .compile ~/GENIE/GENPOS/genpos.pro
+;@~/HIREXSR/hirexsr_ini.bat
+; .compile ~/GENIE/GENRAD/genrad_vuv.pro
+; .compile ~/GENIE/usr/mlreinke/gentran_scripts
+; .compile ~/GENIE/widgets/w_axuv.pro
+PRO strahl_match_motau,shot,dff=dff,cff=cff,exp=exp,doff=doff,nogrid=nogrid,nostrahl=nostrahl,load=load,runcase=runcase
+	IF NOT keyword_set(runcase) THEN runcase=0
+	CASE shot OF 
+		1120913015 : BEGIN
+			t1=1.00
+			t2=1.24
+			tinj=1.05
+			exp=1
+			dff=0.4
+			fits=1
+			ta=[1.0,1.04]
+			tb=[1.22,1.24]
+			savepath='/home/mlreinke/idl/data/mp692/motau_'+num2str(shot,1)+'_'+num2str(int(abs(tinj)*1.0e3),1)+'.dat'
+		END
+		1120913016 : BEGIN
+			CASE runcase OF 
+
+				0 : BEGIN			;0-3 are run with acd/scd from Mattioli w/o thermal C-X
+					exp=1
+					dff=0.2
+				END
+				1 : BEGIN
+					exp=1
+					dff=0.3
+				END
+				2 : BEGIN
+					exp=1
+					dff=0.4
+				END
+				3 : BEGIN
+					exp=1
+					dff=0.5
+				END
+				4 : BEGIN			;4-7 are run with acd/scd from ADAS w/o thermal C-X
+					exp=1
+					dff=0.2
+				END
+				5 : BEGIN
+					exp=1
+					dff=0.3
+				END
+				6 : BEGIN
+					exp=1
+					dff=0.4
+				END
+				7 : BEGIN
+					exp=1
+					dff=0.5
+				END
+				8 : BEGIN			;adas rates w/ bi-curious pinch
+					exp=14
+					dff=0.4
+					cff=1.0
+				END
+				9 : BEGIN			;adas rates w/ bi-curious pinch
+					exp=14
+					dff=0.4
+					cff=5.0
+				END
+				10 : BEGIN			;adas rates w/ bi-curious pinch
+					exp=14
+					dff=0.4
+					cff=10.0
+				END
+				11 : BEGIN			;adas rates w/ bi-curious pinch
+					exp=14
+					dff=0.4
+					cff=30.0
+				END
+				12 : BEGIN			;12-15 are run with acd/scd from Mattioli and thermal C-X
+					exp=1
+					dff=0.5
+					trshot=88262
+					fn0=1.0
+				END
+				13 : BEGIN
+					exp=1
+					dff=0.5
+					trshot=88262
+					fn0=10.0
+				END
+				14 : BEGIN
+					exp=1
+					dff=0.5
+					trshot=88262
+					fn0=50.0
+				END
+				15 : BEGIN
+					exp=1
+					dff=0.5
+					trshot=88262
+					fn0=100.0
+				END
+				16 : BEGIN
+					exp=16
+					dff=0.6
+					cff=1.0
+					trshot=88262
+					fn0=100.0
+				END
+
+			ENDCASE
+			t1=1.00
+			t2=1.25
+			tinj=1.05
+			fits=1
+			ta=[1.0,1.04]
+			tb=[1.22,1.24]
+			;savepath='/home/mlreinke/idl/data/mp692/motau_'+num2str(shot,1)+'_'+num2str(int(tinj*1.0e3),1)+'.dat'
+			savepath='/home/mlreinke/idl/data/mp692/motau_'+num2str(shot,1)+'_'+num2str(int(tinj*1.0e3),1)+'_case_'+num2str(runcase,1)+'.dat'
+		END
+		1120913022 : BEGIN
+			t1=1.00
+			t2=1.24
+			tinj=1.05
+			exp=1
+			dff=0.4
+			fits=0
+			ta=[1.039,1.045]
+			tb=[1.22,1.24]
+			savepath='/home/mlreinke/idl/data/mp692/motau_'+num2str(shot,1)+'_'+num2str(int(tinj*1.0e3),1)+'.dat'
+		END
+		1120913031 : BEGIN
+			CASE runcase OF 
+
+				0 : BEGIN			;0-3 are run with acd/scd from Mattioli
+					exp=1
+					dff=0.2
+				END
+				1 : BEGIN
+					exp=1
+					dff=0.3
+				END
+				2 : BEGIN
+					exp=1
+					dff=0.4
+				END
+				3 : BEGIN
+					exp=1
+					dff=0.5
+				END
+				4 : BEGIN			;4-7 are run with acd/scd from ADAS
+					exp=1
+					dff=0.2
+				END
+				5 : BEGIN
+					exp=1
+					dff=0.3
+				END
+				6 : BEGIN
+					exp=1
+					dff=0.4
+				END
+				7 : BEGIN
+					exp=1
+					dff=0.5
+				END
+
+
+			ENDCASE
+			t1=1.00
+			t2=1.25
+			tinj=1.05
+			fits=0
+			ta=[1.025,1.045]
+			tb=[1.16,1.18]
+			;savepath='/home/mlreinke/idl/data/mp692/motau_'+num2str(shot,1)+'_'+num2str(int(tinj*1.0e3),1)+'.dat'
+			savepath='/home/mlreinke/idl/data/mp692/motau_'+num2str(shot,1)+'_'+num2str(int(tinj*1.0e3),1)+'_case_'+num2str(runcase,1)+'.dat'
+		END
+		1120913032 : BEGIN
+			t1=0.97
+			t2=1.17
+			tinj=1.010
+			exp=1
+			dff=0.4
+			fits=0
+			ta=[0.985,1.005]
+			tb=[1.16,1.17]
+			savepath='/home/mlreinke/idl/data/mp692/motau_'+num2str(shot,1)+'_'+num2str(int(tinj*1.0e3),1)+'.dat'
+		END
+		1120913035 : BEGIN
+			t1=1.25
+			t2=1.40
+			tinj=1.283
+			exp=1
+			dff=0.4
+			fits=0
+			ta=[1.255,1.28]
+			tb=[1.36,1.395]
+			savepath='/home/mlreinke/idl/data/mp692/motau_'+num2str(shot,1)+'_'+num2str(int(tinj*1.0e3),1)+'.dat'
+		END
+		1120913036 : BEGIN
+			t1=1.06
+			t2=1.32
+			tinj=1.125
+			exp=1
+			dff=0.4
+			fits=0
+			ta=[1.08,1.11]
+			tb=[1.28,1.31]
+			savepath='/home/mlreinke/idl/data/mp692/motau_'+num2str(shot,1)+'_'+num2str(int(tinj*1.0e3),1)+'.dat'
+		END
+		ELSE :
+	ENDCASE
+
+	;st={t:[1.057,1.070,1.082,1.101,114],r:[7.5]}
+
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0
+
+	load_impspec_data,shot,'mo',1,br32,time32,sig=sig32
+	bly32=[br32[where(time32 GT ta[0] AND time32 LT ta[1])],br32[where(time32 GT tb[0] AND time32 LT tb[1])]]
+	blx32=[time32[where(time32 GT ta[0] AND time32 LT ta[1])],time32[where(time32 GT tb[0] AND time32 LT tb[1])]]
+	c32=poly_fit(blx32,bly32,1)
+	bl32=time32*c32[1]+c32[0]
+
+	load_impspec_data,shot,'mo',0,br31,time31,sig=sig31
+	bly31=[br31[where(time31 GT ta[0] AND time31 LT ta[1])],br31[where(time31 GT tb[0] AND time31 LT tb[1])]]
+	blx31=[time31[where(time31 GT ta[0] AND time31 LT ta[1])],time31[where(time31 GT tb[0] AND time31 LT tb[1])]]
+	c31=poly_fit(blx31,bly31,1)
+	bl31=time31*c31[1]+c31[0]
+
+	hirexsr_load_profile,shot,8,prof,err,rho,tau,tht=0
+	tmp=where(tau NE -1)
+	IF shot LT 1120913019 THEN nrad=(n(rho[*,0])+1)/2 ELSE nrad=n(rho[*,0])+1
+	em33=prof[0:nrad-1,tmp,0]
+	sig33=err[0:nrad-1,tmp,0]
+	rho33=rho[0:nrad-1,tmp]
+	time33=tau[tmp]
+	time33+=(time33[1]-time33[0])					;appears to be off by a frame
+	jbl=where(time33 GT t1 AND time33 LT (tinj-0.01))
+	bl33=fltarr(nrad,n(tmp)+1)
+	FOR i=0,nrad-1 DO BEGIN
+		tmp=[where(time33 GE ta[0] AND time33 LE ta[1]),where(time33 GE tb[0] AND time33 LE tb[1])]
+		xfit=time33[tmp]
+		yfit=em33[i,tmp]
+		coefs=poly_fit(xfit,yfit,1)
+		bl33[i,*]=time33*coefs[1]+coefs[0]
+	ENDFOR
+
+	IF NOT keyword_set(load) THEN BEGIN
+		;run transport simulation 
+		run_cmod_strahl,shot,42,abs(tinj)-0.01,t2,csden,rho,time,fits=fits,data=data,source=-1.0*tinj,dff=dff,cff=cff,exp=exp,doff=doff,saw=st,$
+			trshot=trshot,nogrid=nogrid,nostrahl=nostrahl,fn0=fn0,fte=fte,fne=fne
+		genrad_vuv_molybdenum,shot,data,brsim,/loweus,wave=wave
+		print, 'simulated VUV brightness computed'
+
+		;load xtomo data
+		mdsopen,'xtomo',shot
+		xem=mdsvalue('_sig=\XTOMO::TOP.RESULTS.CORE:EMISS',/quiet,status=cstatus)
+		rho=mdsvalue('dim_of(_sig,0)',/quiet)
+		t=mdsvalue('dim_of(_sig,1)',/quiet)
+		xemr=mdsvalue('dim_of(_sig,2)',/quiet,status=m1status)
+		xr=mdsvalue('\XTOMO::TOP.RESULTS.CORE:RMAJ',/quiet)
+		mdsclose,'xtomo',shot
+		tmp=where(t GE ta[0] AND t LE tb[1])
+		xtomo={em:xemr[*,tmp],rho:rho,t:t[tmp],rmaj:xr[*,tmp]}
+		print, 'XTOMO data loaded'
+
+		;load axuv data
+		mdsopen,'analysis',shot
+		efit_rmid=mdsvalue('\efit_rmid')
+		efit_time=mdsvalue('dim_of(\efit_rmid,0)')
+		raxis=mdsvalue('\ANALYSIS::TOP:EFIT.RESULTS.A_EQDSK:RMAGX')/100.0
+		zaxis=mdsvalue('\ANALYSIS::TOP:EFIT.RESULTS.A_EQDSK:ZMAGX')/100.0
+		mdsclose,'analysis',shot
+
+		load_emiss_data,shot,'axa',1,iem,r,t,brchk,chkrad,rmid,z,em_err,rm_err,err_stat=err_stat,tree=loadtree
+		tmp=where(t GE ta[0] AND t LE tb[1])
+		rho=rmid[*,tmp]
+		FOR i=0,n(tmp) DO BEGIN
+			j=tmp[i]
+			efit_index=ipt(efit_time,t[j])
+			a=(last(efit_rmid[efit_index,*])-efit_rmid[efit_index,0])
+			ro=efit_rmid[efit_index,0]
+			rho[*,i]=(rmid[*,j]-ro)/a
+		ENDFOR
+		axa={em:iem[*,tmp],rho:rho,t:t[tmp],r:r,rmid:rmid[*,tmp],err:err[*,tmp]}
+
+		load_emiss_data,shot,'axj',1,iem,r,t,brchk,chkrad,rmid,z,em_err,rm_err,err_stat=err_stat,tree=loadtree
+		tmp=where(t GE ta[0] AND t LE tb[1])
+		rho=rmid[*,tmp]
+		FOR i=0,n(tmp) DO BEGIN
+			j=tmp[i]
+			efit_index=ipt(efit_time,t[j])
+			a=(last(efit_rmid[efit_index,*])-efit_rmid[efit_index,0])
+			ro=efit_rmid[efit_index,0]
+			rho[*,i]=(rmid[*,j]-ro)/a
+		ENDFOR
+		axj={em:iem[*,tmp],rho:rho,t:t[tmp],r:r,rmid:rmid[*,tmp],err:err[*,tmp]}
+		FOR i=0,n(tmp) DO BEGIN
+			j=tmp[i]
+			err=em_err[*,j]
+			efit_index=ipt(efit_time,t[j])
+			calc_cosine_profile,iem[*,j],rmid[*,j],r,z,raxis[efit_index],zaxis[efit_index],yemr,yemc,yrpts,err=err,coserr=coserr
+			IF i EQ 0 THEN BEGIN
+				nrho=n(yemc)+1
+				ntime=n(tmp)+1
+				rho=fltarr(nrho,ntime)
+				cos=fltarr(nrho,ntime)
+				cerr=fltarr(nrho,ntime)
+				rmaj=fltarr(nrho,ntime)
+			ENDIF
+			npts=n(yrpts)
+			rho[0:npts,i]=(yrpts-efit_rmid[efit_index,0])/(last(efit_rmid[efit_index,*])-efit_rmid[efit_index,0])
+			cos[0:npts,i]=yemc/yemr
+			cerr[0:npts,i]=coserr
+			rmaj[0:npts,i]=rho[0:npts,i]*(last(efit_rmid[efit_index,*])-efit_rmid[efit_index,0])+efit_rmid[efit_index,0]
+		ENDFOR
+		asym={cos:cos,rho:rho,t:t[tmp],rmid:rmaj,err:cerr}
+		print, 'AXUV data loaded'
+		;stop
+		save,data,brsim,xtomo,axj,axa,asym,filename=savepath
+		RETURN
+	ENDIF ELSE restore, savepath
+	
+	titstr='SHOT: '+num2str(shot,1)+' tinj='+num2str(tinj,dp=3)
+	openwin,0
+	!p.multi=[0,0,3]
+	plot,sqrt(data.psin),data.diff[*,0],xr=[0,1],yr=[0.0,1.0],/xsty,/ysty,chars=2.0,ytit='DIFF [m!u2!n/s]',tit=titstr
+	plot,sqrt(data.psin),data.conv[*,0],xr=[0,1],yr=[-10,10],/xsty,/ysty,chars=2.0,ytit='CONV [m/s]'
+	oplot,[0,1],[0,0],linestyle=1,color=200
+	plot,sqrt(data.psin),data.conv[*,0]/data.diff[*,0],yr=[-100,100],xtit='SQRT(PSIN)',ytit='v/D [1/s]',/xsty,/ysty,chars=2.0
+	oplot,[0,1],[0,0],linestyle=1,color=200
+	!p.multi=0
+
+	brsim31=reform(brsim[*,3])
+	brsim32=reform(brsim[*,9])
+	emsim33=data.dens*0.0
+	FOR i=0,n(data.time) DO emsim33[*,i]=nelike_mo_4d(rotate(data.csden[*,*,i],4),data.temp[*,i],data.dens[*,i])
+	
+	tmp=where(time31 GE ta[0] AND time31 LE tb[1])
+	x=time31[tmp]
+	y=br31[tmp]-bl31[tmp]
+	yint=integ(x,y)
+	sint=integ(data.time,brsim31)
+	scale=interpol(sint,data.time,x)/yint
+	scale31=mean(scale[where(x GT tinj+0.05 AND x LT tinj+0.1)])	
+	ymax=max(y) > max(brsim31/scale31)
+	ymin=min(y) < 0
+	xr=[t1,t2]
+	openwin,1
+	plot,[0],[0],xr=xr,yr=[ymin,ymax]*1.05,xtit='Time [sec]',ytit='Mo XXXI Brightness',/xsty,/ysty
+	oploterror, time31,br31-bl31,sig31
+	oplot, data.time,brsim31/scale31
+	tmp=where(time31 GE data.time[0] AND time31 LE last(data.time))
+	brsim31_sampled=time31[tmp]*0.0
+	dt31=(time31[1]-time31[0])/2.0
+	FOR i=0,n(tmp) DO brsim31_sampled[i]=mean(brsim31[where(data.time GE time31[tmp[i]]-dt31 AND data.time LT time31[tmp[i]]+dt31)])/scale31
+	;oplot,time31[tmp],brsim31_sampled,color=200,psym=-8
+	oplot,xr,[0,0],linestyle=1.0
+	xyouts,xr[1]+0.025*(xr[1]-xr[0]),ymin[0]+0.1*(ymax-ymin),titstr,orient=90,chars=0.75
+
+	tmp=where(time32 GE ta[0] AND time32 LE tb[1])
+	x=time32[tmp]
+	y=br32[tmp]-bl32[tmp]
+	yint=integ(x,y)
+	sint=integ(data.time,brsim32)
+	scale=interpol(sint,data.time,x)/yint
+	scale32=mean(scale[where(x GT tinj+0.05 AND x LT tinj+0.1)])	
+	ymax=max(y) > max(brsim32/scale32)
+	ymin=min(y) < 0
+	xr=[t1,t2]
+	openwin,2
+	plot,[0],[0],xr=xr,yr=[ymin,ymax]*1.05,xtit='Time [sec]',ytit='Mo XXXII Brightness',/xsty,/ysty
+	oploterror, time32,br32-bl32,sig31
+	oplot, data.time,brsim32/scale32
+	oplot,xr,[0,0],linestyle=1.0
+	xyouts,xr[1]+0.025*(xr[1]-xr[0]),ymin[0]+0.1*(ymax-ymin),titstr,orient=90,chars=0.75
+
+	mdsopen,'efit20',shot
+	efit_rmid=mdsvalue('\efit_rmid')
+	efit_time=mdsvalue('dim_of(\efit_rmid,0)')
+	efit_psin=mdsvalue('dim_of(\efit_rmid,1)')
+	mdsclose,'efit20',shot
+	tmp=where(efit_time GE t1 and efit_time LE t2)
+	efit_rmid=reform(sum_array(efit_rmid[tmp,*],/j))/(n(tmp)+1.0)
+	Ro=efit_rmid[0]
+	a=last(efit_rmid)-Ro
+
+	tmp=where(time33 GE ta[0] AND time33 LE tb[1])
+	x=time33[tmp]
+	y=time33[tmp]*0.0
+	FOR i=0,n(tmp) DO y[i]=int_tabulated(sqrt(rho33[*,tmp[i]]),em33[*,tmp[i]]-bl33[*,tmp[i]])
+	yint=integ(x,y)
+	s=data.time*0.0
+	FOR i=0,n(data.time) DO s[i]=int_tabulated(sqrt(data.psin),emsim33[*,i])
+	sint=integ(data.time,s)
+	scale=interpol(sint,data.time,x)/yint
+	scale33=mean(scale[where(x GT tinj+0.05 AND x LT tinj+0.1)])	
+	em33_sub=em33
+	FOR i=0,n(time33) DO em33_sub[*,i]-=bl33[*,i]
+	IF keyword_set(ps) THEN stop
+	labels={ilab:'r/a',jlab:'Time [sec]',klab:'Mo XXXIII Emissivity [AU]',ctit:titstr,itit:'',jtit:''}
+	simrho=(data.rmaj-Ro)/a
+	simrho[0]=0.0
+	genplt, emsim33/scale33,simrho,data.time,ir=[0.00,0.85],io=[0.2,0.4,0.5,0.6,0.7],ps=ps,prefix='emsim_',labels=labels
+	genplt, em33_sub,(interpol(efit_rmid,efit_psin,rho33[*,ipt(time33,tinj)])-Ro)/a,time33+(time33[1]-time33[0]),win=1,jr=[data.time[0],last(data.time)],$
+		ir=[0,0.85],io=[0.2,0.4,0.5,0.6,0.7],prefix='emdat_',ps=ps,labels=labels
+	stop
+END
+
+PRO strahl_verify,nostrahl=nostrahl,nogrid=nogrid
+	shot=1120913016
+	trshot=88262
+	t1=1.0
+	t2=1.3
+	;shot=1080130025
+	;t1=0.9
+	;t2=1.1
+	z=42
+	fits=1
+	exp=1
+	dff=0.4
+	run_cmod_strahl,shot,z,t1,t2,csden,rho,time,fits=fits,data=sdata,source=t1+0.01,dff=dff,cff=cff,exp=exp,doff=doff,saw=st,$
+			nogrid=nogrid,nostrahl=nostrahl,trshot=trshot,fn0=1.0e-5
+	gentran_plot,sdata,time=0.99*t2,plotwin=12
+	gentran_profiles,shot,z,t1,t2,data=gdata,exp=exp,dff=dff,/plot,/pt,trshot=trshot,xff=1.0e-5
+	
+	openwin,0
+	q=[30,31,32,33]
+	color=[0,30,100,200]
+	plot,[0],[0],xr=[0,1],yr=[0,0.6],xtit='r/a',ytit='Charge State Fraction',chars=1.2,tit=num2str(shot,1)+' '+num2str(t1,dp=1)+' < t < '+num2str(t2,dp=1)
+	FOR i=0,n(q) DO oplot, gdata.rho,gdata.csden[q[i],*],color=color[i]
+	tot=sum_array(sdata.csden[*,*,n(sdata.time)],/i)
+	FOR i=0,n(q) DO BEGIN
+		oplot, sdata.rho,sdata.csden[*,q[i],n(sdata.time)]/tot,color=color[i],linestyle=2.0
+		xyouts,0.85,0.55-i*0.075,'Mo!u'+num2str(q[i],1)+'+!n',color=color[i],chars=1.5
+	ENDFOR
+	xyouts,0.1,0.55, 'Constant Diffusion = '+num2str(dff,dp=2)+' [m!u2!n/s]',chars=1.2
+	xyouts,0.15,0.5, 'STRAHL (dashed)'
+	xyouts,0.15,0.45, 'GENTRAN (solid)'
+	stop	
+END
+
+;@~/GENIE/genie_ini.bat
+PRO gentran_cx_effects
+	save_path='/home/mlreinke/idl/data/mp692/gentran_cx_effects.dat
+	shot=1120913016
+	t1=1.0
+	t2=1.2
+	z=42
+	xff=[1.0,1.0e-1,1.0e-2,1.0e-3,1.0e-4]
+	color=[0,30,100,120,200]
+	plot,[0],[0],xr=[0,1.0],yr=[0,0.5]
+	IF NOT keyword_set(load) THEN BEGIN
+		FOR i=0,n(xff) DO BEGIN
+			gentran_profiles,shot,z,t1,t2,data=data,exp=exp,dff=dff,/pt,xff=xff[i]
+			IF i EQ 0 THEN BEGIN
+				rho=data.rho
+				mo32=fltarr(n(rho)+1,n(xff)+1)
+				nfrac=fltarr(n(rho)+1,n(xff)+1)
+			ENDIF
+			mo32[*,i]=data.csden[32,*]
+			nfrac[*,i]=data.neut/data.dens
+		ENDFOR
+		save,shot,t1,t2,rho,mo32,nfrac,filename=save_path
+	ENDIF ELSE restore, save_path
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0
+	d_old=!d
+	ls=1.0
+	IF keyword_set(ps) THEN BEGIN
+		device, xsize=5.5,ysize=7.0,/inches
+		ls=1.0
+		!p.thick=5
+		!p.charthick=2.0
+	ENDIF ELSE openwin,0,xsize=800,ysize=7/5.5*800
+
+	
+	stop
+END
+
+PRO gentran_nqnz_plots,dset=dset,load=load
+	IF NOT keyword_set(dset) THEN dset=0
+
+	CASE dset OF
+		0 : BEGIN
+			shot=1120913016
+			trshot=88262
+			t1=1.00
+			t2=1.04
+			xff=1.0
+			exp=17
+			dff=[0.4,0.5,0.6,0.7,0.8,0.9]
+			color=reverse([30,90,100,120,150,200])
+			cff=[1.0,1.4,1.8,1.95,2.1,2.25,2.4]
+			sym=[1,2,4,5,6,7,8]
+			savepath='/home/mlreinke/idl/data/mp692/gentran_nqnz_case0.dat'
+		END
+		1 : BEGIN
+			shot=1120913015
+			trshot=88261
+			t1=1.20
+			t2=1.24
+			xff=1.0
+			exp=18
+			dff=[0.4,0.5,0.6,0.7,0.8,0.9]
+			color=reverse([30,90,100,120,150,200])
+			cff=[1.0,1.4,1.8,1.95,2.1,2.25,2.4]
+			sym=[1,2,4,5,6,7,8]
+			savepath='/home/mlreinke/idl/data/mp692/gentran_nqnz_case1.dat'
+		END		
+	ENDCASE
+	IF NOT keyword_set(load) THEN BEGIN
+		hirexsr_load_profile,shot,8,prof,err,rho,tau,tht=0
+		tmp=where(tau GE t1 AND tau LE t2)
+		IF shot LT 1120913019 THEN nrad=(n(rho[*,0])+1)/2 ELSE nrad=n(rho[*,0])+1
+		ntmp=n(tmp)+1
+		em33=sum_array(prof[0:nrad-1,tmp,0],/i)/ntmp
+		sig33=sum_array(err[0:nrad-1,tmp,0]^2,/i)
+		sig33=sqrt(sig33)/ntmp
+		rho33=sum_array(rho[0:nrad-1,tmp],/i)/ntmp
+		mdsopen,'efit20',shot
+		efit_rmid=mdsvalue('\efit_rmid')
+		efit_time=mdsvalue('dim_of(\efit_rmid,0)')
+		efit_psin=mdsvalue('dim_of(\efit_rmid,1)')
+		mdsclose,'efit20',shot
+		tmp=where(efit_time GE t1 and efit_time LE t2)
+		efit_rmid=reform(sum_array(efit_rmid[tmp,*],/j))/(n(tmp)+1.0)
+		Ro=efit_rmid[0]
+		a=last(efit_rmid)-Ro
+		rho33=(interpol(efit_rmid,efit_psin,rho33)-Ro)/a
+
+		nd=n(dff)+1
+		nc=n(cff)+1
+		csden=fltarr(43,50,nd,nc)
+		FOR i=0,nd-1 DO BEGIN
+			FOR j=0,nc-1 DO BEGIN
+				print, i,j
+				gentran_profiles,shot,42,t1,t2,data=idata,exp=exp,dff=dff[i],cff=cff[j],/pt,xff=xff,trshot=trshot
+				csden[*,*,i,j]=idata.csden
+			ENDFOR
+		ENDFOR
+		data=idata
+		save,shot,t1,t2,xff,exp,dff,cff,data,csden,em33,sig33,rho33,filename=savepath
+	ENDIF ELSE restore, savepath
+	emsim=reform(csden[32,*,*,*])
+	nzsim=reform(csden[32,*,*,*])
+	lesim=reform(csden[32,*,*,*])
+	lzsim=reform(csden[32,*,*,*])
+	FOR i=0,n(dff) DO BEGIN
+		FOR j=0,n(cff) DO BEGIN
+			iem=nelike_mo_4d(csden[*,*,i,j],data.temp,data.dens)
+			inz=sum_array(csden[*,*,i,j],/j)
+			emsim[*,i,j]=iem
+			nzsim[*,i,j]=inz
+			lesim[*,i,j]=deriv(data.rho,iem)/iem
+			lzsim[*,i,j]=deriv(data.rho,inz)/inz
+		ENDFOR
+	ENDFOR
+	dsig33=derivsig(rho33,em33,rho33*0.0,sig33)
+	dem33=deriv(rho33,em33)
+	l33=dem33/em33
+	lsig33=l33*sqrt(sig33^2/em33^2+dsig33^2/dem33^2)
+
+	rhopt=0.40
+	index=ipt(data.rho,rhopt)
+	nd=n(dff)+1
+	nc=n(cff)+1
+	lnz=fltarr(nd,nc)
+	lem=fltarr(nd,nc)
+	FOR i=0,n(dff) DO BEGIN
+		FOR j=0,n(cff) DO BEGIN
+			ilnz=deriv(data.rho,nzsim[*,i,j])
+			lnz[i,j]=interpol(ilnz,data.rho,rhopt)/interpol(nzsim[*,i,j],data.rho,rhopt)
+			ilem=deriv(data.rho,emsim[*,i,j])
+			lem[i,j]=interpol(ilem,data.rho,rhopt)/interpol(emsim[*,i,j],data.rho,rhopt)
+		ENDFOR
+	ENDFOR
+
+	tmp=where(rho33 GT 0.1 AND rho33 LT 0.5)
+	chisq=fltarr(nd,nc)
+	FOR i=0,n(dff) DO BEGIN
+		FOR j=0,n(cff) DO chisq[i,j]=total((interpol(lesim[*,i,j],data.rho,rho33[tmp])-l33[tmp])^2)
+	ENDFOR
+	order=sort(chisq)
+	ngood=5
+	style=[0,2,3,4,5]
+
+	gentran_diffconv_profiles,exp,diff,conv
+
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0
+	d_old=!d
+	ls=1.0
+	IF keyword_set(ps) THEN BEGIN
+		device, xsize=5.5,ysize=7.0,/inches
+		ls=1.0
+		!p.thick=5
+		!p.charthick=2.0
+	ENDIF
+
+	openwin,0
+	!p.multi=[0,0,2]
+	plot,[0],[0],xr=[0,1.0],yr=[0,1.05],xtit='r/a',ytit='Diffusion [m!u2!n/s]',/ysty,/xsty,chars=1.1
+	oplot,diff.rho,diff.diff
+	plot,[0],[0],xr=[0,1.0],yr=[-13,3],xtit='r/a',ytit='Convection [m/s]',/ysty,/xsty,chars=1.1
+	oplot,conv.rho,conv.conv
+	oplot,[0,1],[0,0],linestyle=1
+
+	openwin,1
+	xr=[0,0.9]
+	yr=[0,2.8]
+	plot,[0],[0],xr=xr,yr=yr,xtit='r/a',ytit='Norm. Mo XXXIII Emissivity',chars=1.1,/xsty,/ysty
+	FOR i=0,n(dff) DO BEGIN
+		xyouts,xr[0]+0.8*(xr[1]-xr[0]),yr[0]+(0.9-0.09*i)*(yr[1]-yr[0]),'D!iff!n='+num2str(dff[i],dp=2),color=color[i]
+		FOR j=0,n(cff) DO oplot,data.rho,emsim[*,i,j]/int_tabulated(data.rho,emsim[*,i,j]),color=color[i]
+	ENDFOR
+	emnorm=int_tabulated(rho33,em33)
+	oploterror,rho33,em33/emnorm,sig33/emnorm
+	xyouts,xr[0]+0.6*(xr[1]-xr[0]),yr[0]+1.018*(yr[1]-yr[0]),num2str(shot,1)+' '+num2str(t1,dp=2)+' < t < '+num2str(t2,dp=2),chars=0.8
+
+	plot,[0],[0],xr=xr,yr=yr,xtit='r/a',ytit='Norm. Mo XXXIII Emissivity',chars=1.1,/xsty,/ysty
+	FOR k=0,ngood-1 DO BEGIN
+		j=order[k]/nd
+		i=order[k] MOD nd
+		oplot,data.rho,emsim[*,i,j]/int_tabulated(data.rho,emsim[*,i,j]),linestyle=style[k],color=color[i]
+		oplot,xr[0]+(xr[1]-xr[0])*[0.83,0.93],yr[0]+(yr[1]-yr[0])*(0.9-0.09*k)*[1,1],linestyle=style[k],color=color[i]
+		xyouts,xr[0]+(xr[1]-xr[0])*0.65,yr[0]+(yr[1]-yr[0])*(0.88-0.09*k),'C!iff!n='+num2str(cff[j],dp=2),color=color[i]
+	ENDFOR
+	emnorm=int_tabulated(rho33,em33)
+	oploterror,rho33,em33/emnorm,sig33/emnorm
+
+	openwin,2
+	xr=[0,0.8]
+	yr=[0,1.5]
+	plot,[0],[0],xr=xr,yr=yr,xtit='r/a',ytit='Moly. Density Profile',chars=1.1,/xsty,/ysty
+	FOR i=0,n(dff) DO BEGIN
+		xyouts,xr[0]+0.05*(xr[1]-xr[0]),yr[0]+(0.55-0.09*i)*(yr[1]-yr[0]),'D!iff!n='+num2str(dff[i],dp=2),color=color[i]
+		FOR j=0,n(cff) DO oplot,data.rho,nzsim[*,i,j],color=color[i]
+	ENDFOR
+	xyouts,xr[0]+0.6*(xr[1]-xr[0]),yr[0]+1.018*(yr[1]-yr[0]),num2str(shot,1)+' '+num2str(t1,dp=2)+' < t < '+num2str(t2,dp=2),chars=0.8
+
+	plot,[0],[0],xr=xr,yr=yr,xtit='r/a',ytit='Norm. Mo  Density',chars=1.1,/xsty,/ysty
+	FOR k=0,ngood-1 DO BEGIN
+		j=order[k]/nd
+		i=order[k] MOD nd
+		oplot,data.rho,nzsim[*,i,j],linestyle=style[k],color=color[i]
+		oplot,xr[0]+(xr[1]-xr[0])*[0.23,0.33],yr[0]+(yr[1]-yr[0])*(0.55-0.09*k)*[1,1],linestyle=style[k],color=color[i]
+		xyouts,xr[0]+(xr[1]-xr[0])*0.05,yr[0]+(yr[1]-yr[0])*(0.53-0.09*k),'C!iff!n='+num2str(cff[j],dp=2),color=color[i]
+	ENDFOR
+
+	openwin,3
+	xr=[0,0.6]
+	yr=[-10,5.0]
+	plot,[0],[0],xr=xr,yr=yr,xtit='r/a',ytit='a/L_em',/xsty,/ysty
+	oplot,[0,1],[0,0],linestyle=1
+	FOR i=0,n(dff) DO BEGIN
+		xyouts,xr[0]+0.05*(xr[1]-xr[0]),yr[0]+(0.55-0.09*i)*(yr[1]-yr[0]),'D!iff!n='+num2str(dff[i],dp=2),color=color[i]
+		FOR j=0,n(cff) DO oplot,data.rho,lesim[*,i,j],color=color[i]
+	ENDFOR
+	oploterror,rho33,l33,lsig33
+	xyouts,xr[0]+0.6*(xr[1]-xr[0]),yr[0]+1.018*(yr[1]-yr[0]),num2str(shot,1)+' '+num2str(t1,dp=2)+' < t < '+num2str(t2,dp=2),chars=0.8
+
+	plot,[0],[0],xr=xr,yr=yr,xtit='r/a',ytit='a/L_em',chars=1.1,/xsty,/ysty
+	oplot,[0,1],[0,0],linestyle=1
+	FOR k=0,ngood-1 DO BEGIN
+		j=order[k]/nd
+		i=order[k] MOD nd
+		oplot,data.rho,lesim[*,i,j],linestyle=style[k],color=color[i]
+		oplot,xr[0]+(xr[1]-xr[0])*[0.23,0.33],yr[0]+(yr[1]-yr[0])*(0.55-0.09*k)*[1,1],linestyle=style[k],color=color[i]
+		xyouts,xr[0]+(xr[1]-xr[0])*0.05,yr[0]+(yr[1]-yr[0])*(0.53-0.09*k),'C!iff!n='+num2str(cff[j],dp=2),color=color[i]
+	ENDFOR
+	oploterror,rho33,l33,lsig33
+
+	openwin,4
+	xr=[0,0.6]
+	yr=[-8,3.0]
+	plot,[0],[0],xr=xr,yr=yr,xtit='r/a',ytit='a/L_nz',/xsty,/ysty
+	oplot,[0,1],[0,0],linestyle=1
+	FOR i=0,n(dff) DO BEGIN
+		xyouts,xr[0]+0.05*(xr[1]-xr[0]),yr[0]+(0.55-0.09*i)*(yr[1]-yr[0]),'D!iff!n='+num2str(dff[i],dp=2),color=color[i]
+		FOR j=0,n(cff) DO oplot,data.rho,lzsim[*,i,j],color=color[i]
+	ENDFOR
+	xyouts,xr[0]+0.6*(xr[1]-xr[0]),yr[0]+1.018*(yr[1]-yr[0]),num2str(shot,1)+' '+num2str(t1,dp=2)+' < t < '+num2str(t2,dp=2),chars=0.8
+	
+	plot,[0],[0],xr=xr,yr=yr,xtit='r/a',ytit='a/L_nz',chars=1.1,/xsty,/ysty
+	oplot,[0,1],[0,0],linestyle=1
+	FOR k=0,ngood-1 DO BEGIN
+		j=order[k]/nd
+		i=order[k] MOD nd
+		oplot,data.rho,lzsim[*,i,j],linestyle=style[k],color=color[i]
+		oplot,xr[0]+(xr[1]-xr[0])*[0.23,0.33],yr[0]+(yr[1]-yr[0])*(0.55-0.09*k)*[1,1],linestyle=style[k],color=color[i]
+		xyouts,xr[0]+(xr[1]-xr[0])*0.05,yr[0]+(yr[1]-yr[0])*(0.53-0.09*k),'C!iff!n='+num2str(cff[j],dp=2),color=color[i]
+	ENDFOR
+
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0
+	d_old=!d
+	ls=1.0
+	IF keyword_set(ps) THEN BEGIN
+		device, xsize=5.5,ysize=6.0,/inches
+		ls=1.0
+		!p.thick=5
+		!p.charthick=2.0
+	ENDIF
+	!p.multi=0
+	openwin,5
+	xr=[min(lem),max(lem)]*1.02
+	yr=[min(lnz),max(lnz)]*1.02
+	plot,[0],[0],xr=xr,yr=yr,xtit='a/L_em',ytit='a/L_nz',chars=1.2,/xsty,/ysty
+	FOR i=0,n(dff) DO BEGIN
+		oplot,lem[i,*],lnz[i,*],color=color[i]
+		xyouts,xr[0]+0.05*(xr[1]-xr[0]),yr[0]+(0.9-0.07*i)*(yr[1]-yr[0]),'D!iff!n='+num2str(dff[i],dp=2),color=color[i]
+	ENDFOR
+
+	FOR i=0,n(dff) DO BEGIN
+		FOR j=0,n(cff) DO BEGIN
+			oplot,[lem[i,j]],[lnz[i,j]],color=color[i],psym=sym[j]
+			IF i EQ 0 THEN BEGIN
+				xyouts,xr[0]+0.23*(xr[1]-xr[0]),yr[0]+(0.9-0.07*j)*(yr[1]-yr[0]),'C!iff!n='+num2str(cff[j],dp=2)
+				oplot,[xr[0]+0.4*(xr[1]-xr[0])],[yr[0]+(0.91-0.07*j)*(yr[1]-yr[0])],psym=sym[j]
+			ENDIF
+		ENDFOR
+	ENDFOR
+	oplot,xr,[0,0],linestyle=1.0
+	lexp=interpol(l33,rho33,rhopt)
+	lunc=interpol(lsig33,rho33,rhopt)
+	oplot,(lexp-lunc)*[1,1],yr,linestyle=2.0
+	oplot,(lexp+lunc)*[1,1],yr,linestyle=2.0
+	xyouts,xr[0]+0.6*(xr[1]-xr[0]),yr[0]+1.018*(yr[1]-yr[0]),num2str(shot,1)+' '+num2str(t1,dp=2)+' < t < '+num2str(t2,dp=2),chars=0.8
+	
+
+
+	stop	
+END
+
+PRO lemz_diffconv_profiles,a,diff,conv
+	;rho=[0.0,0.15,0.25,0.35,0.45,0.55,0.65,1.0]
+	rho=[0.0,make(0.1,0.55,5),0.7,1.0]
+	diff={diff:rho*0.0+a[0],rho:rho}
+	;conv={conv:[0.0,a[1],a[2],a[3],a[4],a[5],0.0,0.0],rho:rho}
+	conv={conv:[0.0,a[1],a[2],a[3],a[4],a[5],0.0,0.0],rho:rho}
+	
+END
+
+FUNCTION lemz_fit,x,a,neut=neut,dens=dens,temp=temp,idata=idata,shot=shot,t1=t1,t2=t2,trshot=trshot,xff=xff,y=y,sigy=sigy,plot=plot
+	lemz_diffconv_profiles,a,diff,conv
+	print,a
+	gentran_profiles,shot,42,t1,t2,data=idata,/pt,trshot=trshot,diff=diff,conv=conv,plot=plot,xff=xff,/noerr,neut_str=neut,dens_str=dens,temp_str=temp
+	csden=idata.csden
+	iem=nelike_mo_4d(csden,idata.temp,idata.dens)
+	lesim=deriv(idata.rho,iem)/iem
+	f=interpol(lesim,idata.rho,x)
+	IF keyword_set(plot) THEN BEGIN
+		openwin,0
+		plot,x,y
+		oploterror,x,y,sigy
+		oplot,x,f,color=200
+	ENDIF
+	RETURN,f
+END
+
+PRO gentran_find_conv,shot,t1,t2,trshot,dff=dff,xff=xff,plot=plot
+	IF NOT keyword_set(dff) THEN dff=1.0
+	IF NOT keyword_set(xff) THEN xff=1.0
+	IF NOT keyword_set(plot) THEN plot=0
+
+	savepath='/home/mlreinke/idl/data/mp692/lemzfit/gentran_lemzfit_'+num2str(shot,1)+'_dff'+num2str(int(dff*10),1)+$
+		'_xff'+num2str(int(xff*10),1)+'.dat'
+	hirexsr_load_profile,shot,8,prof,err,rho,tau,tht=0
+	tmp=where(tau GE t1 AND tau LE t2)
+	IF shot LT 1120913019 THEN nrad=(n(rho[*,0])+1)/2 ELSE nrad=n(rho[*,0])+1
+	ntmp=n(tmp)+1
+	em33=sum_array(prof[0:nrad-1,tmp,0],/i)/ntmp
+	sig33=sum_array(err[0:nrad-1,tmp,0]^2,/i)
+	sig33=sqrt(sig33)/ntmp
+	rho33=sum_array(rho[0:nrad-1,tmp],/i)/ntmp
+	mdsopen,'efit20',shot
+	efit_rmid=mdsvalue('\efit_rmid')
+	efit_time=mdsvalue('dim_of(\efit_rmid,0)')
+	efit_psin=mdsvalue('dim_of(\efit_rmid,1)')
+	mdsclose,'efit20',shot
+	tmp=where(efit_time GE t1 and efit_time LE t2)
+	efit_rmid=reform(sum_array(efit_rmid[tmp,*],/j))/(n(tmp)+1.0)
+	Ro=efit_rmid[0]
+	a=last(efit_rmid)-Ro
+	rho33=(interpol(efit_rmid,efit_psin,rho33)-Ro)/a
+	dsig33=derivsig(rho33,em33,rho33*0.0,sig33)
+	dem33=deriv(rho33,em33)
+	l33=dem33/em33
+	lsig33=l33*sqrt(sig33^2/em33^2+dsig33^2/dem33^2)
+	tmp=where(rho33 GT 0.05 AND rho33 LT 0.525)
+
+	x=rho33[tmp]
+	y=l33[tmp]
+	yerr=lsig33[tmp]
+		
+	;estimate=[1.0,0.0,0.0,-0.0,-0.0,-0.0]*dff
+	estimate=[1.0,0.0,0.0,0.0,0.0,0.0]*dff
+	yfit=lemz_fit(x,estimate,shot=shot,t1=t1,t2=t2,trshot=trshot,xff=xff,neut=neut,temp=temp,dens=dens)
+
+	parinfo = replicate({value:0., fixed:0, limited:[0,0],limits:[0.,0], tied:'',step:[0.0],mpside:[0]}, n_elements(estimate))
+	parinfo.value=estimate
+	parinfo[0].fixed=1			;fix the flat diffusivity profile
+	parinfo[1:*].step=0.1
+	parinfo[0].step=0.05
+	parinfo[*].mpside=2
+	functargs={shot:shot,trshot:trshot,t1:t1,t2:t2,y:y,sigy:yerr,plot:plot,xff:xff,neut:neut,temp:temp,dens:dens}
+
+	coefs = mpfitfun('lemz_fit', x,y,yerr,estimate, parinfo=parinfo,status=status,niter=niter,functargs=functargs,xtol=1.0e-4)
+	lemz_diffconv_profiles,estimate,dini,cini
+	lemz_diffconv_profiles,coefs,dfit,cfit
+	yfit=lemz_fit(x,coefs,shot=shot,t1=t1,t2=t2,trshot=trshot,idata=data,xff=xff,neut=neut,temp=temp,dens=dens)
+	save,shot,t1,t2,trshot,dff,xff,x,y,yerr,yfit,estimate,coefs,dini,cini,dfit,cfit,data,filename=savepath
+
+END
+
+
+PRO get_dffxff_data,pcase,dfflist,xfflist,shot,t1,t2,trshot
+	CASE pcase OF 
+		0 : BEGIN
+			dfflist=[0.5,0.7,0.9,1.1,1.4,1.8,2.2]
+			xfflist=[0.5,1.0,2.0,4.0,8.0]
+			shot=1120913016
+			t1=1.00
+			t2=1.04
+			trshot=88262
+		END
+		1 : BEGIN
+			dfflist=[0.5,0.7,0.9,1.1,1.4,1.8,2.2]
+			xfflist=[0.5,1.0,2.0,4.0,8.0]
+			shot=1120913015
+			t1=1.20
+			t2=1.24
+			trshot=88261
+		END
+		ELSE : RETURN
+	ENDCASE
+END
+
+PRO plot_dffxff_tauz,pcase=pcase,run=run,load=load
+	CASE pcase OF 
+		0 : BEGIN
+ 			get_dffxff_data,pcase,dfflist,xfflist,shot,t1,t2,trshot
+			color=[30,70,90,100,120,150,200]
+			style=[0,2,3,4,5]
+			sym=[1,2,4,5,6]
+		END
+		1 : BEGIN
+			get_dffxff_data,pcase,dfflist,xfflist,shot,t1,t2,trshot
+			color=[30,70,90,100,120,150,200]
+			style=[0,2,3,4,5]
+			sym=[1,2,4,5,6]
+		END
+		ELSE : RETURN
+	ENDCASE	
+	IF keyword_set(run) THEN BEGIN
+		FOR i=0,n(xfflist) DO FOR j=0,n(dfflist) DO BEGIN
+			loadpath='/home/mlreinke/idl/data/mp692/lemzfit/gentran_lemzfit_'+num2str(shot,1)+'_dff'+num2str(int(dfflist[j]*10),1)+$
+				'_xff'+num2str(int(xfflist[i]*10),1)+'.dat'
+			restore, loadpath
+			print, loadpath
+			IF i EQ 0 AND j EQ 0 THEN nogrid=0 ELSE nogrid=1
+			path=0
+			RUN_CMOD_STRAHL,shot,42,t1,t2+0.2,csden,rho,time,nogrid=nogrid,/fits,source=-1.0*(t1+0.01),diff=dfit,conv=cfit,path=path
+			savepath='/home/mlreinke/idl/data/mp692/lemzfit/strahl_lemzfit_'+num2str(shot,1)+'_dff'+num2str(int(dfflist[j]*10),1)+$
+				'_xff'+num2str(int(xfflist[i]*10),1)+'.dat'
+			spawn,'cp '+path+' '+savepath			
+		ENDFOR
+	ENDIF			
+	
+	nd=n(dfflist)+1
+	nx=n(xfflist)+1
+	savepath='/home/mlreinke/idl/data/mp692/plot_dffxff_tauz_pcase'+num2str(pcase,0)+'.dat'
+	IF NOT keyword_set(load) THEN BEGIN
+		FOR i=0,n(xfflist) DO FOR j=0,n(dfflist) DO BEGIN
+			print, i,j
+			loadpath='/home/mlreinke/idl/data/mp692/lemzfit/strahl_lemzfit_'+num2str(shot,1)+'_dff'+num2str(int(dfflist[j]*10),1)+$
+				'_xff'+num2str(int(xfflist[i]*10),1)+'.dat'
+			RUN_CMOD_STRAHL,shot,42,t1,t2+0.2,path=loadpath,data=idata
+			IF i EQ 0 AND j EQ 0 THEN BEGIN
+				ntime=n(idata.time)+1
+				nrho=n(idata.rho)+1
+				nzhist=fltarr(nrho,ntime,nd,nx)
+				n32hist=fltarr(nrho,ntime,nd,nx)
+				
+			ENDIF
+			nzhist[*,*,j,i]=total(idata.csden,2)
+			n32hist[*,*,j,i]=reform(idata.csden[*,32,*])
+		ENDFOR
+		nztime=idata.time
+		nzrho=idata.rho
+		save,nzhist,n32hist,nztime,nzrho,filename=savepath
+	ENDIF ELSE restore, savepath
+
+	rhopt=0.4
+	tauz=fltarr(nd,nx)
+	tau32=fltarr(nd,nx)
+	FOR i=0,nd-1 DO FOR j=0,nx-1 DO BEGIN
+		inz=reform(nzhist[ipt(nzrho,rhopt),*,i,j])
+		index=maxloc(inz)
+		x=nztime[index+1:*]
+		y=alog(inz[index+1:*])
+		coefs=poly_fit(x,y,1)
+		tauz[i,j]=-1.0/coefs[1]*1.0e3
+	
+		inz=reform(n32hist[ipt(nzrho,rhopt),*,i,j])
+		index=maxloc(inz)
+		x=nztime[index+1:*]
+		y=alog(inz[index+1:*])
+		coefs=poly_fit(x,y,1)
+		tau32[i,j]=-1.0/coefs[1]*1.0e3
+	ENDFOR
+	ishot=shot
+	restore,'/home/mlreinke/idl/data/mp692/mo_inj_1120913.sav'
+	tmp=where(shot EQ ishot)
+	index=tmp[locate(tinj[tmp],t1)]
+	tau_exp=tau_31p[index]*1.0e3
+	sig_exp=abs(sig_31p[index])*1.0e3
+	
+	xr=[0,max(tau32)*1.01]
+	yr=[0,max(dfflist)*1.01]
+	plot,[0],[0],xr=xr,yr=yr,xtit='TAUZ [ms]',ytit='DFF',/xsty,/ysty,chars=1.2
+	xyouts,xr[0]+0.6*(xr[1]-xr[0]),yr[0]+1.018*(yr[1]-yr[0]),num2str(ishot,1)+' '+num2str(t1,dp=2)+' < t < '+num2str(t2,dp=2),chars=0.8
+
+	FOR j=0,nx-1 DO BEGIN
+		oplot,tau32[*,j],dfflist,linestyle=style[j]
+		x1=xr[0]+0.73*(xr[1]-xr[0])
+		x2=xr[0]+0.80*(xr[1]-xr[0])
+		y=yr[0]+(0.9-0.1*j)*(yr[1]-yr[0])
+		oplot,[x1,x2],y*[1,1],linestyle=style[j]
+		oplot,[0.5*(x1+x2)],[y],psym=sym[j]
+		xyouts,x2+0.02*(xr[1]-xr[0]),y-0.01*(yr[1]-yr[0]),'XFF='+num2str(xfflist[j],dp=1)
+	ENDFOR
+	FOR i=0,nd-1 DO FOR j=0,nx-1 DO oplot,[tau32[i,j]],[dfflist[i]],color=color[i],psym=sym[j]
+	oplot,(tau_exp+sig_exp)*[1,1],yr,linestyle=1
+	oplot,(tau_exp-sig_exp)*[1,1],yr,linestyle=1
+
+	
+END
+
+PRO plot_dffxff_scan,pcase=pcase,run=run
+	IF NOT keyword_set(pcase) THEN pcase=0
+	
+	CASE pcase OF 
+		0 : BEGIN
+ 			get_dffxff_data,pcase,dfflist,xfflist,shot,t1,t2,trshot
+			color=[30,70,90,100,120,150,200]
+			style=[0,2,3,4,5]
+			sym=[1,2,4,5,6]
+		END
+		1 : BEGIN
+			get_dffxff_data,pcase,dfflist,xfflist,shot,t1,t2,trshot
+			color=[30,70,90,100,120,150,200]
+			style=[0,2,3,4,5]
+			sym=[1,2,4,5,6]
+		END
+		ELSE : RETURN
+	ENDCASE
+	IF keyword_set(run) THEN FOR i=0,n(xfflist) DO FOR j=0,n(dfflist) DO gentran_find_conv,shot,t1,t2,trshot,dff=dfflist[j],xff=xfflist[i]
+
+	;xfflist=xfflist[0]
+	;load measured profile data
+	hirexsr_load_profile,shot,8,prof,err,rho,tau,tht=0
+	tmp=where(tau GE t1 AND tau LE t2)
+	IF shot LT 1120913019 THEN nrad=(n(rho[*,0])+1)/2 ELSE nrad=n(rho[*,0])+1
+	ntmp=n(tmp)+1
+	em33=sum_array(prof[0:nrad-1,tmp,0],/i)/ntmp
+	sig33=sum_array(err[0:nrad-1,tmp,0]^2,/i)
+	sig33=sqrt(sig33)/ntmp
+	rho33=sum_array(rho[0:nrad-1,tmp],/i)/ntmp
+	mdsopen,'efit20',shot
+	efit_rmid=mdsvalue('\efit_rmid')
+	efit_time=mdsvalue('dim_of(\efit_rmid,0)')
+	efit_psin=mdsvalue('dim_of(\efit_rmid,1)')
+	mdsclose,'efit20',shot
+	tmp=where(efit_time GE t1 and efit_time LE t2)
+	efit_rmid=reform(sum_array(efit_rmid[tmp,*],/j))/(n(tmp)+1.0)
+	Ro=efit_rmid[0]
+	a=last(efit_rmid)-Ro
+	rho33=(interpol(efit_rmid,efit_psin,rho33)-Ro)/a
+	dsig33=derivsig(rho33,em33,rho33*0.0,sig33)
+	dem33=deriv(rho33,em33)
+	l33=dem33/em33
+	lsig33=l33*sqrt(sig33^2/em33^2+dsig33^2/dem33^2)
+	tmp=where(rho33 GT 0.1 AND rho33 LT 0.525)
+
+	;load GENTRAN data
+	nd=n(dfflist)+1
+	nx=n(xfflist)+1
+	csden=fltarr(43,50,nd,nx)
+	emsim=fltarr(50,nd,nx)
+	nzsim=fltarr(50,nd,nx)
+	lesim=fltarr(50,nd,nx)
+	lzsim=fltarr(50,nd,nx)
+
+	FOR i=0,nd-1 DO BEGIN
+		FOR j=0,nx-1 DO BEGIN
+			savepath='/home/mlreinke/idl/data/mp692/lemzfit/gentran_lemzfit_'+num2str(shot,1)+'_dff'+num2str(int(dfflist[i]*10),1)+$
+				'_xff'+num2str(int(xfflist[j]*10),1)+'.dat'
+			restore, savepath
+			csden[*,*,i,j]=data.csden
+			iem=nelike_mo_4d(csden[*,*,i,j],data.temp,data.dens)
+			inz=sum_array(csden[*,*,i,j],/j)
+			emsim[*,i,j]=iem
+			nzsim[*,i,j]=inz
+			lesim[*,i,j]=deriv(data.rho,iem)/iem
+			lzsim[*,i,j]=deriv(data.rho,inz)/inz
+			IF i EQ 0 AND j EQ 0 THEN BEGIN
+				nrho=n(cfit.rho)+1
+				conv=fltarr(nrho,nd,nx)
+				diff=fltarr(nrho,nd,nx)
+			ENDIF
+			conv[*,i,j]=cfit.conv
+			diff[*,i,j]=dfit.diff
+		ENDFOR
+	ENDFOR
+	dff=dfflist
+	xff=xfflist
+
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0
+	IF keyword_set(ps) THEN BEGIN
+		device, xsize=5.5,ysize=8.0,/inches
+		ls=1.0
+		!p.thick=5
+		!p.charthick=2.0
+	ENDIF
+
+	openwin,0
+	!p.multi=[0,0,3]
+	xr=[0,1]
+	yr=[0,2.0]
+	plot,[0],[0],xr=xr,yr=yr,xtit='r/a',ytit='Diffusion [m!u2!n/s]',/ysty,/xsty,chars=1.5
+	FOR i=0,nd-1 DO oplot,dfit.rho,diff[*,i,0],color=color[i]
+	xyouts,xr[0]+0.6*(xr[1]-xr[0]),yr[0]+1.018*(yr[1]-yr[0]),num2str(shot,1)+' '+num2str(t1,dp=2)+' < t < '+num2str(t2,dp=2),chars=0.8
+	
+	yr=[min(conv)*1.05,max(conv)*1.05]
+	plot,[0],[0],xr=xr,yr=yr,xtit='r/a',ytit='Convection [m/s]',/ysty,/xsty,chars=1.5
+	FOR i=0,nd-1 DO FOR j=0,nx-1 DO BEGIN
+		oplot,cfit.rho,conv[*,i,j],color=color[i],psym=-sym[j],linestyle=style[j]
+		x1=xr[0]+0.05*(xr[1]-xr[0])
+		x2=xr[0]+0.12*(xr[1]-xr[0])
+		y=yr[0]+(0.6-0.12*j)*(yr[1]-yr[0])
+		oplot,[x1,x2],y*[1,1],linestyle=style[j]
+		oplot,[0.5*(x1+x2)],[y],psym=sym[j]
+		xyouts,x2+0.015*(xr[1]-xr[0]),y-0.013*(yr[1]-yr[0]),'XFF='+num2str(xfflist[j],dp=1),chars=0.8
+	ENDFOR
+	oplot,[0,1],[0,0],linestyle=1
+
+	plot,[0],[0],xr=xr,yr=[min(conv/diff)*1.05,max(conv/diff)*1.05],xtit='r/a',ytit='v/D [1/m]',/ysty,/xsty,chars=1.5
+	FOR i=0,nd-1 DO FOR j=0,nx-1 DO oplot,cfit.rho,conv[*,i,j]/diff[*,i,j],color=color[i],psym=-sym[j],linestyle=style[j]
+	oplot,[0,1],[0,0],linestyle=1
+	
+	!p.multi=[0,0,2]
+	IF keyword_set(ps) THEN BEGIN
+		device, xsize=6.0,ysize=7.0,/inches
+		ls=1.0
+		!p.thick=5
+		!p.charthick=2.0
+	ENDIF
+
+	openwin,1
+	xr=[0,0.8]
+	yr=[0,2.8]
+	plot,[0],[0],xr=xr,yr=yr,xtit='r/a',ytit='Norm. Mo XXXIII Emissivity',chars=1.1,/xsty,/ysty
+	FOR i=0,nd-1 DO BEGIN
+		xyouts,xr[0]+0.8*(xr[1]-xr[0]),yr[0]+(0.9-0.09*i)*(yr[1]-yr[0]),'D!iff!n='+num2str(dff[i],dp=2),color=color[i]
+		FOR j=0,nx-1 DO oplot,data.rho,emsim[*,i,j]/int_tabulated(data.rho,emsim[*,i,j]),color=color[i],linestyle=style[j]
+	ENDFOR
+	emnorm=int_tabulated(rho33,em33)
+	oploterror,rho33,em33/emnorm,sig33/emnorm
+	xyouts,xr[0]+0.6*(xr[1]-xr[0]),yr[0]+1.018*(yr[1]-yr[0]),num2str(shot,1)+' '+num2str(t1,dp=2)+' < t < '+num2str(t2,dp=2),chars=0.8
+
+	xr=[0,0.8]
+	yr=[-15,5.0]
+	plot,[0],[0],xr=xr,yr=yr,xtit='r/a',ytit='a/L_em',/xsty,/ysty
+	oplot,[0,1],[0,0],linestyle=1
+	FOR i=0,nd-1 DO BEGIN
+		FOR j=0,nx-1 DO oplot,data.rho,lesim[*,i,j],color=color[i],linestyle=style[j]
+	ENDFOR
+	oploterror,rho33,l33,lsig33
+	oplot,0.1*[1,1],yr,linestyle=1
+	oplot,0.525*[1,1],yr,linestyle=1
+
+	openwin,2
+	xr=[0,0.6]
+	yr=[0,1.8]
+	plot,[0],[0],xr=xr,yr=yr,xtit='r/a',ytit='Moly. Density Profile',chars=1.1,/xsty,/ysty
+	FOR i=0,nd-1 DO BEGIN
+		FOR j=0,nx-1 DO oplot,data.rho,nzsim[*,i,j],color=color[i],linestyle=style[j]
+	ENDFOR
+	xyouts,xr[0]+0.6*(xr[1]-xr[0]),yr[0]+1.018*(yr[1]-yr[0]),num2str(shot,1)+' '+num2str(t1,dp=2)+' < t < '+num2str(t2,dp=2),chars=0.8
+
+	xr=[0,0.6]
+	yr=[-8,3.0]
+	plot,[0],[0],xr=xr,yr=yr,xtit='r/a',ytit='a/L_nz',/xsty,/ysty
+	oplot,[0,1],[0,0],linestyle=1
+	FOR i=0,nd-1 DO BEGIN
+		FOR j=0,nx-1 DO oplot,data.rho,lzsim[*,i,j],color=color[i],linestyle=style[j]
+		xyouts,xr[0]+0.05*(xr[1]-xr[0]),yr[0]+(0.60-0.09*i)*(yr[1]-yr[0]),'D!iff!n='+num2str(dff[i],dp=2),color=color[i]
+	ENDFOR
+	!p.multi=0
+
+
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0
+	d_old=!d
+	ls=1.0
+	IF keyword_set(ps) THEN BEGIN
+		device, xsize=5.5,ysize=6.0,/inches
+		ls=1.0
+		!p.thick=5
+		!p.charthick=2.0
+	ENDIF
+	openwin,3
+	rhopt=0.38
+	index=ipt(data.rho,rhopt)
+	xr=[0,max(dfflist)]*1.02
+	yr=[min(lzsim[index,*,*]),max(lzsim[index,*,*])]*1.02
+	plot,[0],[0],xr=xr,yr=yr,xtit='DFF',ytit='a/L_nz',chars=1.2,/xsty,/ysty
+	xyouts,xr[0]+0.6*(xr[1]-xr[0]),yr[0]+1.018*(yr[1]-yr[0]),num2str(shot,1)+' '+num2str(t1,dp=2)+' < t < '+num2str(t2,dp=2),chars=0.8
+	FOR j=0,nx-1 DO BEGIN
+		oplot,dfflist,lzsim[index,*,j],linestyle=style[j]
+		x1=xr[0]+0.05*(xr[1]-xr[0])
+		x2=xr[0]+0.12*(xr[1]-xr[0])
+		y=yr[0]+(0.9-0.1*j)*(yr[1]-yr[0])
+		oplot,[x1,x2],y*[1,1],linestyle=style[j]
+		oplot,[0.5*(x1+x2)],[y],psym=sym[j]
+		xyouts,x2*1.1,y-0.01*(yr[1]-yr[0]),'XFF='+num2str(xfflist[j],dp=1)
+		FOR i=0,nd-1 DO oplot,[dfflist[i]],[lzsim[index,i,j]],color=color[i],psym=sym[j]
+	ENDFOR
+
+END
+
+PRO plot_lemzfit,pcase=pcase
+	PLOT_DFFXFF_SCAN,pcase=pcase
+	PLOT_DFFXFF_TAUZ,pcase=pcase,/load
+END

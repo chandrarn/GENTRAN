@@ -1,0 +1,32 @@
+W,74
+nlines=2
+
+###NOTES###
+line=0				;line indicator
+220.0,222.0			;wavelength range to fit
+inst=0.2			;instrumental width
+nlines=1			;number of lines to fit
+221.15,Ar XV,Be			;primary line of interest then interfering lines
+###DATA###
+
+line=0
+spec=loweus
+124.40,130.16
+inst=0.5
+nlines=5
+127.12,W XLVI,Cu
+126.29,W XLIV,Ga
+127.868,Mo XXXII,Na
+128.17,W XLIV,Ga
+129.41,W XLIII,Ge
+
+line=1
+spec=loweus
+130.16,137.48
+inst=0.5
+nlines=4
+132.88,W XLV,Zn
+131.24,W XLII,As
+134.81,W XLIV,Ga
+135.45,W XLIII,Ge
+###END###

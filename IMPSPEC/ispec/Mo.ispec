@@ -1,0 +1,32 @@
+Mo,42
+nlines=2
+
+###NOTES###
+line=0				;line indicator
+220.0,222.0			;wavelength range to fit
+inst=0.2			;instrumental width
+nlines=1			;number of lines to fit
+221.15,Ar XV,Be			;primary line of interest then interfering lines
+###DATA###
+
+line=0
+spec=loweus
+113.6,118.0
+inst=0.2
+nlines=5
+115.999,Mo XXXI,Mg
+114.000,Mo ?,?
+116.700,Mo ?,?
+116.33,N VI (4th),He
+115.14,N VI (4th),He
+
+line=1
+spec=loweus
+174.8,178.3
+inst=0.2
+nlines=4
+176.648,Mo XXXII,Na
+177.1,Mo ?, ?
+175.80,Ne ?, ?
+176.90,Ne ?,?
+###END###

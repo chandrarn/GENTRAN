@@ -1,0 +1,30 @@
+name = hport_pha
+type = planar
+author = mlreinke
+
+###NOTES###
+
+This setup file is for a PILATUS detector that is being used as a PHA
+
+###DATA START###
+ap_ro = 2.599 		;major radius of aperture [meters]
+ap_zo = 0.2311		;height of aperture [meters]
+ap_alpha = 0.0		;aperture rotation angle alpha [radians]
+ap_beta  = 0.0718	;aperture rotation angle beta [radians]
+ap_gamma = 1.5708	;aperture rotation angle gamma [radians]
+ap_y = 1.0	  	;aperture width [centimeters]
+ap_z = 1.0	   	;aperture height [centimeters]
+x0 = -20.1,0.0,0.0 	;detector coordinate system (center) [centimeters]
+x1 = -20.1,-0.0,1.0	;detector coordinate system (zeta) [centimeters]
+x2 = -20.1, 1.0, 0.0 	;detector coordinate system (xi) [centimeters]
+det_xi = 0.0172		;detector width [centimeters]
+det_zeta = 0.0172	;detector height[centimeters]
+xi = -1			;xi locations of detector centers [centimeters]
+zeta = -1		;zeta locations of detector centers [centimeters]
+xi_ch = 0.0172		;xi spacing of channels [centimeters]
+n_xi = 195		;number of xi channels
+xi_o = 97		;xi location of center channel
+zeta_ch = 0.0172	;zeta spacing of channels
+n_zeta = 487		;number of zeta channels
+zeta_o = 243		;zeta location of center channel
+###DATA END###

@@ -1,0 +1,469 @@
+Variables:	wave	elem	cs	note	iso	priority	source
+Type:	Float	String	String	String	String	Integer	String
+Data:	201.51	Mo	II		?	0	?
+Data:	202.03	Mo	II		?	0	?
+Data:	203.84	Mo	II		?	0	?
+Data:	204.56	Mo	II		?	0	?
+Data:	206.64	B	I		?	0	?
+Data:	206.67	B	I		?	0	?
+Data:	206.69	B	I		?	0	?
+Data:	206.72	B	I		?	0	?
+Data:	227.09	C	V		?	0	?
+Data:	227.73	C	V		?	0	?
+Data:	227.79	C	V		?	0	?
+Data:	229.7	C	III		?	0	?
+Data:	223.41	B	III		?	0	?
+Data:	247	Mo	II		?	0	?
+Data:	247.2	Mo	I		?	0	?
+Data:	247.76	Mo	II		?	0	?
+Data:	248.18	Mo	I		?	0	?
+Data:	248.48	Mo	II		?	0	?
+Data:	248.53	Mo	I		?	0	?
+Data:	249.35	O	IV		?	0	?
+Data:	249.38	O	IV		?	0	?
+Data:	249.62	Mo	II		?	0	?
+Data:	249.68	B	I		?	0	?
+Data:	249.77	B	I		?	0	?
+Data:	249.83	Mo	II		?	0	?
+Data:	250.04	Mo	II		?	0	?
+Data:	250.28	Mo	II		?	0	?
+Data:	250.62	Mo	III		?	0	?
+Data:	250.77	O	IV		?	0	?
+Data:	250.92	O	IV		?	0	?
+Data:	251.18	Mo	II		?	0	?
+Data:	251.51	Mo	II		?	0	?
+Data:	251.74	O	IV		?	0	?
+Data:	251.8	O	II		?	0	?
+Data:	252.26	N	VII	6-7 CX	?	0	?
+Data:	252.32	O	II		?	0	?
+Data:	252.47	B	IV		?	0	?
+Data:	252.69	O	II		?	0	?
+Data:	252.71	Mo	II		?	0	?
+Data:	253.04	O	VIII	8-10 CX	?	0	?
+Data:	253.65	Hg	I	lamp	?	0	?
+Data:	266.32	Pb	source		?	0	?
+Data:	273.33	He	II		?	0	?
+Data:	275.57	F	IX	9-11 CX	?	0	?
+Data:	277.54	Mo	II		?	0	?
+Data:	278.1	O	V		?	0	?
+Data:	278.7	O	V		?	0	?
+Data:	278.99	O	V		?	0	?
+Data:	280.2	Pb	source		?	0	?
+Data:	281.62	Mo	II		?	0	?
+Data:	282.17	B	IV		?	0	?
+Data:	282.32	Pb	source		?	0	?
+Data:	282.46	B	IV		?	0	?
+Data:	282.59	B	IV		?	0	?
+Data:	283.31	Pb	source		?	0	?
+Data:	283.67	C	II		?	0	?
+Data:	283.76	C	II		?	0	?
+Data:	284.82	Mo	II		?	0	?
+Data:	287.15	Mo	II		?	0	?
+Data:	287.33	Pb	source		?	0	?
+Data:	289.1	Mo	II		?	0	?
+Data:	291.19	Mo	II		?	0	?
+Data:	292.34	Mo	II		?	0	?
+Data:	293.05	Mo	II		?	0	?
+Data:	294.13	O	V		?	0	?
+Data:	294.17	O	V		?	0	?
+Data:	297.58	O	VIII	7-8 CX	?	0	?
+Data:	298.19	B	V	6-7 CX	?	0	?
+Data:	299.85	B	V	6-8 CX	?	0	?
+Data:	312.57	Hg	I	lamp	?	0	?
+Data:	313.15	Hg	I	lamp	?	0	?
+Data:	313.18	Hg	I	lamp	?	0	?
+Data:	313.87	C	VI	7-9 CX	?	0	?
+Data:	324.75	Cu	I		?	0	?
+Data:	327.4	Cu	I		?	0	?
+Data:	330.52	N	VII	8-10 CX	?	0	?
+Data:	341.48	Ni	I		?	0	?
+Data:	343.37	C	VI	6-7 CX	?	0	?
+Data:	345.13	B	II		?	0	?
+Data:	345.85	Ni	I		?	0	?
+Data:	346.17	Ni	I		?	0	?
+Data:	351.51	Ni	I		?	0	?
+Data:	352.45	Ni	I		?	0	?
+Data:	356.64	Ni	I		?	0	?
+Data:	357.87	Cr	I		?	0	?
+Data:	358.12	Fe	I		?	0	?
+Data:	359.35	Cr	I		?	0	?
+Data:	360.53	Cr	I		?	0	?
+Data:	361.94	Ni	I		?	0	?
+Data:	364.49	D	cont n=inf->2		?	0	?
+Data:	365.02	Hg	I	lamp	?	0	?
+Data:	368.08	F	IX	10-12 CX	?	0	?
+Data:	371.99	Fe	I		?	0	?
+Data:	372.71	Ne	II		?	0	?
+Data:	372.98	Ti	I		?	0	?
+Data:	373.49	Fe	I		?	0	?
+Data:	374.11	Ti	I		?	0	?
+Data:	374.56	Fe	I		?	0	?
+Data:	374.95	O	II		?	0	?
+Data:	375.29	Ti	I		?	0	?
+Data:	375.4	O	III		?	0	?
+Data:	375.9	O	III		?	0	?
+Data:	375.92	Ti	II		?	0	?
+Data:	376.13	Ti	II		?	0	?
+Data:	376.63	Ne	II		?	0	?
+Data:	377.71	Ne	II		?	0	?
+Data:	379.69	D	10->2	n=10->2	?	0	?
+Data:	379.8	Mo	I		?	0	?
+Data:	383.43	D	9->2	n=9->2	?	0	?
+Data:	384.71	F	II		?	0	?
+Data:	385	F	II		?	0	?
+Data:	385.17	F	II		?	0	?
+Data:	385.99	Fe	I		?	0	?
+Data:	386.4	Mo	I		?	0	?
+Data:	386.8	W	I		?	0	?
+Data:	388.68	N	VII	7-8 CX	?	0	?
+Data:	388.8	He	I	pretty strong	?	0	?
+Data:	388.88	D	n=8->2		?	0	?
+Data:	390.06	Ti	II		?	0	?
+Data:	390.2	Mo	I		?	0	?
+Data:	390.48	Ti	I		?	0	?
+Data:	391.2	O	II		?	0	?
+Data:	391.8	C	II		?	0	?
+Data:	392	C	II		?	0	?
+Data:	392.1	Ne	III	(trip)	?	0	?
+Data:	393.36	Ca	II		?	0	?
+Data:	393.43	C	IV		?	0	?
+Data:	394.73	O	II		?	0	?
+Data:	394.75	O	II		?	0	?
+Data:	394.76	O	II		?	0	?
+Data:	394.87	Ti	I		?	0	?
+Data:	394.9	Ar	I		?	0	?
+Data:	395.46	O	II		?	0	?
+Data:	395.63	Ti	I		?	0	?
+Data:	395.82	Ti	I		?	0	?
+Data:	396.84	Ca	II		?	0	?
+Data:	396.9	D	n=7->2		?	0	?
+Data:	397.33	O	II		?	0	?
+Data:	398.18	Ti	I		?	0	?
+Data:	398.98	Ti	I		?	0	?
+Data:	399.5	N	II		?	0	?
+Data:	399.86	Ti	I		?	0	?
+Data:	400.88	W	I		?	0	?
+Data:	401.39	Ar	II		?	0	?
+Data:	402.47	F	II		?	0	?
+Data:	402.5	F	II		?	0	?
+Data:	402.55	F	II		?	0	?
+Data:	402.62	He	I		?	0	?
+Data:	403.25	Fe	I		?	0	?
+Data:	403.26	Fe	I		?	0	?
+Data:	404.35	Cu	II		?	0	?
+Data:	404.66	Hg	I	lamp	?	0	?
+Data:	406.79	C	III		?	0	?
+Data:	406.89	C	III		?	0	?
+Data:	406.21	Mo	I		?	0	?
+Data:	406.99	Mo	I		?	0	?
+Data:	407.02	C	III		?	0	?
+Data:	407.17	Fe	I		?	0	?
+Data:	407.2	Ar	II		?	0	?
+Data:	407.22	O	II		?	0	?
+Data:	407.44	W	I		?	0	?
+Data:	407.59	O	II		?	0	?
+Data:	408.14	Mo	I		?	0	?
+Data:	408.24	Ar	II		?	0	?
+Data:	408.44	Mo	I		?	0	?
+Data:	409.6	Fe	I		?	0	?
+Data:	409.65	O	II		?	0	?
+Data:	409.82	Fe	I		?	0	?
+Data:	410.06	D	delta n=6->2		?	0	?
+Data:	410.31	F	II		?	0	?
+Data:	410.32	F	II		?	0	?
+Data:	410.35	F	II		?	0	?
+Data:	410.88	O	II		?	0	?
+Data:	411.92	O	II		?	0	?
+Data:	412.19	B	II		?	0	?
+Data:	413.09	Si	II		?	0	?
+Data:	413.25	Cl	II		?	0	?
+Data:	414.36	Mo	I		?	0	?
+Data:	414.39	Fe	I		?	0	?
+Data:	414.77	Fe	I		?	0	?
+Data:	415.61	Ar	II		?	0	?
+Data:	415.68	Fe	I		?	0	?
+Data:	417.12	W	I		?	0	?
+Data:	417.39	Fe	I		?	0	?
+Data:	418.18	Fe	I		?	0	?
+Data:	418.3	Fe	I		?	0	?
+Data:	418.36	Ar	II		?	0	?
+Data:	418.7	Fe	I		?	0	?
+Data:	418.78	Fe	I		?	0	?
+Data:	418.55	O	II		?	0	?
+Data:	418.83	Mo	I		?	0	?
+Data:	418.98	O	II		?	0	?
+Data:	419.46	Mo	I		?	0	?
+Data:	419.48	B	II		?	0	?
+Data:	420.2	Fe	I		?	0	?
+Data:	421.74	Ar	II		?	0	?
+Data:	422.67	Ca	I		?	0	?
+Data:	422.82	Ar	II		?	0	?
+Data:	423.26	Mo	I		?	0	?
+Data:	423.33	O	II		?	0	?
+Data:	424.3	B	III		?	0	?
+Data:	424.36	B	III	CX	?	0	?
+Data:	424.37	B	III		?	0	?
+Data:	424.61	Fe	I		?	0	?
+Data:	424.73	Fe	I		?	0	?
+Data:	425.44	Cr	I		?	0	?
+Data:	426.7	C	II		?	0	?
+Data:	426.73	C	II		?	0	?
+Data:	427.48	Cr	I		?	0	?
+Data:	427.75	Ar	II		?	0	?
+Data:	428.29	Ar	II		?	0	?
+Data:	428.97	Cr	I		?	0	?
+Data:	429.46	W	I		?	0	?
+Data:	429.8	Ar	II		?	0	?
+Data:	429.92	Fe	I		?	0	?
+Data:	430.06	Ti	I		?	0	?
+Data:	430.11	Ti	I		?	0	?
+Data:	430.59	Ti	I		?	0	?
+Data:	431.71	O	II		?	0	?
+Data:	431.96	O	II		?	0	?
+Data:	432.6	BD	band?		?	0	?
+Data:	433.12	Ar	II		?	0	?
+Data:	433.92	D	gamma n=5->2		?	0	?
+Data:	434.05	O	VIII	8-9 CX	?	0	?
+Data:	434.81	Ar	II		?	0	?
+Data:	434.94	O	II		?	0	?
+Data:	435.5	Kr	II		?	0	?
+Data:	435.84	Hg	I	lamp	?	0	?
+Data:	436.83	O	II		?	0	?
+Data:	437.13	Ar	II		?	0	?
+Data:	437.9	N	III		?	0	?
+Data:	437.97	Ar	II		?	0	?
+Data:	438.16	Mo	I		?	0	?
+Data:	439.2	Ne	II		?	0	?
+Data:	439.8	Ne	II		?	0	?
+Data:	440.1	Ar	II		?	0	?
+Data:	441.16	Mo	I		?	0	?
+Data:	441.29	Ar	II		?	0	?
+Data:	441.49	O	II		?	0	?
+Data:	441.51	Fe	I		?	0	?
+Data:	441.7	O	II		?	0	?
+Data:	442.36	Mo	I		?	0	?
+Data:	442.6	Ar	II		?	0	?
+Data:	443	Ar	II		?	0	?
+Data:	444.7	N	II		?	0	?
+Data:	445.03	Fe	I		?	0	?
+Data:	445.24	O	II		?	0	?
+Data:	447.1	He	I		?	0	?
+Data:	447.21	B	II		?	0	?
+Data:	447.29	B	II		?	0	?
+Data:	448.18	Ar	II		?	0	?
+Data:	448.69	B	III		?	0	?
+Data:	448.71	B	III		?	0	?
+Data:	448.72	B	III		?	0	?
+Data:	448.75	B	III	CX	?	0	?
+Data:	449.1	B	IV		?	0	?
+Data:	449.76	B	III	CX	?	0	?
+Data:	449.77	B	III		?	0	?
+Data:	449.88	C	VI	8-10 CX	?	0	?
+Data:	451.5	N	III		?	0	?
+Data:	451.98	B	V	7-9 CX	?	0	?
+Data:	452.23	Ar	I		?	0	?
+Data:	453.32	Ti	I		?	0	?
+Data:	453.48	Ti	I		?	0	?
+Data:	453.8	Ne	I		?	0	?
+Data:	454.51	Ar	II		?	0	?
+Data:	455.55	N	VII	9-11 CX	?	0	?
+Data:	459.1	O	II		?	0	?
+Data:	459.62	O	II		?	0	?
+Data:	463	N	II		?	0	?
+Data:	463.2	B	III		?	0	?
+Data:	464.74	C	III		?	0	?
+Data:	464.18	O	II		?	0	?
+Data:	464.91	O	II		?	0	?
+Data:	465.05	C	III		?	0	?
+Data:	465.74	B	IV		?	0	?
+Data:	465.83	C	IV		?	0	?
+Data:	465.86	B	IV CX		?	0	?
+Data:	466	C	IV 6-5	CX ; Zaniol & Isler PoP 10/2001	?	0	?
+Data:	466.16	O	II		?	0	?
+Data:	466.4	B	IV		?	0	?
+Data:	467.62	O	II		?	0	?
+Data:	468.57	He	II	strong	?	0	?
+Data:	468.54	He	II		?	0	?
+Data:	470.44	Ne	I		?	0	?
+Data:	470.54	O	II		?	0	?
+Data:	470.89	Ne	I		?	0	?
+Data:	471.21	Ne	I		?	0	?
+Data:	471.4	He	I		?	0	?
+Data:	471.53	Ne	I		?	0	?
+Data:	473.44	F	II		?	0	?
+Data:	473.9	Kr	II		?	0	?
+Data:	478.13	Cl	II		?	0	?
+Data:	478.42	B	II		?	0	?
+Data:	479.46	Cl	II		?	0	?
+Data:	479.47	F	IX	9-10 CX	?	0	?
+Data:	481.01	Cl	II		?	0	?
+Data:	481.95	Cl	II		?	0	?
+Data:	484.38	W	I		?	0	?
+Data:	485.94	F	II		?	0	?
+Data:	486	D	beta n=4->2		?	0	?
+Data:	488.69	W	I		?	0	?
+Data:	489.68	Cl	II		?	0	?
+Data:	490.48	Cl	II		?	0	?
+Data:	490.97	Cu	II		?	0	?
+Data:	491.77	Cl	II		?	0	?
+Data:	493.03	O	V		?	0	?
+Data:	493.09	Ne	I		?	0	?
+Data:	493.16	Cu	II		?	0	?
+Data:	493.21	C	I		?	0	?
+Data:	493.33	F	II		?	0	?
+Data:	493.51	N	I		?	0	?
+Data:	493.9	Ne	I		?	0	?
+Data:	494.04	B	II		?	0	?
+Data:	494.3	Cu	II		?	0	?
+Data:	494.46	N	V		?	0	?
+Data:	494.47	B	V	6-7 CX	?	0	?
+Data:	494.5	Ne	I		?	0	?
+Data:	495.02	N	I		?	0	?
+Data:	495.06	Mo	I		?	0	?
+Data:	495.37	Cu	II		?	0	?
+Data:	495.54	Ne	I		?	0	?
+Data:	495.7	Ne	I		?	0	?
+Data:	495.71	NE	I		?	0	?
+Data:	495.75	Mo	1		?	0	?
+Data:	495.76	Fe	I		?	0	?
+Data:	498.17	Ti	I		?	0	?
+Data:	498.26	W	I		?	0	?
+Data:	499.11	Ti	I		?	0	?
+Data:	499.55	Cl	II		?	0	?
+Data:	499.95	Ti	I		?	0	?
+Data:	500.1	N	II		?	0	?
+Data:	500.2	F	II		?	0	?
+Data:	500.25	F	II		?	0	?
+Data:	501.42	Ti	I		?	0	?
+Data:	500.5	N	II		?	0	?
+Data:	500.72	Ti	I		?	0	?
+Data:	501.7	He	I		?	0	?
+Data:	502	Ti	I		?	0	?
+Data:	502.29	Ti	I		?	0	?
+Data:	503.59	Ti	I		?	0	?
+Data:	504	Ti	I		?	0	?
+Data:	505.33	W	I		?	0	?
+Data:	507.83	Cl	II		?	0	?
+Data:	511.1	F	II		?	0	?
+Data:	513.29	C	II		?	0	?
+Data:	513.33	C	II		?	0	?
+Data:	514.35	C	II		?	0	?
+Data:	514.52	C	II		?	0	?
+Data:	515.11	C	II		?	0	?
+Data:	517.16	Fe	I		?	0	?
+Data:	517.33	F	II		?	0	?
+Data:	518.89	Ca	I		?	0	?
+Data:	522.47	W	I		?	0	?
+Data:	523.82	Mo	I		?	0	?
+Data:	524.25	Fe	I		?	0	?
+Data:	526.31	B	II		?	0	?
+Data:	529.06	C	VI	7-8 CX	?	0	?
+Data:	529.14	B	III		?	0	?
+Data:	529.3	W	I		?	0	?
+Data:	534.41	N	I		?	0	?
+Data:	534.77	B	II		?	0	?
+Data:	535.99	C	III		?	0	?
+Data:	536.14	W	I		?	0	?
+Data:	539.07	N	II		?	0	?
+Data:	539.11	W	I		?	0	?
+Data:	539.32	B	II		?	0	?
+Data:	540.06	Ne	I		?	0	?
+Data:	541.21	W	I		?	0	?
+Data:	542.39	W	I		?	0	?
+Data:	544.23	Ar	I		?	0	?
+Data:	544.34	W	I		?	0	?
+Data:	544.69	Fe	I		?	0	?
+Data:	545.56	Fe	I		?	0	?
+Data:	547.27	Fe	I		?	0	?
+Data:	548.5	Li	II		?	0	?
+Data:	549.57	N	II		?	0	?
+Data:	550.65	Mo	I		?	0	?
+Data:	551.47	W	I		?	0	?
+Data:	553.02	N	II		?	0	?
+Data:	553.31	Mo	I		?	0	?
+Data:	553.54	N	II		?	0	?
+Data:	554.32	Fe	I		?	0	?
+Data:	555.19	N	II		?	0	?
+Data:	557.05	Mo	I		?	0	?
+Data:	559.22	Fe	I		?	0	?
+Data:	563.31	B	I		?	0	?
+Data:	564.41	Ti	I		?	0	?
+Data:	564.81	C	II		?	0	?
+Data:	566.25	C	II		?	0	?
+Data:	566.66	N	II		?	0	?
+Data:	566.94	N	VII	8-9 CX	?	0	?
+Data:	567.6	N	II		?	0	?
+Data:	567.96	N	II		?	0	?
+Data:	568.62	N	II		?	0	?
+Data:	568.91	Mo	I		?	0	?
+Data:	569.59	C	III		?	0	?
+Data:	570.23	Cr	I		?	0	?
+Data:	571.08	N	II		?	0	?
+Data:	571.98	Cr	I		?	0	?
+Data:	572.27	Mo	I		?	0	?
+Data:	573.44	N	I		?	0	?
+Data:	575.14	Mo	I		?	0	?
+Data:	576.19	B	I		?	0	?
+Data:	578.39	Cr	I		?	0	?
+Data:	578.75	B	II		?	0	?
+Data:	579.19	Mo	I		?	0	?
+Data:	580.1	C	IV		?	0	?
+Data:	581.2	C	IV		?	0	?
+Data:	582.06	N	III		?	0	?
+Data:	582.11	B	I		?	0	?
+Data:	582.64	C	III		?	0	?
+Data:	585.25	Ne	I		?	0	?
+Data:	587.56	He	I		?	0	?
+Data:	587.6	He	I		?	0	?
+Data:	588.98	C	II		?	0	?
+Data:	589.16	C	II		?	0	?
+Data:	600.11	C	I		?	0	?
+Data:	600.6	C	I		?	0	?
+Data:	600.72	C	I		?	0	?
+Data:	601.07	C	I		?	0	?
+Data:	601.32	C	I		?	0	?
+Data:	601.48	C	I		?	0	?
+Data:	606.83	O	VIII	9-10 CX	?	0	?
+Data:	608.04	B	II		?	0	?
+Data:	619.96	C	VI	9-11 CX	?	0	?
+Data:	628.55	B	II		?	0	?
+Data:	640.23	Ne	I		?	0	?
+Data:	647.84	B	V	8-10 CX	?	0	?
+Data:	648.03	N	VII	10-11 CX	?	0	?
+Data:	650.65	Ne	I		?	0	?
+Data:	656.1032	D	alpha n=3->2		?	0	?
+Data:	656.2793	H	alpha n=3->2		?	0	?
+Data:	663.8	Ar	II		?	0	?
+Data:	664	Ar	II		?	0	?
+Data:	664.4	Ar	II		?	0	?
+Data:	667.82	He	I		?	0	?
+Data:	670.8	Li	I		?	0	?
+Data:	685.6	F	I		?	0	?
+Data:	688.7	Ar	II		?	0	?
+Data:	690.25	F	I		?	0	?
+Data:	692.95	Ne	I		?	0	?
+Data:	703.2	B	II	CRC says a doublet.	?	0	?
+Data:	703.75	F	I		?	0	?
+Data:	706.52	He	I		?	0	?
+Data:	712.79	F	I		?	0	?
+Data:	720.24	F	I		?	0	?
+Data:	722.6	C	IV	7-6 CX ; Zaniol & Isler PoP 10/2001	?	0	?
+Data:	728.13	He	I		?	0	?
+Data:	740.43	Cu	II		?	0	?
+Data:	761.86	B	V	7-8 CX	?	0	?
+Data:	770.73	C	IV		?	0	?
+Data:	772.63	B	IV	CX 	?	0	?
+Data:	772.64	C	IV		?	0	?
+Data:	772.82	C	IV		?	0	?
+Data:	777.19	O	I		?	0	?
+Data:	777.42	O	I		?	0	?
+Data:	777.54	O	I		?	0	?
+Data:	783.52	B	III		?	0	?
+Data:	783.86	B	III		?	0	?
+Data:	783.99	B	III		?	0	?
+Data:	784.14	B	III		?	0	?
+Data:	811.5	Ar	I		?	0	?
+Data:	828.22	B	III	CX	?	0	?
+Data:	868	N	I		?	0	?
+Data:	868.3	N	I		?	0	?
+Data:	868.6	N	I		?	0	?

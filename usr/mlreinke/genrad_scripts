@@ -1,0 +1,58 @@
+PRO adas_fournier_csplc_comp
+	adas_path='/home/mlreinke/idl/impurities/data/adas/plt89_ar.dat'
+	adas_csplc=read_plt_file(adas_path)
+	te=adas_csplc.temp
+	ntemp=n(te)+1
+	z=adas_csplc.z
+	dens=fltarr(ntemp)+1.0
+	dpt=ipt(adas_csplc.dens,dens*1.0e20)
+	kf_csplc=dblarr(z+1,ntemp)
+	FOR i=0,z DO kf_csplc[i,*]= READ_CRLE_DATA(z,i,te,dens,/extrap)/1.0e20/1.0e20
+	rec=read_loch_rec_data(load=load)
+	ion=read_loch_ion_data(load=load)
+	fq=calc_fracabund(ion,rec,te=te)
+	
+	FOR i=0,z DO BEGIN
+		plot,[0.1,0.1],/xlog,yr=[1.0e-34,3.0e-31],xr=[1,2.0e4],/xsty,/ysty,/ylog,xtit='Te [eV]',$
+			ytit='Plasma Loss Coefficient [W/m!u3!n]',tit=num2elem(z)+'+'+num2str(i,1),chars=1.2
+		oplot, te,kf_csplc[i,*]*fq.fq[i,*,0]
+		oplot,te,adas_csplc.plc[i,*,dpt]*fq.fq[i,*,0],color=200
+		stop
+	ENDFOR	
+END
+
+PRO adas_fournier_plc_comp
+
+	line_path='/home/mlreinke/idl/impurities/data/adas/plt89_ar.dat'
+	cont_path='/home/mlreinke/idl/impurities/data/adas/prb89_ar.dat'
+	csplc=read_pxx_file(line_path)
+	contplc=read_pxx_file(cont_path)
+	rec=read_loch_rec_data(load=load)
+	ion=read_loch_ion_data(load=load)
+	temp=10^(make(0,4.6,200))
+	fq=calc_fracabund(ion,rec,te=temp)
+	plc_adas=calc_plc(csplc,fq,te=temp,contplc=contplc)
+	plc_kf=plc(temp,csplc.z,/q)
+
+	te=temp
+	ntemp=n(te)+1
+	z=csplc.z
+	dens=fltarr(ntemp)+1.0
+	kf_csplc=dblarr(z+1,ntemp)
+	FOR i=0,z DO kf_csplc[i,*]= READ_CRLE_DATA(z,i,te,dens,/extrap)/1.0e20/1.0e20
+	plc_kf2=fltarr(ntemp)
+	FOR i=0,z DO plc_kf2+=kf_csplc[i,*]*fq.fq[i,*,0]	
+
+	openwin,0
+	plot, temp,plc_kf,/xlog,yr=[1.0e-33,3.0e-31],xr=[1,2.0e4],/xsty,/ysty,/ylog
+	oplot, temp,plc_kf2,linestyle=2.0
+	oplot, temp,plc_adas.plc,color=200
+
+	openwin,1
+	plot, temp,plc_kf,/xlog,yr=[0,2.5e-31],xr=[1,2.0e4],/xsty,/ysty,xtit='Te [keV]'
+	oplot, temp,plc_kf2,linestyle=2.0
+	oplot, temp,plc_adas.plc,color=200
+	stop
+
+END
+

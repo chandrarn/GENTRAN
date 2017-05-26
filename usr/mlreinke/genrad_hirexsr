@@ -1,0 +1,513 @@
+PRO hirexsr_sawtooth_phase,shot,t1,t2,phase,time,plot=plot,dph=dph,per=per
+	tcr=tcrash(shot,t1-0.1,t2+0.1,plot=plot,thr=-2.0)
+	mdsopen,'spectroscopy',shot
+	time=mdsvalue('\SPECTROSCOPY::TOP.HIREX_SR.RAW_DATA:HE_LIKE:TIME')
+	exp_time=mdsvalue('\SPECTROSCOPY::TOP.HIREX_SR:EXP_TIME')
+	mdsclose,'spectroscopy',shot
+	npts=n(time)+1
+	phase=fltarr(npts)
+	tmp=where(time GE t1 AND time LE t2)
+	FOR i=0,n(tmp) DO BEGIN
+		bnd=ibound(tcr,time[tmp[i]])
+		dt=tcr[bnd[1]]-tcr[bnd[0]]
+		phase[tmp[i]]=(time[tmp[i]]-tcr[bnd[0]])/(tcr[bnd[1]]-tcr[bnd[0]])
+		;IF phase[tmp[i]] LT exp_time/dt OR phase[i] GT (dt-exp_time)/dt THEN phase[tmp[i]]=-1.0
+	ENDFOR
+	tmp=where(phase GT 0.0)
+	phase=phase[tmp]
+	time=time[tmp]
+	order=sort(phase)
+	phase=phase[order]
+	time=time[order]
+	IF keyword_set(dph) THEN BEGIN
+		ipt=ipt(phase,dph)
+		time=shift(time,n(phase)+1-ipt)
+	ENDIF
+	per=tcr-shift(tcr,1)
+	per=mean(per[where(per GT 0)])
+	
+END
+
+FUNCTION hirexsr_deltalam_emiss,shot,lr,label,del_i=del_i,tr=tr,eps=eps,eta=eta,n_rho=n_rho,rho_vec=rho_vec,good=good,backsub=backsub,double=double,ikplot=ikplot
+
+	IF min(lr) LT 3.9 AND max(lr) GT 3.9 THEN RETURN,-1
+	x=size(lr)
+	IF x[0] EQ 1 THEN nspec=1 ELSE nspec=x[2]
+	IF min(lr) LT 3.9 THEN h=1 ELSE h=0
+	hirexsr_load_raw,shot,int,lam,time,del_i=del_i,h=h
+	IF keyword_set(tr) THEN BEGIN
+		IF tr[0] EQ tr[1] THEN tmp=ipt(time,tr[0]) ELSE tmp=where(time GE tr[0] AND time LE tr[1])
+		int=int[*,*,tmp]
+		time=[time[tmp]]
+		print, time
+		print, tr
+	ENDIF
+	IF NOT keyword_set(rho_vec) THEN n_rho=25 ELSE n_rho=n(rho_vec)+1
+	IF NOT keyword_set(eps) THEN eps=1.0
+	IF NOT keyword_set(eta) THEN eta=1.0e2
+	lam_o=mean(lr)
+	ntime=n(time)+1
+
+	FOR i=0,nspec-1 DO BEGIN
+		hirexsr_load_gpv,shot,strlowcase(label[i]),gpv,pos,ves_cent
+		nch=n(pos[0,*])+1
+		IF NOT keyword_set(good) THEN BEGIN
+			good=intarr(nch)+1
+			IF NOT h THEN good[0:24]=0
+		ENDIF
+		ngood=total(good)
+		moments=genspec_li_moments(lam,int,lam_o,lr=lr[*,i]*1.0e3,backsub=backsub,double=double,ikplot=ikplot,plot=moments_plot,err=moments_err)
+		bright_i=reform(moments[0,*,*])
+		err_i=reform(moments_err[0,*,*])
+		out=genpos_emiss_invert(bright_i,gpv,shot,time,ves_cent,good=good,eps=eps,eta=eta,rhopts=rhopts,rho_vec=rho_vec,n_rho=n_rho,err=err_i)
+		IF i EQ 0 THEN BEGIN
+			bright=fltarr(nch,nspec,ntime)
+			brerr=fltarr(nch,nspec,ntime)
+			emiss=fltarr(n_rho,nspec,ntime)
+			emerr=fltarr(n_rho,nspec,ntime)
+			brchk=fltarr(ngood,nspec,ntime)
+		ENDIF
+		bright[*,i,*]=bright_i
+		brerr[*,i,*]=err_i
+		emiss[*,i,*]=out.emiss
+		emerr[*,i,*]=out.err
+		brchk[*,i,*]=out.brchk
+	ENDFOR
+	rho=out.rho	
+	output={em:emiss,rho:rho,time:time,emerr:emerr,br:bright,good:good,brchk:brchk,brerr:brerr,int:int,lam:lam,lr:lr}
+	IF keyword_set(debug) THEN stop
+	RETURN,output
+END	
+
+PRO hirexsr_sawtooth_profiles,shot,t1,t2
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0
+	lr=[3.9455,3.9600]
+	label='w'
+	tr=[t1,t2]
+	good=intarr(48)+1
+	good[0:16]=0
+	out=hirexsr_deltalam_emiss(shot,lr,label,tr=tr,eps=eps,eta=eta,n_rho=n_rho,rho_vec=rho_vec,good=good,/back,double=double)
+	hirexsr_sawtooth_phase,shot,t1,t2,ph,ph_time,plot=abs(ps-1.0),dph=0.65,per=per
+	em=out.em
+	rho=out.rho
+	t=out.time	
+	tmp=where(sum_array(reform(out.br),/j) LT 2.0*median(sum_array(reform(out.br),/j)))
+	em=reform(em[*,0,tmp])
+	t=t[tmp]
+
+	em_new=fltarr(n(rho)+1,n(ph)+1)
+	FOR i=0,n(ph) DO BEGIN
+		ipt=where(t EQ ph_time[i])
+		IF ipt[0] NE -1 THEN em_new[*,i]=em[*,ipt]
+	ENDFOR
+	tmp=where(em_new[0,*] NE 0)
+	labels={ilab:'r/a',jlab:'Fraction of Sawtooth Period',klab:'Emissivity [AU]',$
+		ctit:num2str(shot,1)+' '+num2str(t1,dp=2)+' < t < '+num2str(t2,dp=2)+'    T!lSAW!n='+num2str(per*1000,dp=1)+' [ms]',itit:'',jtit:''}
+	genplt,em_new[*,tmp]*1.0e-15,rho,ph[tmp],cct=39,ncntrs=50,labels=labels,jo=[0.1,0.3,0.5,0.7,0.9],io=[0.05,0.25,0.45,0.6,.8],ps=ps
+	stop	
+	
+END
+
+
+PRO hirexsr_genrad_profiles,shot,t1,t2,csden,cserr,temp,temperr,dens,denserr,rhovec,plotwin=plotwin,del_i=del_i,back=back,phase=phase,out=out
+	IF !d.name EQ 'PS' THEN ps=1 ELSE ps=0
+
+	IF NOT keyword_set(plotwin) THEN plotwin=10
+	;setup ROI's for emissivity profiles
+	wl_roi_he=[[3.9455,3.9600],$		;w+n>=3
+		   [3.9600,3.9750],$		;x+y
+		   [3.9780,3.9875],$		;q,r,a
+		   [3.9875,4.0000]]		;k+j+z
+	wl_roi_h=[3.7265,3.743]		;lya1+lya2+mo	
+
+	;calculate emissivity profiles from simulations
+	emiss_he=ar_xray_emiss(csden,dens,temp,wl_roi=wl_roi_he,cserr=cserr,sigte=temperr,signe=denserr,emerr=emerr_he,csemiss=csem_he)
+	emiss_h=ar_xray_emiss(csden,dens,temp,wl_roi=wl_roi_h,cserr=cserr,sigte=temperr,signe=denserr,emerr=emerr_h,csemiss=csem_h)
+	th_he={em:emiss_he,emerr:emerr_he,rho:rhovec,csem:csem_he,time:[0.5*(t1+t2)]}
+	th_h={em:emiss_h,emerr:emerr_h,rho:rhovec,csem:csem_h,time:[0.5*(t1+t2)]}
+
+	;get efit_data
+	mdsopen,'analysis',shot
+	rmid=mdsvalue('\efit_rmid')
+	efit_t=mdsvalue('dim_of(\efit_rmid)')
+	mdsclose,'analysis',shot
+	i1=ipt(efit_t,t1)
+	i2=ipt(efit_t,t2)
+	ro=min(sum_array(rmid[i1:i2,*],/j)/(i2-i1+1.0))
+	a=max(sum_array(rmid[i1:i2,*],/j)/(i2-i1+1.0))-ro
+	
+	;calculated emissivity profiles from measurements
+	goodhe=intarr(48)+1
+	goodhe[10:14]=0
+	IF NOT keyword_set(phase) THEN BEGIN
+		t=(t1+t2)/2.0
+		tr=[t,t]
+	ENDIF ELSE BEGIN
+		hirexsr_sawtooth_phase,shot,t1,t2,ph,ph_time,dph=0.65
+		ipt=ipt(ph,phase)
+		IF ipt[0] EQ -1 THEN BEGIN
+			IF phase LT min(ph) THEN ipt=0
+			IF phase GT max(ph) THEN ipt=n(ph)
+		ENDIF
+		t=ph_time[ipt]
+		tr=[t,t]
+		del_i=1
+	ENDELSE
+
+	genspec_he=hirexsr_deltalam_emiss(shot,wl_roi_he,['w','w','z','z'],del_i=del_i,tr=tr,eps=eps,eta=eta,n_rho=invnrho,rho_vec=rhoinv,good=goodhe,back=back,/double)
+	genspec_h=hirexsr_deltalam_emiss(shot,wl_roi_h,['lya1'],del_i=del_i,tr=tr,eps=eps,eta=eta,n_rho=invnrho,rho_vec=rhoinv,good=goodh,back=back,/double)
+
+	nspec_he=n(wl_roi_he[0,*])+1
+	nspec_h=n(wl_roi_h[0,*])+1
+	label=['w','w','z','z','lya1']
+	normi=[1,1,0,0,1]
+	normval=fltarr(n(normi)+1)
+	tit=['XCIS: w+n>=3 Line Group','XCIS: x+y Line Group','XCIS: q+r+a Line Group','XCIS: z+j+k Line Group','XCIS: Ly-'+n2g('alpha')+' Line Group']
+
+	FOR j=0,nspec_he+nspec_h-1 DO BEGIN
+		IF j LE nspec_he-1 THEN BEGIN
+			genspec=genspec_he
+			emiss=emiss_he
+			emerr=emerr_he
+			csem=csem_he
+			wl_roi=wl_roi_he
+			chpt=24
+			good=goodhe
+			i=j
+			chnorm=[22,23,24,25,26]
+			q=16
+		ENDIF ELSE BEGIN
+			genspec=genspec_h
+			emiss=emiss_h
+			emerr=emerr_h
+			csem=csem_h
+			wl_roi=wl_roi_h
+			chpt=0
+			good=goodh
+			i=j-nspec_he
+			chnorm=[1,2]
+			q=17
+		ENDELSE
+			
+		plotwin+=1
+		IF keyword_set(ps) THEN BEGIN
+			xsize=7.0
+			ysize=7.0*800/1100.0
+			ls=1.5
+		ENDIF ELSE BEGIN
+			xsize=1100.0
+			ysize=800.0
+			ls=2.0
+		ENDELSE
+		IF NOT keyword_set(ps) THEN BEGIN
+			device, window_state=var
+			IF var[plotwin] EQ 0 THEN window,plotwin,xsize=xsize,ysize=ysize,xpos=1610,ypos=670,title='output profiles,'+num2str(plotwin) $
+				ELSE wset,plotwin
+		ENDIF ELSE BEGIN
+			device, xsize=xsize, ysize=ysize, /inches
+		ENDELSE
+		pos1=[0.075,0.3,0.6,0.95]
+		pos2=[0.075,0.1,0.6,0.3]
+		pos3=[0.7,0.5,0.975,0.975]
+		pos4=[0.7,0.35,0.975,0.5]
+		pos5=[0.65,0.1,0.975,0.275]
+	
+		pos1=[0.075,0.075,0.6,0.95]
+		;form brightness profiles
+		ch=indgen(n(genspec.good)+1)
+		genpos_check=fltarr(n(ch)+1)
+		genpos_err=fltarr(n(ch)+1)
+		hirexsr_load_gpv,shot,strlowcase(label[j]),gpv,pos,ves_cent
+		em_grid=grid_profile(ves_cent,emiss[*,i],rhovec*a+ro,[t],shot,tpts=t)
+		emerr_grid=grid_profile(ves_cent,emerr[*,i],rhovec*a+ro,[t],shot,tpts=t)
+
+		FOR k=0,n(ch) DO BEGIN
+			non_zero=where(gpv[k,*] GT 0)
+			IF non_zero[0] NE -1 THEN BEGIN
+				genpos_check[k]=total(gpv[k,non_zero]*em_grid[non_zero])
+				genpos_err[k]=total(gpv[k,non_zero]*emerr_grid[non_zero])
+			ENDIF
+		ENDFOR
+		
+		IF normi[j] EQ 1 THEN BEGIN
+			norm=mean(genspec.br[chnorm,i]/genpos_check[chnorm])
+			normval[j]=norm
+			exp=string(mean(genspec.em[*,i]))
+			exp=strsplit(exp,'+',/extract)
+			exp=exp[1]
+			pow=10.0^float(exp)
+		ENDIF	
+		genpos_check*=norm
+		genpos_err*=norm
+	
+		;emissivity comparison
+		maxpt=max(emiss[*,i]*norm/pow) > max(genspec.em[*,i]/pow)
+		lab=num2str(shot,1)+' t='+num2str(t,dp=2)
+		IF normi[j] THEN normstr='NORMALIZATION: '+num2str(norm,dp=2) ELSE normstr=' '
+		plot, [0],[0],pos=pos1,yr=[0,maxpt*1.05],ytit='Emissivity [AU]',/ysty,xr=[0,max(rhovec)],/xsty,chars=0.5*ls,$
+			tit=tit[j],xtit='r/a'
+		oploterror,rhovec,emiss[*,i]*norm/pow,emerr[*,i]*norm/pow,color=200,errcolor=200
+		oplot, rhovec,csem[q,*,i]*norm/pow,color=30
+		oplot, rhovec,csem[q-1,*,i]*norm/pow,color=30,linestyle=2.0
+		oplot, rhovec,csem[q+1,*,i]*norm/pow,color=30,linestyle=4.0
+		oplot, [0.9,1.0],0.6*maxpt*[1.0,1.0],color=30,linestyle=0
+		oplot, [0.9,1.0],0.4*maxpt*[1.0,1.0],color=30,linestyle=2
+		oplot, [0.9,1.0],0.2*maxpt*[1.0,1.0],color=30,linestyle=4
+		xyouts,0.91,0.62*maxpt,'EXC',color=30
+		xyouts,0.91,0.42*maxpt,'ION',color=30
+		xyouts,0.91,0.22*maxpt,'REC',color=30
+
+		oploterror,genspec.rho,genspec.em[*,i]/pow,genspec.emerr[*,i]/pow
+		xyouts,1.0,maxpt*0.7,normstr,chars=0.4*ls,orient=90
+
+		;emissivity residual
+;		residual=genspec.em[*,i]/pow-interpol(emiss[*,i]*norm/pow,rhovec,genspec.rho)
+;		residual_err=sqrt((genspec.emerr[*,i]/pow)^2+(interpol(emerr[*,i]*norm/pow,rhovec,genspec.rho))^2)
+;		max=max(residual) > 0
+;		min=min(residual) < 0
+;		plot, [0],[0],pos=pos2,/noerase,yr=[min,max]*1.05,xtit='r/a',ytit=n2g('Delta'),xr=[0,max(rhovec)],/xsty,/ysty,chars=0.5*ls
+;		oploterror,genspec.rho,residual,residual_err,psym=8,symsize=0.5*ls
+;		oplot,[0,1],[0,0],linestyle=2.0
+
+		;brightness
+		tmp=where(genspec.good EQ 1)
+		maxpt=max(genspec.br[tmp,i]+genspec.brerr[tmp,i]) > max(genpos_check+genpos_err)
+		plot, [0],[0],pos=pos3,/noerase,yr=[0,maxpt*1.05],/ysty,xr=[0,max(ch)],/xsty,ytit='Counts',chars=0.5*ls
+		makesym,9
+		oploterror,ch,genspec.br[*,i],genspec.brerr[*,i],psym=8,symsize=0.5*ls
+		makesym,10
+		oplot,ch[tmp],genspec.br[tmp,i],psym=8,symsize=0.5*ls
+		oplot,ch[tmp],genspec.brchk[*,i],color=100
+		oploterror,ch,genpos_check,genpos_err,color=200,errcolor=200
+
+		;brightness residual
+		fit_residual=genspec.br[tmp,i]-genspec.brchk[*,i]
+		chk_residual=genspec.br[*,i]-genpos_check
+		err_residual=sqrt(genspec.brerr[tmp,i]^2+genpos_err[tmp]^2)
+		max=max(fit_residual+err_residual) > 0 > max(chk_residual+err_residual)
+		min=min(fit_residual-err_residual) < 0 < min(chk_residual-err_residual)
+		plot, [0],[0],pos=pos4,/noerase,xr=[0,max(ch)],/xsty,yr=[min,max]*1.05,/ysty,xtit='CH #',ytit=n2g('Delta'),chars=0.5*ls
+		oploterror,ch[tmp],fit_residual,genspec.brerr[tmp,i],psym=8,color=100,errcolor=100,symsize=0.5*ls
+		oploterror,ch[tmp],chk_residual[tmp],err_residual,psym=8,color=200,errcolor=200,symsize=0.5*ls
+		oplot,[0,50],[0,0],linestyle=2.0
+		xyouts,max(ch)*1.05,min*0.5,lab,chars=0.3*ls,orient=90
+
+		;spectra
+		xr=[min(genspec.lam),max(genspec.lam)]
+		plot, [0],[0],pos=pos5,/noerase,xr=xr,/xsty,yr=[1,max(genspec.int[*,chpt])]*1.1,/ylog,chars=0.5*ls,xtit=n2g('lambda')+' [mAng]'
+		ct=[1,1,12,12]
+		col=[200,200,120,120]
+		wl_roi*=1.0e3
+		tmp=where(genspec.lam GE wl_roi[0,i] AND genspec.lam LE wl_roi[1,i])
+		fillx=[wl_roi[0,i],genspec.lam[tmp],wl_roi[1,i],wl_roi[0,i]]
+		filly=[1,genspec.int[tmp,chpt],1,1]
+		tmp=where(filly LT 1)
+		IF tmp[0] NE -1 THEN filly[tmp]=1
+		loadct,ct[0],/s
+		polyfill,fillx,filly,color=col[0]
+		loadct,12,/s
+		wl_roi/=1.0e3
+		oplot,genspec.lam,genspec.int[*,chpt]
+	ENDFOR
+
+	color=[0,100,30,200]
+	norm=normval[1]
+	FOR j=1,nspec_he-1 DO BEGIN
+		genspec=genspec_he
+		emiss=emiss_he
+		emerr=emerr_he
+		wl_roi=wl_roi_he
+		chpt=24
+		good=goodhe
+		i=j
+		
+			
+		plotwin+=1
+		IF keyword_set(ps) THEN BEGIN
+			xsize=5.0
+			ysize=5.0*11/9.0
+			ls=1.5
+		ENDIF ELSE BEGIN
+			xsize=900.0
+			ysize=1100.0
+			ls=2.0
+		ENDELSE
+		IF NOT keyword_set(ps) THEN BEGIN
+			device, window_state=var
+			IF var[plotwin] EQ 0 THEN window,plotwin,xsize=xsize,ysize=ysize,xpos=1610,ypos=670,title='output profiles,'+num2str(plotwin) $
+				ELSE wset,plotwin
+		ENDIF ELSE BEGIN
+			device, xsize=xsize, ysize=ysize, /inches
+		ENDELSE
+		
+		;emissivity comparison
+		maxpt=max(emiss[*,1:*]*norm/pow) > max(genspec.em[*,1:*]/pow)
+		IF j EQ 1 THEN plot, [0],[0],yr=[0,maxpt*1.05],ytit='Emissivity [AU]',/ysty,xr=[0,max(rhovec)],/xsty,chars=0.85*ls,xtit='r/a'
+		oploterror,rhovec,emiss[*,i]*norm/pow,emerr[*,i]*norm/pow,color=color[j],errcolor=color[j],linestyle=2.0
+		oploterror,genspec.rho,genspec.em[*,i]/pow,genspec.emerr[*,i]/pow,color=color[j],errcolor=color[j]
+	ENDFOR
+
+	color=[0,30,100,200]
+	norm=normval[1]
+	chpt=24
+	genspec=genspec_he
+	xr=[min(genspec.lam),max(genspec.lam)]
+	wl_roi=wl_roi_he
+	wl_roi*=1.0e3
+	FOR j=1,nspec_he-1 DO BEGIN
+		emiss=emiss_he
+		emerr=emerr_he	
+		good=goodhe
+		i=j
+				
+		plotwin+=1
+		IF keyword_set(ps) THEN BEGIN
+			xsize=7.0
+			ysize=7.0*300.0/800
+			ls=1.5
+		ENDIF ELSE BEGIN
+			xsize=800.0
+			ysize=300.0
+			ls=2.0
+		ENDELSE
+		IF NOT keyword_set(ps) THEN BEGIN
+			device, window_state=var
+			IF var[plotwin] EQ 0 THEN window,plotwin,xsize=xsize,ysize=ysize,xpos=1610,ypos=670,title='output profiles,'+num2str(plotwin) $
+				ELSE wset,plotwin
+		ENDIF ELSE BEGIN
+			device, xsize=xsize, ysize=ysize, /inches
+		ENDELSE
+
+		IF j EQ 1 THEN plot, [0],[0],xr=xr,/xsty,yr=[1,max(genspec.int[*,chpt])]*1.1,/ylog,chars=0.85*ls,xtit=n2g('lambda')+' [mAng]'
+
+		;spectra
+		
+	
+		ct=[34,34,34]
+		col=[50,120,250]
+		tmp=where(genspec.lam GE wl_roi[0,i] AND genspec.lam LE wl_roi[1,i])
+		fillx=[wl_roi[0,i],genspec.lam[tmp],wl_roi[1,i],wl_roi[0,i]]
+		filly=[1,genspec.int[tmp,chpt],1,1]
+		tmp=where(filly LT 1)
+		IF tmp[0] NE -1 THEN filly[tmp]=1
+		loadct,ct[j-1],/s
+		polyfill,fillx,filly,color=col[j-1]
+		loadct,12,/s
+	
+	ENDFOR
+	oplot,genspec.lam,genspec.int[*,chpt]	
+
+	he={gs:genspec_he,th:th_he}
+	h={gs:genspec_h,th:th_h}
+	out={he:he,h:h,norm:normval}
+	
+END
+
+PRO hespec_comp,ch=ch
+	IF NOT keyword_set(ch) THEN ch=24
+	!p.multi=[0,0,2]
+	shot=[1080220003,1080220008,1070830034]
+	t1=[1.0,1.0,0.55]
+	t2=[1.2,1.2,0.75]
+	color=[30,100,200]
+	style=[0,0,0]
+	te=[3.3,4.5,5.3]
+
+	plot,[0],[0],xr=[3.94,4.0],/xsty,yr=[0.001,1.2],/ysty,xtit='Wavelength [Ang]',ytit='Normalized Brighness',chars=1.1
+	FOR i=0,n(shot) DO BEGIN
+		print, i
+		hirexsr_load_raw,shot[i],int,lam,time
+		HIREXSR_LOAD_GPV,shot[i],'z'
+		i1=ipt(time,t1[i])
+		i2=ipt(time,t2[i])
+		int=sum_array(int[*,ch,i1:i2],/k)
+		int/=max(int)
+		oplot, lam/1.0e3,int,color=color[i],linestyle=style[i]
+		xyouts, 3.96+0.014*i,1.3, 'T!le!n = '+num2str(te[i],dp=1)+' [keV]',chars=0.9,color=color[i]
+	END
+	x=[3.94925,3.952,3.957,3.9655,3.9695,3.982,3.984,3.986,3.9905,3.994]-0.0005
+	y=[1.05,0.2,0.1,0.4,0.6,0.2,0.15,0.1,0.1,1.0]
+	lab=['w','n=4','n=3','x','y','q','r','a','k','j+z']
+	for i=0,n(lab) DO xyouts,x[i],y[i],lab[i]
+
+	shot=[1080220004,1080411024]
+	t1=[1.0,1.0]
+	t2=[1.2,1.2]
+	color=[0,0]
+	style=[0,2]
+	te=[4.1,3.9]
+	lab=['D!l2!n','He']
+
+	plot,[0],[0],xr=[3.94,4.0],/xsty,yr=[0.001,1.05],/ysty,xtit='Wavelength [Ang]',ytit='Normalized Brighness',chars=1.1
+	FOR i=0,n(shot) DO BEGIN
+		print, i
+		hirexsr_load_raw,shot[i],int,lam,time
+		i1=ipt(time,t1[i])
+		i2=ipt(time,t2[i])
+		int=sum_array(int[*,ch,i1:i2],/k)
+		int/=max(int)
+		oplot, lam/1.0e3,int,color=color[i],linestyle=style[i]
+		oplot, [3.957,3.96],((0.9-i*0.2)+0.02)*[1.0,1.0],linestyle=style[i]
+		xyouts, 3.9615,0.9-i*0.2, lab[i]+' main ion - T!le!n = '+num2str(te[i],dp=1)+' [keV]',chars=1.1
+	END
+	IF !d.name EQ 'PS' THEN psc
+	!p.multi=0
+END
+
+PRO hespec_prof,wl=wl,oplot=oplot,nohot=nohot
+	shot=[1080220003,1080220008,1080220004,1080411024]
+	color=[30,100,0,0]
+	style=[0,0,0,2]
+	IF NOT keyword_set(wl) THEn wl=1
+	wlxy=[3.9600,3.9750]*1.0e3
+	;wlxy=[3.9455,3.9600]*1.0e3
+	IF wl EQ 1 THEN wlnum=[3.9780,3.9880]*1.0e3
+	IF wl EQ 2 THEN wlnum=[3.9880,4.0000]*1.0e3
+	
+	CASE wl OF
+
+		1 : BEGIN
+			ymax=0.5
+			tit='q+r+a'
+			t1=[1.0,1.10,1.10,1.0]
+			t2=[1.1,1.12,1.12,1.1]
+			ylab=0.1
+		END
+		2 : BEGIN
+			ymax=1.55
+			tit='z+j+k'
+			t1=[1.0,1.10,1.10,1.0]
+			t2=[1.1,1.12,1.12,1.1]
+			ylab=1.0
+		END
+	END
+
+	IF NOT keyword_set(oplot) THEN plot,[0],[0],xr=[0,1.0],/xsty,yr=[0, ymax],/ysty,xtit='r!lt!n/a',ytit='Line Ratio',chars=1.3
+	IF keyword_set(nohot) THEN start=2 ELSE start=0
+	FOR i=start,n(shot) DO BEGIN
+		print, i
+		hirexsr_load_raw,shot[i],int,lam,time
+		HIREXSR_LOAD_GPV,shot[i],'z',gpv,pos,ves_cent
+		rt=genpos_pos2rmidtang(pos,shot[i],0.5*(t1+t2),/rho)
+		i1=ipt(time,t1[i])
+		i2=ipt(time,t2[i])
+		int=sum_array(int[*,*,i1:i2],/k)
+		i1=ipt(lam,wlxy[0])
+		i2=ipt(lam,wlxy[1])
+		intxy=sum_array(int[i1:i2,*],/j)-0.5*(int[i1,*]+int[i2,*])
+		i1=ipt(lam,wlnum[0])
+		i2=ipt(lam,wlnum[1])
+		intwl=sum_array(int[i1:i2,*],/j)-0.5*(int[i1,*]+int[i2,*])
+		int/=max(int)
+		good=intarr(48)+1
+		good[0:24]=0
+		tmp=where(good EQ 1 AND rt LT 0.85)
+		rat=intwl[tmp]/intxy[tmp]
+		oploterror, rt[tmp],rat,sqrt(1.0/intwl[tmp]+1.0/intxy[tmp]^2)*rat,color=color[i],linestyle=style[i],errcolor=color[i]
+		xyouts,0.2,ylab,'('+tit+')/(x+y)',chars=1.3
+	END
+
+	!p.multi=0
+END
+
+

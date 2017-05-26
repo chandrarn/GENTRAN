@@ -1,0 +1,137 @@
+FUNCTION thomson_pos,etendue=etendue,reform=reform
+	ap_vec=[.69,0.0,0.0]
+	ap_rot=[0.0,0.0,!pi/2.0]
+	ap_area=(6.0e-3*10.0e-3)
+	z_ap=[-98.0, -83.0,-69.0, -54.0, -41.0, -22.0, 0.0, 13.5, 27.0, 41.0,56.0, 69.5, 84.0, 98.5, 113.5, 127.0]*(-2.0)/10.0*1.0e-2
+	n_view=n(z_ap)+1
+	det_area=!pi*(15.0e-2)^2
+	pos=fltarr(4,n_view)
+	etendue=fltarr(n_view)
+	FOR i=0,n_view-1 DO BEGIN
+	        ap_vecin=ap_vec+[0.0,0.0,z_ap[i]]
+		R=sqrt(1.0^2+z_ap[i]^2)
+		th=atan(z_ap[i]/1.0)
+		x0=[-R*cos(th),0.0,-R*sin(th)]
+		x1=x0+[0.0,0.0,1.0]
+		x2=x0+[0.0,1.0,0.0]
+		pos[*,i]=genpos(ap_vecin,ap_rot,x0,x1,x2,[0.0,0.0],a_det=det_area,a_ap=ap_area,etendue=u)
+		etendue[i]=u
+	ENDFOR
+	IF keyword_set(reform) THEN genpos_pos_reform,pos,[0.44,0.95,0.6,-0.6]
+	output=pos
+	RETURN,output
+END
+
+
+FUNCTION thomson_gpv,grid,n_det=n_det,n_ap=n_ap,gpv_contour=gpv_contour,path=path,quiet=quiet,load=load
+	IF NOT keyword_set(path) THEN path='/home/faustian/idl/genie/data/gpv/gpv_ts.dat'
+	IF keyword_set(load) THEN BEGIN
+		restore, path, /verb
+		output=gpv
+		RETURN,output
+	ENDIF
+
+	IF NOT keyword_set(n_ap) THEN n_ap=4
+	IF NOT keyword_set(n_det) THEN n_det=4
+	ap_size=[10.0,6.0]*1.0e-3
+	ap_vec=[.69,0.0,0.0]
+	ap_rot=[0.0,0.0,!pi/2.0]
+	ap_grid=genpos_grid(ap_size[0],ap_size[1],n_ap,/center)
+	z_ap=[-98.0, -83.0,-69.0, -54.0, -41.0, -22.0, 0.0, 13.5, 27.0, 41.0,56.0, 69.5, 84.0, 98.5, 113.5, 127.0]*(-2.0)/10.0*1.0e-2	
+	n_view=n(z_ap)+1
+	print,n_view
+	n_grid=grid.n[0]*grid.n[1]
+	print,n_grid
+	det_size=[15.0,15.0]*1.0e-2
+	det_grid=genpos_grid(det_size[0],det_size[1],n_det,/center,/circle)
+	gpv=fltarr(n_view,n_grid)
+	FOR i=0,n_view-1 DO BEGIN
+		IF NOT keyword_set(quiet) THEN print, 'Channel - '+num2str(i,1)+' of '+num2str(n_view-1,1)
+	        ap_vecin=ap_vec+[0.0,0.0,z_ap[i]]
+		R=sqrt(1.0^2+z_ap[i]^2)
+		th=atan(z_ap[i]/1.0)
+		x0=[-R*cos(th),0.0,-R*sin(th)]
+		x1=x0+[0.0,0.0,1.0]
+		x2=x0+[0.0,1.0,0.0]
+		upos=genpos_upos(ap_vecin,ap_rot,x0,x1,x2,ap_grid,det_grid)
+		gpv_tmp=genpos_vol_coefs(grid,upos.upos,upos.du,contour=gpv_contour)
+		gpv[i,*]=sum_array(gpv_tmp,/i)
+	ENDFOR
+	save,gpv,filename=path
+	output=gpv
+	RETURN,output
+END
+
+
+PRO load_tsbright_data,shot,br,ch,t,debug=debug,good=good
+	IF NOT keyword_set(good) THEN BEGIN
+		good=intarr(16)+1
+		good[0]=0
+	ENDIF
+	pos=ts_pos(etendue=u)
+	mdsopen,'electrons',shot
+	ch=indgen(16)+1
+	t=mdsvalue('dim_of(\ELECTRONS::TOP.ZEFF_YAG.HARDWARE.TR16_1:INPUT_01)')
+	n_time=n_elements(t)
+	br=fltarr(16,n_time)
+	a=mdsvalue('\ELECTRONS::TOP.ZEFF_YAG.PARAMS:ORDER_TR16')
+
+	FOR i=0,n_elements(ch)-1 DO BEGIN
+		IF i LT 9 THEN path='0'+num2str(i+1,1) ELSE path=num2str(i+1,1)
+		br[i,*]=good(a[i]/4-1)*mdsvalue('\ELECTRONS::TOP.ZEFF_YAG.HARDWARE.TR16_1:INPUT_'+path,/quiet,status=status)
+		IF i EQ 14 AND keyword_set(debug) THEN stop
+	ENDFOR
+
+	mdsclose,'electrons',shot
+END
+
+
+PRO calc_tsemiss,shot,emiss,rho,time,brchk,rmaj=rmaj,n_rho=n_rho,rho_vec=rho_vec,eps=eps,eta=eta,tr=tr,debug=debug,$
+		bright=bright,n_s=n_s,good=good
+
+	;load brightness
+	load_tsbright_data,shot,bright,ch,time,good=good_ch,dt=dt,tr=tr,e1=e1,e2=e2
+	IF total(good_ch) EQ 0 THEN BEGIN
+		print, 'no slow Thomson data available'
+		RETURN
+	ENDIF
+	IF NOT keyword_set(good) THEN good=good_ch
+	n_time=n(time)+1
+	n_good=total(good)
+	n_ch=n(ch)+1
+	print, 'Slow TS Data Loaded'
+	
+
+	;setup inversion data
+	IF NOT keyword_set(n_rho) THEN IF keyword_set(rho_vec) THEN n_rho=n(rho_vec)+1 ELSE n_rho=40
+	IF NOT keyword_set(eta) THEN eta=1.0
+	IF NOT keyword_set(eps) THEN eps=1.0
+	IF NOT keyword_set(rho_vec) THEN rho_vec=make(0.0,1.0,n_rho)
+	IF NOT keyword_set(tr) THEN tr=[min(time), max(time)]
+
+	;generate voxel data
+	goodpts=where(good EQ 1)
+	pos=ts_pos(etendue=u,/reform)
+	u_input=fltarr(n_ch)+4.0*!pi
+	voxel=genpos_pos2voxel_matrix(pos[*,goodpts],u_input[goodpts],shot,tpts=time,rho_vec=rho_vec,/verb,rhopts=rhopts,n_s=n_s)
+
+
+	;generate output data
+	rho=rho_vec
+	rmaj=line_getrmaj(shot,rho,time)
+	emiss=fltarr(n_rho,n_time)
+	brchk=fltarr(n_good,n_time)
+	brchk_ch=ch[goodpts]
+	print, 'inverting profiles'
+	FOR i=0,n_time-1 DO BEGIN
+		vox_i=voxel[*,*,i]
+		a=max(vox_i)
+		pow=bright[goodpts,i]
+		IF total(vox_i) NE 0 THEN BEGIN
+			emiss[*,i]=genpos_profile_invert(pow,vox_i,double(eps*a^2),brchk=brchk_i,eta=double(eta*a^2))	
+			brchk[*,i]=brchk_i.mom
+		ENDIF
+	ENDFOR
+	print, 'inversions done'
+	IF keyword_set(debug) THEN stop
+END

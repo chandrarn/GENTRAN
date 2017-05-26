@@ -1,0 +1,29 @@
+F,9
+nlines=2
+
+###NOTES###
+line=0				;line indicator
+220.0,222.0			;wavelength range to fit
+inst=0.2			;instrumental width
+nlines=1			;number of lines to fit
+221.15,Ar XV,Be			;primary line of interest then interfering lines
+###DATA###
+
+line=0
+spec=xeus
+14.55,15.45
+inst=0.05
+nlines=2
+14.985,F IX,H
+15.1760,O VIII (n=4),H
+
+line=1
+spec=xeus
+16.4,17.25
+inst=0.05
+nlines=3
+16.8070,F VIII,He
+16.9470,F VIII,He
+16.6,Ar XVII,He
+###END###
+

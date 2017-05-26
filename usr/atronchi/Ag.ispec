@@ -1,0 +1,27 @@
+Ag,47
+nlines=2
+
+###NOTES###
+bolts are silver plated
+
+###DATA###
+
+line=0
+spec=loweus
+242.8,245.5
+inst=0.2
+nlines=3
+244.33,Ag XVIII,Zn
+243.7,?,?
+244.7,?,?
+
+line=1
+spec=loweus
+262.3,265.3
+inst=0.2
+nlines=3
+263.58,Ag XIX,Cu
+263.1,?,?
+263.85,?,?
+264.85,?,?
+###END###

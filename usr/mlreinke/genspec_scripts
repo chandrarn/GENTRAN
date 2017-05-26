@@ -1,0 +1,611 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;TESTING SCRIPTS;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+PRO calc_mist_test_data,n_ap=n_ap,n_det=n_det,raw=raw,debug=debug,nx=nx,ny=ny
+	path='/home/mlreinke/idl/genie/data/info/mist_test.info'
+	info=genpos_planar_info(path)
+	IF NOT keyword_set(nx) THEN nx=100
+	IF NOT keyword_set(ny) THEN ny=100
+	ves_grid=grid_ves(nx=100,ny=100)
+	IF keyword_set(raw) THEN rawstr='_raw' ELSE rawstr=''
+	path1='/home/mlreinke/idl/genie/data/gpv/mist_test/gpv'+rawstr+'.dat'
+	path2='/home/mlreinke/idl/genie/data/lhat/mist_test/lhat'+rawstr+'.dat'
+	lhat=1
+	gpv=genpos_planar2gpv(info,ves_grid,raw=raw,path=path1,gpv_contour=gpv_contour,n_ap=n_ap,n_det=n_det,lhat=lhat,lpath=path2)
+	IF keyword_set(debug) THEN stop
+END
+
+;use to generate line-integrated spectra
+FUNCTION test_gpv2spectra,n_ap=n_ap, n_det=n_det,load=load,gpv_contour=gpv_contour,n_lam=n_lam,debug=debug,quiet=quiet,multi=multi
+	path='/home/mlreinke/idl/genie/data/info/mist_test.info'
+	info=genpos_planar_info(path)
+	mist_path='/home/mlreinke/idl/genie/data/mist/'
+	IF NOT keyword_set(multi) THEN restore,mist_path+'mist_test.sav' ELSE restore, mist_path+'mist_1050426022_0123.sav'
+	mist.vel.w=fltarr(51)
+	mist.vel.u=fltarr(51)
+	
+	ves_grid=grid_ves(nx=100,ny=100)
+	ves_cent=grid_ves(nx=100,ny=100,/center)
+	num_det=n(info.det.xi)+1
+	path1='/home/mlreinke/idl/genie/data/gpv/mist_test/gpv_raw'
+	path2='/home/mlreinke/idl/genie/data/lhat/mist_test/lhat_raw.dat'
+	IF NOT keyword_set(load) THEN BEGIN
+		lhat=1
+		gpv=genpos_planar2gpv(info,ves_grid,/raw,path=path1,gpv_contour=gpv_contour,n_ap=n_ap,n_det=n_det,lhat=lhat,lpath=path2)
+	ENDIF ELSE BEGIN
+		restore, path2, /verb
+		restore, path1,/verb
+	ENDELSE
+
+	;run for i=0 and to generate interp data and initialize outputs
+	IF NOT keyword_set(quiet) THEN print, 'GPV2SPEC: Channel - '+num2str(0,1)+' of '+num2str(num_det-1,1)
+	tmp=genspec_gpv2spectra(ves_cent,gpv.d0,lhat.d0,mist.emiss,mist.ti,mist.vel,mist.line,shot,t_pts=[time],n_lam=n_lam,$
+		grid2rmid=grid2rmid,interp=interp)
+	n_lam=n(tmp.lam)+1
+	spectra=fltarr(n_lam,num_det)
+	spectra[*,0]=tmp.plam
+	
+	FOR i=1,num_det-1 DO BEGIN
+		IF NOT keyword_set(quiet) THEN print, 'GPV2SPEC: Channel - '+num2str(i,1)+' of '+num2str(num_det-1,1)
+		tmp=genspec_gpv2spectra(ves_cent,gpv.(i),lhat.(i),mist.emiss,mist.ti,mist.vel,mist.line,shot,$
+			t_pts=[time],n_lam=n_lam,grid2rmid=grid2rmid,interp=interp)
+		spectra[*,i]=tmp.plam
+	ENDFOR
+
+	output={spec:spectra, lam:tmp.lam}
+	IF keyword_set(debug) THEN stop
+	RETURN,output
+END
+
+FUNCTION test_pos2spectra,num,n_ap=n_ap, n_det=n_det,n_lam=n_lam,debug=debug,quiet=quiet,speed=speed,uspeed=uspeed,noraw=noraw
+	path='/home/mlreinke/idl/genie/data/info/pos_test.info'
+	info=genpos_planar_info(path)
+	mist_path='/home/mlreinke/idl/genie/data/mist/'
+	data=['mist_test.sav','mist_1050426022_0123.sav','mist_ark_data.sav']
+	restore,mist_path+data[num]
+	
+	IF keyword_set(speed) THEN mist.vel.w[0:39]=(1-((mist.vel.r[0:39]-mist.vel.r[0])/(mist.vel.r[39]-mist.vel.r[0]))^4)*speed ELSE speed=0.0
+	IF keyword_set(uspeed) THEN BEGIN
+		rho=(mist.vel.r[0:39]-mist.vel.r[0])/(mist.vel.r[39]-mist.vel.r[0])
+		mist.vel.u[0:39]=1.0e4*(1.0-rho^4)*rho^6*uspeed
+	ENDIF	
+	ves_grid=grid_ves(nx=100,ny=100)
+	ves_cent=grid_ves(nx=100,ny=100,/center)
+	lhat=1
+	IF keyword_set(noraw) THEN raw=0 ELSE raw=1
+	gpv=genpos_planar2gpv(info,ves_grid,raw=raw,path=path1,gpv_contour=gpv_contour,n_ap=n_ap,n_det=n_det,lhat=lhat,lpath=path2)
+	IF keyword_set(noraw) THEN BEGIN
+		tmp=genspec_gpv2spectra(ves_cent,gpv,lhat,mist.emiss,mist.ti,mist.vel,mist.line,shot,t_pts=[time],n_lam=n_lam,$
+			grid2rmid=grid2rmid,interp=interp,/noraw)
+	ENDIF ELSE BEGIN
+		;run for i=0 and to generate interp data and initialize outputs
+		tmp=genspec_gpv2spectra(ves_cent,gpv.d0,lhat.d0,mist.emiss,mist.ti,mist.vel,mist.line,shot,t_pts=[time],n_lam=n_lam,$
+			grid2rmid=grid2rmid,interp=interp)
+	ENDELSE
+
+	n_lam=n(tmp.lam)+1
+	spectra=fltarr(n_lam)
+	spectra[*]=tmp.plam
+
+	output={spec:spectra, lam:tmp.lam}
+	IF keyword_set(debug) THEN stop
+	RETURN,output
+END
+
+
+PRO test_emiss_inversion,num,rho_vec=rho_vec,n_rho=n_rho,eps_em=eps_em,debug=debug
+	IF NOT keyword_set(eps_em) THEN eps_em=1.0
+	mist_path=['mist_1050426022_0','mist_1050426022_6','mist_1051202012_0','mist_1051202012_6','mist_1050426022_0','mist_1050426022_0']
+	solidbody=[1,0,0,0,0,1]
+	suffix=['solid','','','','','zero']
+	label=['Ar XVII 3.949 (W)','Ar XVIII 3.731 (Ly)','Ar XVII 3.949 (W)','Ar XVIII 3.731 (Ly)','Ar XVII 3.949 (W)','Ar XVII 3.949 (W)']
+	restore, '/home/mlreinke/idl/genie/data/mist/'+mist_path[num]+'.sav'
+	restore, '/home/mlreinke/idl/genie/data/gpv/mist_test/gpv.dat'
+	num_det=n(gpv[*,0])+1	
+
+	ves_cent=grid_ves(nx=100,ny=100,/center)
+	em_grid=grid_profile(ves_cent,mist.emiss.emiss,mist.emiss.r,[time],shot,tpts=time)
+	bright=fltarr(num_det)
+	FOR j=0,num_det-1 DO BEGIN
+		non_zero=where(gpv[j,*] GT 0)
+		IF non_zero[0] NE -1 THEN bright[j]=total(gpv[j,non_zero]*em_grid[non_zero])
+	ENDFOR
+	rhopts=genpos_grid2rmid(ves_cent,shot,tpts=time,/rho)
+	voxel=genpos_gpv2voxel_matrix(gpv,rhopts,rho_vec=rho_vec,n_rho=n_rho,rho_min=rho_min)
+	a=max(voxel)
+	em_fit=genpos_profile_invert(bright,voxel,double(eps_em*a^2),brchk=br,nofirst=nofirst)
+	;load EFIT data
+	axis=line_getaxis(shot)
+	rmid=line_getrmid(shot)
+	efit_times=line_gettimes(shot)
+	efit_i=ipt(efit_times,time[0])
+	Ro=axis[efit_i,0]
+	a=rmid[efit_i,n(rmid[0,*])]-rmid[efit_i,0]
+	r_fit=rho_vec*a+Ro
+	openwin,0
+	plot, r_fit,em_fit
+	makesym,10
+	oplot, mist.emiss.r,mist.emiss.emiss,psym=8
+	IF keyword_set(debug) THEN stop
+END
+
+;test bed for spectral tomography inversions	
+PRO test_gpv2spec_inversion,num,load=load,n_lam=n_lam,order=order,bessel=bessel,poly=poly,nr=nr,speed=speed,ps=ps,debug=debug,quiet=quiet,$
+		good=good,num_phot=num_phot,seed=seed,spec_plots=spec_plots,uspeed=uspeed,eps_em=eps_em,eps_ti=eps_ti,$
+		eps_w=eps_w,n_rho=n_rho,simple=simple,boxcar=boxcar,solidbody=solid,parallel=parallel,n_iter=n_iter,nofirst=nofirst,eta=eta,diff=diff,iterate=iterate
+
+	plotwin=25
+
+	;load INFO file
+	path='/home/mlreinke/idl/genie/data/info/mist_test.info'
+	info=genpos_planar_info(path)
+	pos=genpos_planar2pos(info)
+	num_det=n(pos[0,*])+1
+
+	;define vessel grid
+	ves_grid=grid_ves(nx=100,ny=100)
+	ves_cent=grid_ves(nx=100,ny=100,/center)
+
+	;load MIST simulation data for a variety of lines/discharges
+	;		hollow He	    peaked H		peaked He	   peaked H		u and w		   zero rotation
+	mist_path=['mist_1050426022_0','mist_1050426022_6','mist_1051202012_0','mist_1051202012_6','mist_1050426022_0','mist_1050426022_0']
+	solidbody=[1,1,1,1,0,1]
+	suffix=['solid','solid','solid','','','zero']
+	label=['Ar XVII 3.949 (W)','Ar XVIII 3.731 (Ly)','Ar XVII 3.949 (W)','Ar XVIII 3.731 (Ly)','Ar XVII 3.949 (W)','Ar XVII 3.949 (W)']
+	restore, '/home/mlreinke/idl/genie/data/mist/'+mist_path[num]+'.sav'
+	mist.emiss.emiss=mist.emiss.emiss/1.0e20
+	time=mist.emiss.t
+	
+	;set save/load path for line-integrated spectra
+	spec_path='/home/mlreinke/idl/genie/data/spec/'+mist_path[num]+suffix[num]+'.spec'
+
+	IF keyword_set(boxcar) THEN BEGIN
+		num_rad=n(mist.emiss.r)+1
+		mist.emiss.emiss[0:num_rad-floor(num_rad/4)]=mist.emiss.emiss[0]
+		mist.emiss.emiss[floor(num_rad)/4+1:num_rad-1]=0.0
+		mist.ti.ti[0:num_rad-floor(num_rad/4)]=mist.ti.ti[0]
+		mist.ti.ti[floor(num_rad)/4+1:num_rad-1]=mist.ti.ti[0]/10.0
+	ENDIF
+
+	;create/load line-integrated spectra
+	IF NOT keyword_set(load) THEN BEGIN
+		;create line-integrated spectra using MIST data and speed/uspeed data
+		IF keyword_set(speed) THEN mist.vel.w[0:39]=(1-((mist.vel.r[0:39]-mist.vel.r[0])/(mist.vel.r[39]-mist.vel.r[0]))^4)*speed $
+			ELSE speed=0.0
+		IF NOT keyword_set(uspeed) THEN uspeed=0.0
+		IF solidbody[num] NE 1 THEN BEGIN
+			rho=(mist.vel.r[0:39]-mist.vel.r[0])/(mist.vel.r[39]-mist.vel.r[0])
+			mist.vel.u[0:39]=(1.0-rho^4)*rho^6*uspeed
+		ENDIF
+		restore, '/home/mlreinke/idl/genie/data/gpv/mist_test/gpv_raw.dat'
+		restore, '/home/mlreinke/idl/genie/data/lhat/mist_test/lhat_raw.dat'
+		;run for i=0 and to generate interp data and initialize outputs
+		IF NOT keyword_set(quiet) THEN print, 'GPV2SPEC: Channel - '+num2str(0,1)+' of '+num2str(num_det-1,1)
+		tmp=genspec_gpv2spectra(ves_cent,gpv.d0,lhat.d0,mist.emiss,mist.ti,mist.vel,mist.line,$
+			shot,t_pts=[time],n_lam=n_lam,grid2rmid=grid2rmid,interp=interp)
+		n_lam=n(tmp.lam)+1
+		spectra=fltarr(n_lam,num_det)
+		spectra[*,0]=tmp.plam
+		lam=tmp.lam
+	
+		FOR i=1,num_det-1 DO BEGIN
+			IF NOT keyword_set(quiet) THEN print, 'GPV2SPEC: Channel - '+num2str(i,1)+' of '+num2str(num_det-1,1)
+			tmp=genspec_gpv2spectra(ves_cent,gpv.(i),lhat.(i),mist.emiss,mist.ti,mist.vel,mist.line,shot,$
+				t_pts=[time],n_lam=n_lam,grid2rmid=grid2rmid,interp=interp)
+			spectra[*,i]=tmp.plam
+		ENDFOR
+		save,spectra,lam,speed,uspeed,filename=spec_path
+		print, 'SPECTRA GENERATED'
+		RETURN
+	ENDIF ELSE BEGIN
+		;load line-integrated spectra and GPV data
+		restore, '/home/mlreinke/idl/genie/data/gpv/mist_test/gpv.dat'
+		restore, '/home/mlreinke/idl/genie/data/lhat/mist_test/lhat.dat'
+		restore, spec_path
+		gpv_tot=gpv
+		mist.vel.w[0:39]=(1-((mist.vel.r[0:39]-mist.vel.r[0])/(mist.vel.r[39]-mist.vel.r[0]))^4)*speed
+		IF solidbody[num] NE 1 THEN BEGIN
+			rho=(mist.vel.r[0:39]-mist.vel.r[0])/(mist.vel.r[39]-mist.vel.r[0])
+			mist.vel.u[0:39]=(1.0-rho^4)*rho^6*uspeed
+		ENDIF
+	ENDELSE
+	
+	IF keyword_set(debug) THEN stop
+
+	;create a good array to allow subset of data to be used in inversion
+	IF NOT keyword_set(good) THEN BEGIN
+		good=intarr(num_det)+1
+	ENDIF
+	tmp=where(good EQ 1)
+
+	;generate moments from line-integrated data
+	mom=genspec_moments(spectra,lam,mist.line.lam_o)
+	mom_max=max(mom)
+
+	;display contour plots if chosen
+	IF keyword_set(spec_plots) THEN BEGIN
+		ch=make(1,num_det,num_det)
+		lables={ilab:n2g('lambda')+' [Ang]',jlab:'CH #',klab:'Normalized Spectral Power',jtit:'Spectra For Various Views',$
+			itit:'',ctit:''}
+		genplt,spectra/max(spectra),lam,ch,cct=39,labels=labels
+	ENDIF
+
+	;add photon noise if chosen
+	IF keyword_set(num_phot) THEN BEGIN
+		mom_real=mom						;backup exact data into mom_real
+		delta_lam=lam[1]-lam[0]
+		spectra_real=spectra		
+		rel_ch_rate=mom_real[0,*]/max(mom_real[0,*])		;if num_phot is number in the brightest spectra, how many in each
+		FOR i=0,num_det-1 DO BEGIN
+			rel_spec_rate=spectra[*,i]*delta_lam/mom_real[0,i]*rel_ch_rate[i] 	;number in a wavelength bin in each spectra
+			collected_photons=num_phot*rel_spec_rate
+			check=where(collected_photons LT 1.0)
+			IF check[0] NE -1 THEN collected_photons[check]=1.0 
+			spectra[*,i]*=(1.0+1.0/sqrt(collected_photons)*randomn(seed,n(lam)+1))
+		ENDFOR
+		mom=genspec_moments(spectra,lam,mist.line.lam_o)
+		IF keyword_set(spec_plots) THEN genplt,spectra/max(spectra_real),lam,ch,cct=39,labels=labels,win=1
+		IF keyword_set(debug) THEN stop
+	ENDIF
+
+	;load EFIT data
+	axis=line_getaxis(shot)
+	rmid=line_getrmid(shot)
+	efit_times=line_gettimes(shot)
+	efit_i=ipt(efit_times,time[0])
+	Ro=axis[efit_i,0]
+	a=rmid[efit_i,n(rmid[0,*])]-rmid[efit_i,0]
+	lam_o=mist.line.lam_o
+
+	IF solidbody[num] EQ 1 THEN solid=1
+	IF NOT keyword_set(bessel) OR keyword_set(poly) THEN BEGIN
+		IF keyword_set(solid) THEN bfield=-1.0 ELSE bfield=0.0
+		IF keyword_set(debug) THEN stop
+		out=genspec_matrix_invert(mom,gpv,pos,shot,time,ves_cent,lam_o,z,bfield=bfield,good=good,$
+			eps_em=eps_em,eps_w=eps_w,eps_ti=eps_ti,n_rho=n_rho,rho_vec=rho_vec,nofirst=nofirst,solidbody=solid,moment1_conv=conv,$
+			parallel=parallel,n_iter=n_iter,eta=eta,diff=diff,iterate=iterate)
+		em_fit=out.emiss
+		w_fit=out.w
+		u_fit=out.u
+		ti_fit=out.ti
+		rho_vec=out.rho
+		brchk=out.brchk
+		ch_chk=out.ch
+		r_fit=rho_vec*(rmid[efit_i,n(rmid[0,*])]-rmid[efit_i,0])+Ro
+	ENDIF ELSE BEGIN
+		rhopts=genpos_grid2rmid(ves_cent,shot,tpts=time,/rho)	;find rho values of (R,Z) grid points
+		bfield=genpos_grid_bfield(ves_cent,shot,t_pts=time)	;load B-field for use in incompressible velocity weighting matrix
+		;invert using polynomial or bessel function expansion
+		IF NOT keyword_set(order) THEN order=[5,5,5]
+		coefs=genspec_invert_moments(reform(mom[0,*]),reform(mom[1,*]),reform(mom[2,*]),gpv_tot[tmp,*],pos[*,tmp],bfield,$
+			mist.line,ves_cent,rhopts,order,bessel=bessel,solidbody=solidbody[num])
+		em_fit=genpos_coefs2profile(coefs.c0,bessel=bessel,nr=nr)
+		IF solidbody[num] EQ 0 THEN BEGIN
+			w_coefs=coefs.c1[0:order[1]-1]
+			u_coefs=[0,coefs.c1[order[1]:2*order[1]-1]]
+			w_fit=genpos_coefs2profile(w_coefs,bessel=bessel,nr=nr)/em_fit
+			u_fit=genpos_coefs2profile(u_coefs,bessel=bessel,nr=nr)/em_fit
+		ENDIF ELSE BEGIN
+			w_fit=genpos_coefs2profile(coefs.c1,bessel=bessel,nr=nr)/em_fit
+			u_fit=fltarr(nr)
+		ENDELSE
+
+		ti_fit=genpos_coefs2profile(coefs.c2,bessel=bessel,nr=nr)/em_fit
+		r_fit=make(0,1,nr)*a+Ro
+		brchck=fltarr(3,num_det)
+		ch_check=fltarr(num_det)
+	ENDELSE
+
+	;create plots comparing input profiles to fitted profiles
+
+	;setup profile plotting window
+	IF keyword_set(ps) THEN BEGIN
+		xsize=6.0
+		ysize=6.0*1000/850.0
+		ls=0.5
+	ENDIF ELSE BEGIN
+		xsize=800.0
+		ysize=1100.0
+		ls=1.0
+	ENDELSE
+	IF NOT keyword_set(ps) THEN BEGIN
+		device, window_state=var
+		IF var[plotwin] EQ 0 THEN window,plotwin,xsize=xsize,ysize=ysize,xpos=1610,ypos=670,title='output profiles,'+num2str(plotwin) $
+			ELSE wset,plotwin
+	ENDIF ELSE BEGIN
+		d_old=!d
+		device, xsize=xsize, ysize=ysize, /inches
+	ENDELSE	
+	
+	!p.multi=[0,0,4]
+	IF keyword_set(simple) THEN BEGIN
+		ti_simp=hirexsr_simple_ti(lam,spectra/max(spectra),lam_o,18,speed=speed);,/plot)
+		rmid=genpos_pos2rmidtang(pos,shot,time)
+	ENDIF
+
+	;emissivity - zeroth moment
+	makesym,10
+	plot, mist.emiss.r,mist.emiss.emiss,yr=[0.0,max(mist.emiss.emiss)*1.1],/ysty,title='Profile Reconstruction '+label[num],$
+		ytit='Emiss 10!u20!n ph/s/m!u3!n',chars=3.0*ls,psym=8,symsize=1.8*ls
+	oplot, r_fit,em_fit,color=100,thick=2.5
+
+	;w - first moment
+	plot, mist.vel.r,mist.vel.w/(2.0*!pi),yr=[0.0,max(mist.vel.w/(2.0*!pi))*1.1],/ysty,ytit='Rotation (Hz)',chars=3.0*ls,psym=8,symsize=1.8*ls
+	oplot, r_fit,w_fit,color=100,thick=2.5
+	IF keyword_set(simple) THEN BEGIN
+		makesym,9
+		oplot, rmid,-1.0*speed/(pos[2,*]*cos(pos[3,*]))/(2.0*!pi),psym=8,color=200,symsize=1.8*ls
+	ENDIF
+	;stop
+	makesym,10
+
+	;u - first moment
+	plot, mist.vel.r,mist.vel.u,yr=[0.0,max(mist.vel.u)*1.1],/ysty,ytit='U-Profile',chars=3.0*ls,psym=8,symsize=1.8*ls
+	oplot, r_fit,u_fit,color=100,thick=2.5
+
+	;ion temperature - second moment
+	plot, mist.ti.r,mist.ti.ti,yr=[0.0,max(mist.ti.ti)*1.1],/ysty,xtit='Major Radius (m)',$
+		ytit='Ion Temperture (keV)',chars=3.0*ls,psym=8,symsize=1.8*ls
+	oplot,r_fit,ti_fit,color=100,thick=2.5
+	IF keyword_set(simple) THEN BEGIN
+		makesym,9
+		oplot, rmid,ti_simp,psym=8,color=200,symsize=1.8*ls
+	ENDIF
+
+	IF keyword_set(debug) THEN stop
+
+	!p.multi=[0,0,3]
+	IF keyword_set(ps) THEN BEGIN
+		xsize=6.0
+		ysize=6.0*1000/850.0
+		ls=0.5
+	ENDIF ELSE BEGIN
+		xsize=750.0
+		ysize=850.0
+		ls=1.0
+	ENDELSE
+	IF NOT keyword_set(ps) THEN BEGIN
+		device, window_state=var
+		IF var[plotwin+1] EQ 0 THEN window,plotwin+1,xsize=xsize,ysize=ysize,xpos=2440,ypos=670,$
+			title='moment checks,'+num2str(plotwin+1) ELSE wset,plotwin+1
+	ENDIF ELSE BEGIN
+		device, xsize=xsize, ysize=ysize, /inches
+	ENDELSE
+	
+	genpos_check=fltarr(num_det)
+	ch=make(0,num_det-1,num_det)+1
+	em_grid=grid_profile(ves_cent,em_fit,r_fit,[time],shot,tpts=time)
+	FOR j=0,num_det-1 DO BEGIN
+		non_zero=where(gpv[j,*] GT 0)
+		IF non_zero[0] NE -1 THEN genpos_check[j]=total(gpv[j,non_zero]*em_grid[non_zero])
+	ENDFOR
+	makesym,10
+	yr=[0.0,max(mom[0,*])]
+	plot,ch_chk+1,brchk[0,*],ytit='0!uth!n Moment',tit='Moment Checks SHOT: '+num2str(shot,1)+' TIME: '+num2str(time,dp=2),$
+		xr=[1,n(ch)+1],/xsty,yr=yr*1.1,/ysty,chars=3.0*ls,thick=2.5
+	oplot,ch,mom[0,*],color=100,psym=8,symsize=2.0*ls
+	oplot,ch,genpos_check[*],color=200,linestyle=2,thick=2.5
+	yr=[0.0,max(mom[1,*])]
+	plot,ch_chk+1,brchk[1,*],ytit='1!ust!n Moment',xr=[1,n(ch)+1],/xsty,yr=yr*1.1,/ysty,chars=3.0*ls,thick=2.5
+	oplot,ch,mom[1,*],color=100,psym=8,symsize=2.0*ls
+	yr=[0.0,max(mom[2,*])]
+	plot,ch_chk+1,brchk[2,*],ytit='2!und!n Moment',xtit='Channel #',xr=[1,n(ch)+1],/xsty,yr=yr*1.1,$
+		/ysty,chars=3.0*ls,thick=2.5
+	oplot,ch,mom[2,*],color=100,psym=8,symsize=2.0*ls
+
+	IF keyword_set(ps) THEN device, xsize=float(d_old.x_size)/d_old.x_px_cm,ysize=float(d_old.y_size)/d_old.y_px_cm
+	!p.multi=0
+
+	openwin,0
+	plot, (mom[1,*]-brchk[1,*])/mean(mom[1,*])*100,xtit='Channel #', ytit='1!ust!n Moment Residual [% of mean]',chars=1.3,psym=-8
+	openwin,2
+	plot, conv,xtit='Iteration #',ytit='STDEV/MEAN of Mom1-Brchk',chars=1.3,yr=[0.0,max(conv)*1.1]
+	
+
+	IF keyword_set(debug) THEN stop
+END
+
+
+;test bed for spectral tomography inversion noise	
+PRO test_gpv2spec_noise,num,n_seed,seed=seed,num_phot=num_phot,good=good,spec_plots=spec_plots,inv_plots=inv_plots,eps_em=eps_em,eps_ti=eps_ti,$
+		eps_w=eps_w,n_rho=n_rho,ps=ps,debug=debug,quiet=quiet,inv_num=inv_num,noise=noise,mist=mist
+
+	IF NOT keyword_set(num_phot) THEN num_phot=1.0e4
+
+	c=3.0e8  		;speed of light
+	e=1.60e-19		;conversion for eV -> J
+	mconv=1.66e-27		;conversion for amu -> kg
+
+	;load INFO file
+	path='/home/mlreinke/idl/genie/data/info/mist_test.info'
+	info=genpos_planar_info(path)
+	pos=genpos_planar2pos(info)
+	num_det=n(pos[0,*])+1
+
+	;define vessel grid
+	ves_grid=grid_ves(nx=100,ny=100)
+	ves_cent=grid_ves(nx=100,ny=100,/center)
+
+	;load MIST simulation data for a variety of lines/discharges
+	mist_path=['mist_1050426022_0','mist_1050426022_6','mist_1051202012_0','mist_1051202012_6','mist_1050426022_0']
+	solidbody=[1,1,1,1,0]
+	label=['Ar XVII 3.949 (W)','Ar XVIII 3.731 (Ly)','Ar XVII 3.949 (W)','Ar XVIII 3.731 (Ly)','Ar XVII 3.949 (W)']
+	restore, '/home/mlreinke/idl/genie/data/mist/'+mist_path[num]+'.sav',/verb
+	mist.emiss.emiss=mist.emiss.emiss/1.0e20
+	time=mist.emiss.t
+
+	;set save/load path for line-integrated spectra
+	IF solidbody[num] EQ 1 THEN spec_path='/home/mlreinke/idl/genie/data/spec/'+mist_path[num]+'.spec' ELSE $
+		spec_path='/home/mlreinke/idl/genie/data/spec/'+mist_path[num]+'_notsolid.spec'
+
+	;load line-integrated spectra and GPV data
+	restore, '/home/mlreinke/idl/genie/data/gpv/mist_test/gpv.dat',/verb
+	restore, spec_path, /verb
+	gpv_tot=gpv
+	mist.vel.w[0:39]=(1-((mist.vel.r[0:39]-mist.vel.r[0])/(mist.vel.r[39]-mist.vel.r[0]))^4)*speed
+	IF solidbody[num] NE 1 THEN BEGIN
+		rho=(mist.vel.r[0:39]-mist.vel.r[0])/(mist.vel.r[39]-mist.vel.r[0])
+		mist.vel.u[0:39]=1.0e4*(1.0-rho^4)*rho^6*uspeed
+	ENDIF
+	
+	IF keyword_set(debug) THEN stop
+
+	;create a good array to allow subset of data to be used in inversion
+	IF NOT keyword_set(good) THEN BEGIN
+		good=intarr(num_det)+1
+	ENDIF
+	tmp=where(good EQ 1)
+
+	;generate moments from line-integrated data
+	mom=genspec_moments(spectra[*,tmp],lam,mist.line.lam_o)
+
+	;display contour plots if chosen
+	IF keyword_set(spec_plots) THEN BEGIN
+		ch=make(1,n(tmp)+1,n(tmp)+1)
+		lables={ilab:n2g('lambda')+' [Ang]',jlab:'CH #',klab:'Normalized Spectral Power',jtit:'Spectra For Various Views',$
+			itit:'',ctit:''}
+		genplt,spectra/max(spectra),lam,ch,cct=39,labels=labels
+	ENDIF
+
+	;load EFIT data
+	rhopts=genpos_grid2rmid(ves_cent,shot,tpts=time,/rho)	;find rho values of (R,Z) grid points
+	bfield=genpos_grid_bfield(ves_cent,shot,t_pts=time)	;load B-field for use in incompressible velocity weighting matrix
+	axis=line_getaxis(shot)
+	rmid=line_getrmid(shot)
+	efit_times=line_gettimes(shot)
+	efit_i=ipt(efit_times,time[0])
+	Ro=axis[efit_i,0]
+	a=rmid[efit_i,n(rmid[0,*])]-rmid[efit_i,0]
+
+
+	;create regularization matrices
+	IF NOT keyword_set(n_rho) THEN n_rho=80
+	IF NOT keyword_set(eps_em) THEN eps_em=1.0
+	IF NOT keyword_set(eps_w) THEN eps_w=1.0
+	IF NOT keyword_set(eps_ti) THEN eps_ti=1.0
+	voxel=genpos_gpv2voxel_matrix(gpv[tmp,*],rhopts,rho_vec=rho_vec,n_rho=n_rho)
+	vel_voxel=genspec_gpv2voxel_vel_matrix(gpv[tmp,*],rhopts,pos[*,tmp],ves_cent,bfield,rho_vec=rho_vec,n_rho=n_rho)
+	r_fit=rho_vec*(rmid[efit_i,n(rmid[0,*])]-rmid[efit_i,0])+Ro
+	mom_real=mom 		;backup exact data into mom_real
+	spectra_real=spectra
+
+	em_profile=fltarr(n_rho, n_seed)
+	w_profile=fltarr(n_rho,n_seed)
+	ti_profile=fltarr(n_rho,n_seed)
+
+	FOR i=0,n_seed-1 DO BEGIN		
+		delta_lam=lam[1]-lam[0]				
+		rel_ch_rate=mom_real[0,*]/max(mom_real[0,*])		;if num_phot is number in the brightest spectra, how many in each
+		FOR j=0,n(tmp) DO BEGIN
+			rel_spec_rate=spectra_real[*,j]*delta_lam/mom_real[0,j]*rel_ch_rate[j] 	;number in a wavelength bin in each spectra
+			collected_photons=num_phot*rel_spec_rate
+			check=where(collected_photons LT 1.0)
+			IF check[0] NE -1 THEN collected_photons[check]=1.0 
+			spectra[*,j]=spectra_real[*,j]*(1.0+1.0/sqrt(collected_photons)*randomn(seed,n(lam)+1))
+		ENDFOR
+		mom=genspec_moments(spectra[*,tmp],lam,mist.line.lam_o)
+		IF keyword_set(spec_plots) THEN genplt,spectra/max(spectra_real),lam,ch,cct=39,labels=labels,win=1
+		IF keyword_set(debug) THEN stop
+		mom0=mom[0,*]
+		mom1=mom[1,*]
+		mom2=mom[2,*]
+
+		a=max(voxel)
+		em_fit=genpos_profile_invert([0.0,mom0[1:n(mom0)-1],0.0],voxel,double(eps_em*a^2),brchk=brchk)
+		a=max(vel_voxel)
+		vel_inv=genpos_profile_invert([0.0,mom1[1:n(mom1)-1],0.0],vel_voxel,double(eps_w*a^2),brchk=brchk)
+		w_fit=vel_inv/(mist.line.lam_o/c)/em_fit
+		a=max(voxel)
+		sub_vector=(mist.line.lam_o/c)^2*voxel#(vel_inv^2/em_fit)
+		ti_fit=genpos_profile_invert([0.0,mom2[1:n(mom2)-1],0.0]-sub_vector,voxel,double(eps_ti*a^2),brchk=brchk)/$
+			((mist.line.lam_o/c)^2*(e*1.0e3/(mist.line.mass*mconv)))/em_fit
+		u_fit=fltarr(n(rho_vec)+1)
+		
+		em_profile[*,i]=em_fit
+		w_profile[*,i]=w_fit
+		ti_profile[*,i]=ti_fit
+
+		;create plots comparing input profiles to fitted profiles
+		IF keyword_set(inv_plots) THEN BEGIN
+			;emissivity - zeroth moment
+			openwin,0
+			makesym,10
+			plot, mist.emiss.r,mist.emiss.emiss*1.0e20,yr=[0.0,max(mist.emiss.emiss)*1.1e20],/ysty,$
+				title='Emissivity Profile - '+label[num],xtit='Major Radius (m)',ytit='Emissivity ph/s/m!u3!n',chars=1.3,psym=8
+			oplot, r_fit,em_fit*1.0e20,color=100
+
+			;w - first moment
+			openwin,1
+			plot, mist.vel.r,mist.vel.w,yr=[0.0,max(mist.vel.w)*1.1],/ysty,title='Velocity (W) Profile - '+label[num],$
+				xtit='Major Radius (m)',ytit='Rotation (1/s)',chars=1.3,psym=8
+			oplot, r_fit,w_fit,color=100
+
+			;u - first moment
+			openwin,2
+			plot, mist.vel.r,mist.vel.u,yr=[0.0,max(mist.vel.u)*1.1],/ysty,title='Velocity (U) Profile - '+label[num],$
+				xtit='Major Radius (m)',ytit='Umm...? (m/s/T)',chars=1.3,psym=8
+			oplot, r_fit,u_fit,color=100
+
+			;ion temperature - second moment
+			openwin,3
+			plot, mist.ti.r,mist.ti.ti,yr=[0.0,max(mist.ti.ti)*1.1],/ysty,title='Ion Temperture Profile - '+label[num],$
+				xtit='Major Radius (m)',ytit='Ion Temperture (keV)',chars=1.3,psym=8
+			oplot,r_fit,ti_fit,color=100
+
+			IF keyword_set(debug) THEN stop
+		ENDIF
+	ENDFOR
+
+	em_std=fltarr(n_rho)
+	w_std=fltarr(n_rho)
+	ti_std=fltarr(n_rho)
+
+	FOR i=0,n_rho-1 DO BEGIN
+		em_std[i]=stdev(em_profile[i,*])
+		w_std[i]=stdev(w_profile[i,*])
+		ti_std[i]=stdev(ti_profile[i,*])
+	ENDFOR
+	IF keyword_set(ps) THEN device, xsize=7.5, ysize=3.0,/in
+	IF NOT keyword_set(inv_num) THEN inv_num=0
+	;emissivity - zeroth moment
+	openwin,0
+	makesym,10
+	plot, mist.emiss.r,mist.emiss.emiss*1.0e20,yr=[0.0,max(mist.emiss.emiss)*1.1e20],/ysty,title='Emissivity Profile - '+label[num],$
+		xtit='Major Radius (m)',ytit='Emissivity ph/s/m!u3!n',chars=1.3,psym=8
+	oplot, r_fit,em_profile[*,inv_num]*1.0e20,color=100
+	oplot, r_fit,(em_profile[*,inv_num]+em_std)*1.0e20,color=100,linestyle=2
+	oplot, r_fit,(em_profile[*,inv_num]-em_std)*1.0e20,color=100,linestyle=2
+
+	;w - first moment
+	openwin,1
+	plot, mist.vel.r,mist.vel.w,yr=[0.0,max(mist.vel.w)*1.1],/ysty,title='Velocity (W) Profile - '+label[num],xtit='Major Radius (m)',$
+		ytit='Rotation (1/s)',chars=1.3,psym=8
+	oplot, r_fit,w_profile[*,inv_num],color=100
+	oplot, r_fit,w_profile[*,inv_num]+w_std,color=100,linestyle=2
+	oplot, r_fit,w_profile[*,inv_num]-w_std,color=100,linestyle=2
+
+	;ion temperature - second moment
+	openwin,3
+	plot, mist.ti.r,mist.ti.ti,yr=[0.0,max(mist.ti.ti)*1.1],/ysty,title='Ion Temperture Profile - '+label[num],xtit='Major Radius (m)',$
+		ytit='Ion Temperture (keV)',chars=1.3,psym=8
+	oplot,r_fit,ti_profile[*,inv_num],color=100
+	oplot,r_fit,ti_profile[*,inv_num]+ti_std,color=100,linestyle=2
+	oplot,r_fit,ti_profile[*,inv_num]-ti_std,color=100,linestyle=2
+	
+	IF keyword_set(ps) THEN BEGIN
+		device,/close
+		device, xsize=7.0, ysize=5.0,/in
+	ENDIF
+
+	openwin,9
+	plot, r_fit,em_std,tit='emiss'
+	openwin,10
+	plot,r_fit,w_std,xr=[0.65,0.85],tit='w'
+	openwin,11
+	plot,r_fit,ti_std,xr=[0.65,0.85],tit='ti'
+	IF keyword_set(ps) THEN device,/close
+
+	noise={em:em_std, w:w_std,ti:ti_std,r:r_fit}
+	
+END

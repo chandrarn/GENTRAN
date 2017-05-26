@@ -1,0 +1,262 @@
+Ne,10
+nlines=25
+
+###NOTES###
+line=0				;line indicator
+220.0,222.0			;wavelength range to fit
+inst=0.2			;instrumental width
+nlines=1			;number of lines to fit
+221.15,Ar XV,Be			;primary line of interest then interfering lines
+
+###DATA###
+
+line=0
+spec=long
+725.0,750.0
+inst=3.0
+nlines=3
+735.8962,Ne I,Ne
+743.72,Ne I,Ne
+732.0,Ne IX,He
+
+line=1
+spec=long
+350.0,370.0
+inst=3.0
+nlines=4
+356.1290,Ne II,F
+353.30,Mo XXXII(2)?,Na
+358.474,Ne V,C
+364.34,C VI(2)?,H
+
+line=2
+spec=long
+705.0,725.0
+inst=3.0
+nlines=2
+712.258,Ne II(2),F
+716.948,Ne V(2),C
+
+line=3
+spec=long
+475.0,495,0
+inst=3.0
+nlines=3
+489.50,Ne III,O
+481.373,Ne V,C
+482.993,Ne V,C
+
+line=4
+spec=long
+955.0,990.0
+inst=3.0
+nlines=4
+979.00,Ne III(2),O
+962.746,Ne V(2),C
+965.986,Ne V(2),C
+977.03,C III,Be
+
+line=5
+spec=long
+515.0,527.0
+inst=3.0
+nlines=2
+521.820,Ne IV,N
+520.605,C VI,H
+
+line=6
+spec=long
+535.0,550.0
+inst=3.0
+nlines=2
+541.127,Ne IV,N
+543.89,Ne IV,N
+
+line=7
+spec=long
+1075.0,1095.0
+inst=3.0
+nlines=2
+1082.25,Ne IV(2),N
+1087.78,Ne IV(2),N
+
+line=8
+spec=long
+555.0,580.0
+inst=3.0
+nlines=5
+568.42,Ne V,C
+558.59,Ne VI,B
+558.61,Ne VII,Be
+561.728,Ne VII,Be
+562.992,Ne VII,Be
+572.337,Ne V,C
+
+line=9
+spec=long
+1110.0,1150.0
+inst=3.0
+nlines=7
+1136.84,Ne V(2),C
+1117.18,Ne VI(2),B
+1117.22,Ne VII(2),Be
+1123.46,Ne VII(2),Be
+1125.98,Ne VII(2),Be
+1140.4,C I,C
+1144.67,Ne V(2),C
+
+line=10
+spec=long
+345.0,370.0
+inst=3.0
+nlines=3
+358.474,Ne V,C
+353.85,Ar XVI,Li
+364.34,C VI(2),H
+
+line=11
+spec=long
+700.0,740.0
+inst=3.0
+nlines=4
+716.948,Ne V,C
+704.0,?,?
+730.0,Ne IX?,?
+735.8962,Ne I,Ne
+
+line=12
+spec=long
+555.0,580.0
+inst=3.0
+nlines=6
+558.59,Ne VI,B
+558.61,Ne VII,Be
+561.728,Ne VII,Be
+562.992,Ne VII,Be
+568.42,Ne V,C
+572.337,Ne V,C
+
+line=13
+spec=long
+1110.0,1150.0
+inst=3.0
+nlines=7
+1117.18,Ne VI(2),B
+1136.84,Ne V(2),C
+1117.22,Ne VII(2),Be
+1123.46,Ne VII(2),Be
+1125.98,Ne VII(2),Be
+1140.4,C I,C
+1144.67,Ne V(2),C
+
+line=14
+spec=long
+390.0,410.0
+inst=3.0
+nlines=1
+401.943,Ne VI,B
+
+line=15
+spec=long
+790.0,810.0
+inst=3.0
+nlines=2
+803.886,Ne VI,B
+801.602,Ne III,O
+
+line=16
+spec=long
+445.0,475.0
+inst=3.0
+nlines=5
+465.221,Ne VII,Be
+452.745,Ne VI,B
+460.7284,Ne II,F
+462.3908,Ne II,F
+469.82,Ne IV,N
+
+line=17
+spec=long
+915.0,945.0
+inst=3.0
+nlines=4
+930.442,Ne VII,Be
+921.457,Ne II,F
+924.782,Ne II,F
+939.640,Ne IV,N
+
+line=18
+spec=long
+750.0,785.0
+inst=3.0
+nlines=4
+770.41,Ne VIII,Be
+758.57,B III,Li
+775.21,B II,He
+780.32,Ne VIII,Be
+
+line=19
+spec=long
+750.0,785.0
+inst=3.0
+nlines=4
+780.32,Ne VIII,Be
+758.57,B III,Li
+770.41,Ne VIII,Be
+775.21,B II,He
+
+line=20
+spec=long
+725.0,740.0
+inst=3.0
+nlines=2
+732.0,Ne IX,He
+735.8962,Ne I,Ne
+
+line=21
+spec=long
+260.0,275.0
+inst=3.0
+nlines=2
+267.9,Ne IX,He
+274.0,?,?
+
+line=22
+spec=short
+260.0,275.0
+inst=1.0
+nlines=2
+267.9,Ne IX,He
+274.0,?,?
+
+line=23
+spec=long
+180.0,189.0
+inst=3.0
+nlines=4
+187.323,Ne X,H
+182.0,?,?
+183.5,?,?
+185.0,?,?
+
+line=24
+spec=short
+180.0,189.0
+inst=1.0
+nlines=4
+187.323,Ne X,H
+182.0,?,?
+183.5,?,?
+185.0,?,?
+
+line=25
+spec=short
+126.5,129.0
+inst=1.0
+nlines=1
+127.918,Ne X,H
+
+
+
+
+###END###

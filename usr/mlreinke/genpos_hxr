@@ -1,0 +1,553 @@
+FUNCTION hardxray_pos,etendue=etendue,reform=reform
+	ap_vec=[1.87,0.0,0.0]
+	ap_rot=[0.0,0.0,!pi/2.0]
+	ap_area=(5.0e-3)^2
+	x_det=[39.08, 39.24, 39.39, 39.53, 39.66, 39.78, 39.88, 39.98, 40.07, 40.14, 40.21, 40.26, 40.30, 40.34,$
+		40.36, 40.37, 40.37, 40.36, 40.34, 40.30, 40.26, 40.21, 40.14, 40.06, 39.97, 39.88, 39.77, 39.65, 39.52,$
+		39.38, 39.23, 39.07]*1.0e-2
+	y_det=[10.15, 9.51, 8.86, 8.22, 7.57, 6.91, 6.26, 5.61, 4.95, 4.29, 3.63, 2.97, 2.31, 1.65, 0.98, 0.32, -0.34,$
+		-1.00, -1.67, -2.33, -2.97, -3.65, -4.31, -4.97, -5.62, -6.28, -6.93, -7.59, -8.23, -8.88, -9.53, -10.17]*1.0e-2
+	n_view=n(x_det)+1
+	det_area=(5.0e-3)^2
+	pos=fltarr(4,n_view)
+	etendue=fltarr(n_view)
+	FOR i=0,n_view-1 DO BEGIN
+		x=x_det[i]
+		y=y_det[i]
+		R=sqrt(x^2+y^2)
+		th=atan(y/x)
+		x0=[-R*cos(th),0.0,R*sin(th)]
+		x1=x0+[sin(th),0.0,cos(th)]
+		x2=x0+[0.0,1.0,0.0]
+		pos[*,i]=genpos(ap_vec,ap_rot,x0,x1,x2,[0.0,0.0],a_det=det_area,a_ap=ap_area,etendue=u)
+		etendue[i]=u
+	ENDFOR
+	IF keyword_set(reform) THEN genpos_pos_reform,pos,[0.44,0.95,0.6,-0.6]
+	output=pos
+	RETURN,output
+END
+
+FUNCTION hardxray_gpv,grid,n_det=n_det,n_ap=n_ap,gpv_contour=gpv_contour,path=path,quiet=quiet,load=load
+	IF NOT keyword_set(path) THEN path='/home/mlreinke/idl/genie/data/gpv/gpv_hardxray.dat'
+	IF keyword_set(load) THEN BEGIN
+		restore, path, /verb
+		output=gpv
+		RETURN,output
+	ENDIF
+		
+	IF NOT keyword_set(n_ap) THEN n_ap=4
+	IF NOT keyword_set(n_det) THEN n_det=4
+	ap_size=[5.0,5.0]*1.0e-3
+	ap_vec=[1.87,0.0,0.0]
+	ap_rot=[0.0,0.0,!pi/2.0]
+	ap_grid=genpos_grid(ap_size[0],ap_size[1],n_ap,/center)
+	x_det=[39.08, 39.24, 39.39, 39.53, 39.66, 39.78, 39.88, 39.98, 40.07, 40.14, 40.21, 40.26, 40.30, 40.34,$
+		40.36, 40.37, 40.37, 40.36, 40.34, 40.30, 40.26, 40.21, 40.14, 40.06, 39.97, 39.88, 39.77, 39.65, 39.52,$
+		39.38, 39.23, 39.07]*1.0e-2
+	y_det=[10.15, 9.51, 8.86, 8.22, 7.57, 6.91, 6.26, 5.61, 4.95, 4.29, 3.63, 2.97, 2.31, 1.65, 0.98, 0.32, -0.34,$
+		-1.00, -1.67, -2.33, -2.97,  -3.65, -4.31, -4.97, -5.62, -6.28, -6.93, -7.59, -8.23, -8.88, -9.53, -10.17]*1.0e-2
+	n_view=n(x_det)+1
+	n_grid=grid.n[0]*grid.n[1]
+	det_size=[5.0,5.0]*1.0e-3
+	det_grid=genpos_grid(det_size[0],det_size[1],n_det,/center)
+	gpv=fltarr(n_view,n_grid)
+	FOR i=0,n_view-1 DO BEGIN
+		IF NOT keyword_set(quiet) THEN print, 'Channel - '+num2str(i,1)+' of '+num2str(n_view-1,1)
+		x=x_det[i]
+		y=y_det[i]
+		R=sqrt(x^2+y^2)
+		th=atan(y/x)
+		x0=[-R*cos(th),0.0,R*sin(th)]
+		x1=x0+[sin(th),0.0,cos(th)]
+		x2=x0+[0.0,1.0,0.0]
+		upos=genpos_upos(ap_vec,ap_rot,x0,x1,x2,ap_grid,det_grid)
+		gpv_tmp=genpos_vol_coefs(grid,upos.upos,upos.du,contour=gpv_contour)
+		gpv[i,*]=sum_array(gpv_tmp,/i)
+	ENDFOR
+	save,gpv,filename=path
+	output=gpv
+	RETURN,output
+END
+
+FUNCTION hardxray_ecalib,shot
+	;hardcode for now, read out of tree if necessary
+	slope=[132.8,123.3,130.0,128.6,130.0,135.7,137.2,138.7,138.7,137.2,138.7,130.0,128.6,121.3,119.7,132.8,135.7,137.2,124.8,131.4,134.2,$
+		130.0,132.8,132.8,130.0,122.3,131.9,133.3,130.5,130.0,124.5,134.2] ;keV/V
+	inter=[9.9,8.0,10.3,8.3,9.0,9.5,9.0,9.8,7.0,8.3,7.7,9.0,7.6,9.8,8.3,7.3,9.5,8.3,11.1,9.2,8.1,9.0,8.6,8.6,6.4,8.4,9.3,6.1,9.2,9.0,9.3,10.1] ;keV
+	output=[[slope],[inter]]
+	RETURN,output
+END
+
+;+
+;NAME:
+;	LOAD_HXRBRIGHT_DATA
+;
+;PURPOSE:
+;	This procedure loads a brightness profile from the raw HXR maxima nodes 
+;
+;CALLING SEQUENCE:
+;	LOAD_HXRBRIGHT_DATA,shot,br,ch,t
+;
+;INPUTS:
+;	shot:		LONG	shot number
+;
+;OPTIONAL INPUTS:
+;	dt:		FLT	of the size of time bin size [sec] DEFAULT 0.05 
+;	tr:		FLTARR	[t1,t2] of the time range [sec] DEFAULT: [0.5,1.5]
+;	e1:		FLT	of the lower energy bin [keV] DEFAULT: 0.0
+;	e2:		FLT	of the upper energy bin [keV] DEFAULT: 1000.0
+;
+;OUTPUTS:
+;	br:		FLTARR	[n_ch, n_time] of the line-integrated brightness [counts/sec/m^2-str]
+;	ch:		INTARR	[n_ch] of the channel number
+;	t:		FLTARR	[n_time] of the time points [sec]
+;
+;OPTIONAL OUTPUTS:
+;	good:		INTARR	[n_ch] of 1's and 0's determining operation channels (currently hard coded)
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke - 2/28/08
+;
+;-
+
+PRO load_hxrbright_data,shot,br,ch,t,e1=e1,e2=e2,dt=dt,debug=debug,tr=tr,good=good
+	IF NOT keyword_set(good) THEN BEGIN
+		good=intarr(32)+1
+		good[25]=0
+	ENDIF
+	pos=hardxray_pos(etendue=u)
+	ecalib=hardxray_ecalib(shot)
+	IF NOT keyword_set(dt) THEN dt=0.05
+	IF NOT keyword_set(tr) THEN tr=[0.5,1.5]
+	IF tr[0] EQ tr[1] THEN BEGIN
+		n_time=1
+		t=tr[0]
+	ENDIF ELSE BEGIN
+		n_time=floor((tr[1]-tr[0])/dt)
+		t=make(tr[0]+dt/2.0,tr[0]+n_time*dt-dt/2.0,n_time)
+	ENDELSE
+	ch=indgen(32)+1
+	br=fltarr(32,n_time)
+	IF NOT keyword_set(e1) THEN e1=0.0
+	IF NOT keyword_set(e2) THEN e2=1000.0
+	mdsopen,'lh',shot
+	FOR i=0,31 DO BEGIN
+		IF i LT 9 THEN path='0'+num2str(i+1,1) ELSE path=num2str(i+1,1)
+		data=mdsvalue('\LH::TOP.HXR.RESULTS.MAXIMA:CH'+path,/quiet,status=status)
+		IF status THEN BEGIN
+			data=float(data)
+			data[*,1]*=1.0e-7 ;convert time points to seconds
+			data[*,0]=data[*,0]*ecalib[i,0]+ecalib[i,1] ;convert voltages to energies
+			FOR j=0,n_time-1 DO BEGIN
+				tmp=where(data[*,0] GE e1 AND data[*,0] LE e2 AND data[*,1] GE t[j]-dt/2.0 AND data[*,1] LT t[j]+dt/2.0)
+				IF tmp[0] NE -1 THEN br[i,j]=(n(tmp)+1)/dt/u[i]
+			ENDFOR
+		ENDIF ELSE good[i]=0
+		IF i EQ 14 AND keyword_set(debug) THEN stop
+	ENDFOR
+	mdsclose,'lh',shot
+END
+
+;+
+;NAME:
+;	LOAD_HXRSPEC_DATA
+;
+;PURPOSE:
+;	This procedure loads a spectral brightness profile from the raw HXR maxima nodes 
+;
+;CALLING SEQUENCE:
+;	LOAD_HXRSPEC_DATA,shot,br,ch,energy,t
+;
+;INPUTS:
+;	shot:		LONG	shot number
+;
+;OPTIONAL INPUTS:
+;	dt:		FLT	of the size of time bin size [sec] DEFAULT 0.05 
+;	de:		FLT	of the size of energy bin size [keV] DEFAULT 30.0
+;	tr:		FLTARR	[t1,t2] of the time range [sec] DEFAULT: [0.5,1.5]
+;	er:		FLTARR	[e1,e2] of the energy range [keV] DEFAULT: [0,200]
+;
+;OUTPUTS:
+;	br:		FLTARR	[n_ch, n_energy, n_time] of the line-integrated spectral brightness [counts/sec/m^2-str/keV]
+;	ch:		INTARR	[n_ch] of the channel number
+;	energy:		FLTARR 	[n_energy] of the energy scale [keV]
+;	t:		FLTARR	[n_time] of the time points [sec]
+;
+;OPTIONAL OUTPUTS:
+;	good:		INTARR	[n_ch] of 1's and 0's determining operation channels (currently hard coded)
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke - 2/29/08 (adapted from LOAD_HXRBRIGHT_DATA)
+;
+;-
+
+PRO load_hxrspec_data,shot,br,ch,energy,t,de=de,dt=dt,tr=tr,er=er,good=good
+	IF NOT keyword_set(good) THEN BEGIN
+		good=intarr(32)+1
+		good[25]=0
+	ENDIF
+	pos=hardxray_pos(etendue=u)
+	ecalib=hardxray_ecalib(shot)
+	IF NOT keyword_set(dt) THEN dt=0.05
+	IF NOT keyword_set(de) THEN de=30.0
+	IF NOT keyword_set(tr) THEN tr=[0.5,1.5]
+	IF NOT keyword_set(er) THEN er=[0,200]
+	IF tr[0] EQ tr[1] THEN BEGIN
+		n_time=1
+		t=tr[0]
+	ENDIF ELSE BEGIN
+		n_time=floor((tr[1]-tr[0])/dt)
+		t=make(tr[0]+dt/2.0,tr[0]+n_time*dt-dt/2.0,n_time)
+	ENDELSE
+	n_epts=floor((er[1]-er[0])/de)
+	epts=make(er[0]+de/2.0,er[0]+n_epts*de-de/2.0,n_epts)
+	ch=indgen(32)+1
+	br=fltarr(32,n_epts,n_time)
+	mdsopen,'lh',shot
+	FOR i=0,31 DO BEGIN
+		IF i LT 9 THEN path='0'+num2str(i+1,1) ELSE path=num2str(i+1,1)
+		data=mdsvalue('\LH::TOP.HXR.RESULTS.MAXIMA:CH'+path,/quiet,status=status)
+		IF status THEN BEGIN
+			data=float(data)
+			data[*,1]*=1.0e-7 ;convert time points to seconds
+			data[*,0]=data[*,0]*ecalib[i,0]+ecalib[i,1] ;convert voltages to energies
+			FOR j=0,n_epts-1 DO BEGIN
+				FOR k=0,n_time-1 DO BEGIN
+					tmp=where(data[*,0] GE epts[j]-de/2.0 AND data[*,0] LT epts[j]+de/2.0 AND $
+						data[*,1] GE t[k]-dt/2.0 AND data[*,1] LT t[k]+dt/2.0)
+					IF tmp[0] NE -1 THEN br[i,j,k]=(n(tmp)+1)/dt/u[i]/de	;cnts/s/m^2-str/keV
+				ENDFOR
+			ENDFOR
+		ENDIF ELSE good[i]=0
+			IF i EQ 14 AND keyword_set(debug) THEN stop
+	ENDFOR
+	energy=epts
+	mdsclose,'lh',shot
+END
+
+	
+;+
+;NAME:
+;	CALC_HXREMISS_VOXEL
+;	
+;PURPOSE:
+;	This procedure calculates emissivity profiles from the hard x-ray camera countrate data assuming flux surface symmetry of
+;	emission using a voxel matrix for GENPOS_EMISS_INVERT generated using GENPOS_POS2VOXEL_MATRIX
+;	
+;CALLING SEQUENCE:
+;	CALC_HXREMISS_VOXEL,shot,emiss,rho,time,brchk
+;
+;INPUTS:
+;	shot:		LONG	shot number
+;	
+;OPTIONAL INPUTS:
+;	n_rho:		INT	number of rho points DEFAULT 40
+;	rho_vec:	FLTARR	[n_rho] rho points to use in the inversion DEFAULT: make(0,1.0,n_rho)
+;	eps:		FLT	smoothing weighting parameter DEFAULT: 1.0
+;	eta:		FLT	edge zero weighting parameter DEFAULT: 1.0
+;	tr:		FLTARR 	[t1,t2] of subset time range to do inversions DEFAULT: see LOAD_HXRBRIGHT_DATA
+;	dt:		FLT	time interval to average HXR data over (sent to LOAD_HXRBRIGHT_DATA)
+;	good		INTARR	[n_ch] of the 1's or 0's indicating whether or not channels should be used in the inversion
+;	n_s:		INT	number of points to divide line of sight into DEFAULT: see GENPOS_POS2VOXEL_MATRIX
+;
+;KEYWORD PARAMETERS:
+;	debug		/debug will stop the code before the end
+;
+;OUTPUTS:
+;	emiss:		FLTARR	[n_rho,n_time] of the line emissivity [counts/s/m^3/str]
+;	rho:		FLTARR	[n_rho] of the rho values
+;	time:		FLTARR	[n_time] of the time points [sec]
+;	brchk:		STRUC	containing the brightness check on the emissivity profile
+;				*.br	[n_good,n_time] of the brightness checks from the derived emissivity [counts/s/m^2/str]
+;				*.ch	[n_good] of the channel numbers used
+;
+;OPTIONAL OUTPUTS:
+;	bright:		FLTARR	[n_ch,n_time] of the brightness data (from LOAD_CXRS_BRIGHT_DATA) [ph/s/m^2/str]
+;	ch:		FLTARR	[n_ch] of the channel numbers
+;	rmaj:		FLTARR	[n_rho,n_time] of the outboard midplane radii of the rho values over time [m]
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke: 2/28/08 (adapted from CALC_CXRS_EMISS_DATA)
+;
+;-
+
+PRO calc_hxremiss,shot,emiss,rho,time,brchk,rmaj=rmaj,n_rho=n_rho,rho_vec=rho_vec,eps=eps,eta=eta,tr=tr,debug=debug,$
+		bright=bright,n_s=n_s,good=good,dt=dt,e1=e1,e2=e2
+
+	;load brightness
+	load_hxrbright_data,shot,bright,ch,time,good=good_ch,dt=dt,tr=tr,e1=e1,e2=e2
+	IF total(good_ch) EQ 0 THEN BEGIN
+		print, 'no HXR data available'
+		RETURN
+	ENDIF
+	IF NOT keyword_set(good) THEN good=good_ch
+	n_time=n(time)+1
+	n_good=total(good)
+	n_ch=n(ch)+1
+	print, 'HXR Data Loaded'
+	
+
+	;setup inversion data
+	IF NOT keyword_set(n_rho) THEN IF keyword_set(rho_vec) THEN n_rho=n(rho_vec)+1 ELSE n_rho=40
+	IF NOT keyword_set(eta) THEN eta=1.0
+	IF NOT keyword_set(eps) THEN eps=1.0
+	IF NOT keyword_set(rho_vec) THEN rho_vec=make(0.0,1.0,n_rho)
+	IF NOT keyword_set(tr) THEN tr=[min(time), max(time)]
+
+	;generate voxel data
+	goodpts=where(good EQ 1)
+	pos=hardxray_pos(etendue=u,/reform)
+	u_input=fltarr(n_ch)+4.0*!pi
+	voxel=genpos_pos2voxel_matrix(pos[*,goodpts],u_input[goodpts],shot,tpts=time,rho_vec=rho_vec,/verb,rhopts=rhopts,n_s=n_s)
+
+
+	;generate output data
+	rho=rho_vec
+	rmaj=line_getrmaj(shot,rho,time)
+	emiss=fltarr(n_rho,n_time)
+	brchk=fltarr(n_good,n_time)
+	brchk_ch=ch[goodpts]
+	print, 'inverting profiles'
+	FOR i=0,n_time-1 DO BEGIN
+		vox_i=voxel[*,*,i]
+		a=max(vox_i)
+		pow=bright[goodpts,i]
+		IF total(vox_i) NE 0 THEN BEGIN
+			emiss[*,i]=genpos_profile_invert(pow,vox_i,double(eps*a^2),brchk=brchk_i,eta=double(eta*a^2))	
+			brchk[*,i]=brchk_i.mom
+		ENDIF
+	ENDFOR
+	print, 'inversions done'
+	IF keyword_set(debug) THEN stop
+END
+
+PRO hxr_inv_test,phase,newgpv=newgpv,n_det=n_det,n_ap=n_ap,eps=eps,n_rho=n_rho,good=good,debug=debug,ps=ps
+	IF NOT keyword_set(nx) THEN nx=100
+	IF NOT keyword_set(ny) THEN ny=100
+	IF NOT keyword_set(n_ap) THEN n_ap=5
+	IF NOT keyword_set(n_det) THEN n_det=5
+	pspath='/home/mlreinke/presentations/cmod_6_25_07/'
+
+	restore, '/home/mlreinke/idl/data/hxr/hxr_import_'+num2str(phase,1)+'.dat', /verb
+	IF NOT keyword_set(good) THEN BEGIN
+		good=intarr(n(ch)+1)+1
+		CASE phase OF 
+			60 	: good[0:12]=0
+			90 	: good[0:12]=0
+			120	: good[0:12]=0
+		ENDCASE
+	ENDIF
+	IF NOT keyword_set(eps) THEN BEGIN
+		CASE phase OF 
+			60 	: eps=1.0
+			90 	: eps=1.0
+			120	: eps=1.0
+		ENDCASE
+	ENDIF
+	IF NOT keyword_set(n_rho) THEN BEGIN
+		CASE phase OF 
+			60 	: n_rho=22
+			90 	: n_rho=22
+			120	: n_rho=22
+		ENDCASE
+	ENDIF
+
+
+	cnts*=1.0e3
+	labels={ilab:'CH #',jlab:'Time [ms]',klab:'Photons/s',jtit:'',itit:'',ctit:'Count Rate for Phasing: '+num2str(phase,1)+'!uo!n'}
+	genplt,cnts,ch,t,cct=39,ncnt=20,labels=labels,ps=ps,jo=[1.251,5.0,10.0,15.0,20.0],path=pspath,prefix='br_'+num2str(phase)+'_'
+	pos=hardxray_pos()
+	line_path_plots,pos,/vessel,shot=shot,tpt=time,ps=ps
+	ves_cent=grid_ves(nx=nx,ny=ny,/center)
+	ves_grid=grid_ves(nx=nx,ny=ny)
+	IF keyword_set(newgpv) THEN load=0 ELSE load=1
+	gpv=hardxray_gpv(ves_grid,load=load,n_det=n_det,n_ap=n_ap)
+
+	rhopts=genpos_grid2rmid(ves_cent,shot,tpts=time,/rho)
+	axis=line_getaxis(shot)
+	rmid=line_getrmid(shot)
+	efit_times=line_gettimes(shot)
+	efit_i=ipt(efit_times,time[0])
+	Ro=axis[efit_i,0]
+	a=rmid[efit_i,n(rmid[0,*])]-rmid[efit_i,0]
+	IF NOT keyword_set(n_rho) THEN n_rho=45
+	tmp=where(good EQ 1)
+	voxel=genpos_gpv2voxel_matrix(gpv[tmp,*],rhopts,rho_vec=rho_vec,n_rho=n_rho)
+	emiss=fltarr(n_rho,n(t)+1)
+	br_check=fltarr(n(tmp)+1,n(t)+1)
+	br_check_gpv=fltarr(n(ch)+1, n(t)+1)
+	scale=max(voxel)
+	IF keyword_set(debug) THEN stop
+	FOR i=0,n(t) DO BEGIN
+		emiss[*,i]=genpos_profile_invert(reform(cnts[tmp,i]),voxel,double(eps*scale^2),svdout=svdout,brchk=brchk)
+		br_check[*,i]=brchk.mom
+		em_grid=grid_profile(ves_cent,reform(emiss[*,i]),rho_vec*a+Ro,[time],shot,tpts=time)
+		FOR j=0,n(ch) DO BEGIN
+			non_zero=where(gpv[j,*] GT 0)
+			IF non_zero[0] NE -1 THEN br_check_gpv[j,i]=total(gpv[j,non_zero]*em_grid[non_zero])
+		ENDFOR
+	ENDFOR
+	labels={ilab:'r/a',jlab:'Time [ms]',klab:'Photons/s/m!u3!n',jtit:'',itit:'',ctit:'Emissivity for Phasing: '+num2str(phase,1)+'!uo!n'}
+	genplt,emiss,rho_vec,t,cct=39,ncnt=20,labels=labels,win=1,io=[0.001,0.3,0.6,0.9],jo=[1.251,5.0,10.0,15.0,20.0],ps=ps,path=pspath,$
+		prefix='em_'+num2str(phase,1)+'_'
+	IF keyword_set(debug) THEN stop
+
+	openwin,0
+	makesym,10
+	ymax=max(cnts) > max(br_check)
+	FOR i=0,n(t) DO BEGIN
+		xtit='CH#'
+		ytit='Counts/s'
+		tit='Inversion Comparison TIME='+num2str(t[i],dp=2)+ ' ms Phase: '+num2str(phase,1)+'!uo!n'
+		plot, ch,cnts[*,i],xr=[1,32],/xsty,yr=[0,ymax*1.05],/ysty,xtit=xtit,ytit=ytit,tit=tit,psym=8,symsize=1.5,chars=1.3
+		oplot, ch,br_check_gpv[*,i],color=200,linestyle=2,thick=2+keyword_set(ps)*4
+		oplot, ch[tmp],br_check[*,i],color=100,thick=2+keyword_set(ps)*4
+		xyouts,25,ymax*0.8,n2g('epsilon')+'='+num2str(eps,dp=1),chars=1.3
+		IF NOT keyword_set(ps) THEN stop
+	ENDFOR
+END
+
+FUNCTION hxr_data_load,num
+	
+	str=num2str(num,1)
+
+	filename='/home/mlreinke/idl/data/hxr/hxr_import_'+str+'.csv'
+	outfile='/home/mlreinke/idl/data/hxr/hxr_import.sav'
+	savefile='/home/mlreinke/idl/data/hxr/hxr_import_'+str+'.dat'
+	t=[1.25,3.75,6.75,8.75,11.25,13.75,16.25,18.75,21.25,23.75]
+	csv_convert,filename,outfile
+
+	restore, outfile, /verb
+	cnts=fltarr(n(channel)+1,n(t)+1)
+	FOR i=0,n(t) DO result=execute('cnts[*,i]=t'+num2str(i+1,1))
+	ch=channel
+	
+	CASE num OF
+		60 	: shot=1070524005
+		90 	: shot=1070523021
+		120 	: shot=1070524029
+	ENDCASE
+	CASE num OF
+		60 	: time = 1.0
+		90 	: time = 1.0
+		120 	: time = 1.0
+	ENDCASE		
+
+	save, cnts,ch,t, shot, time,filename=savefile
+
+	RETURN,savefile
+END
+
+PRO test_hrx_inv,shot=shot,time=time,bolo=bolo,order=order,debug=debug,para=para,bessel=bessel,bfunc=bfunc
+	IF NOT keyword_set(shot) THEN shot=1050426022
+	IF NOT keyword_set(time) THEN time=1.0
+	IF NOT keyword_set(order) THEN order=5
+	vcent=grid_ves(nx=80,ny=80,/center)
+	restore, '/home/mlreinke/idl/genie/data/gpv/gpv_hardxray.dat',/verb
+	line_path_plots,hardxray_pos(),shot=shot,tpt=time,thick=1.0
+	rhopts=genpos_grid2rmid(vcent,shot,tpts=[time],/rho)
+	coef_matrix=genpos_gpv2coef_matrix(gpv,rhopts,order,bessel=bessel)
+	
+	;generate brightness profile from emissivity
+	rmid=line_getrmid(shot)
+	num_rmid=n(rmid[0,*])+1
+	efit_time=line_gettimes(shot)
+	efit_i=ipt(efit_time,time)
+	n_det=n(gpv[*,0])+1
+	IF keyword_set(bolo) THEN BEGIN
+		load_emdiode_data,shot,em,r,t,/tree
+		em/=1.0e6
+	ENDIF ELSE BEGIN
+		tmp=float([1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0])
+		em=fltarr(num_rmid,11)
+		r=rmid[efit_i,*]
+		IF keyword_set(para) THEN tmp=(r-r[n(r)])^4
+		IF keyword_set(bfunc) THEN tmp=beselj((r-r[0])/(r[n(r)]-r[0]),3)
+		t=make(0.0,2.0,11)
+		FOR i=0,10 DO em[*,i]=tmp
+	ENDELSE
+	emgrid=grid_profile(vcent,em,r,t,shot,tpts=[time])
+	emiss=em[*,ipt(t,time)]
+	br=fltarr(n_det)
+	FOR i=0,n_det-1 DO br[i]=total(emgrid[*,0]*gpv[i,*])
+
+	coefs=la_invert(transpose(coef_matrix)#coef_matrix,/double)#transpose(coef_matrix)#br
+	rho=(r-rmid[efit_i,0])/(rmid[efit_i,num_rmid-1]-rmid[efit_i,0])
+	IF NOT keyword_set(bessel) THEN BEGIN
+		coefs=[coefs[0],0.0,coefs[1:n(coefs)]]
+		em_inv=poly(rho,coefs)
+	ENDIF ELSE BEGIN
+		em_inv=fltarr(n(rho)+1)
+		bessel_zeros=bessel_zeros()
+		FOR i=0,order-1 DO em_inv+=coefs[i]*beselj(rho*bessel_zeros[2*i],2*i)
+	ENDELSE
+		
+	
+	wset,0
+	plot, r,em_inv
+	wset,1
+	plot, r,emiss,yr=[0.0,max(emiss)*1.1],/yst,xr=[rmid[efit_i,0],rmid[efit_i,num_rmid-1]],/xsty
+	oplot,r,em_inv,color=200
+	wset,2
+	plot, br
+	IF keyword_set(debug) THEN stop
+END
+
+
+PRO test_inv,shot=shot,time=time,bolo=bolo,order=order,debug=debug,para=para,bessel=bessel,bfunc=bfunc
+	IF NOT keyword_set(shot) THEN shot=1050426022
+	IF NOT keyword_set(time) THEN time=1.0
+	IF NOT keyword_set(order) THEN order=5
+	vcent=grid_ves(nx=80,ny=80,/center)
+	restore, '/home/mlreinke/idl/genie/data/gpv/gpv_test.dat',/verb
+	info=genpos_planar_info('/home/mlreinke/idl/genie/data/info/pol_test.info')
+	line_path_plots,genpos_planar2pos(info),shot=shot,tpt=time
+	rhopts=genpos_grid2rmid(vcent,shot,tpts=[time],/rho)
+	coef_matrix=genpos_gpv2coef_matrix(gpv,rhopts,order,bessel=bessel)
+	
+
+	;generate brightness profile from emissivity
+	rmid=line_getrmid(shot)
+	num_rmid=n(rmid[0,*])+1
+	efit_time=line_gettimes(shot)
+	efit_i=ipt(efit_time,time)
+	n_det=n(gpv[*,0])+1
+	IF keyword_set(bolo) THEN BEGIN
+		load_emdiode_data,shot,em,r,t,/tree
+		em/=1.0e6
+	ENDIF ELSE BEGIN
+		tmp=float([1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0])
+		em=fltarr(num_rmid,11)
+		r=rmid[efit_i,*]
+		IF keyword_set(para) THEN tmp=(r-r[n(r)])^4
+		rho=(r-rmid[efit_i,0])/(rmid[efit_i,num_rmid-1]-rmid[efit_i,0])
+		IF keyword_set(bfunc) THEN tmp=exp(-rho^2)
+		t=make(0.0,2.0,11)
+		FOR i=0,10 DO em[*,i]=tmp
+	ENDELSE
+	emgrid=grid_profile(vcent,em,r,t,shot,tpts=[time])
+	emiss=em[*,ipt(t,time)]
+	br=fltarr(n_det)
+	FOR i=0,n_det-1 DO br[i]=total(emgrid[*,0]*gpv[i,*])
+
+	coefs=la_invert(transpose(coef_matrix)#coef_matrix,/double)#transpose(coef_matrix)#br
+	rho=(r-rmid[efit_i,0])/(rmid[efit_i,num_rmid-1]-rmid[efit_i,0])
+	IF NOT keyword_set(bessel) THEN BEGIN
+		coefs=[coefs[0],0.0,coefs[1:n(coefs)]]
+		em_inv=poly(rho,coefs)
+	ENDIF ELSE BEGIN
+		em_inv=fltarr(n(rho)+1)
+	        bessel_zeros=bessel_zeros()
+		FOR i=0,order-1 DO em_inv+=coefs[i]*beselj(rho*bessel_zeros[i],i)
+	ENDELSE
+		
+	
+	wset,0
+	plot, r,em_inv
+	wset,1
+	plot, r,emiss,yr=[0.0,max(emiss)*1.1],/yst,xr=[rmid[efit_i,0],rmid[efit_i,num_rmid-1]],/xsty
+	oplot,r,em_inv,color=200
+	wset,2
+	plot, br
+	IF keyword_set(debug) THEN stop
+END

@@ -1,0 +1,146 @@
+PRO div_tomo,nx=nx,ny=ny,ggi_plot=ggi_plot,load=load,gpv_contour=gpv_contour,n_ap=n_ap,n_det=n_det,detector=detector,kdebug=kdebug,$
+		eps=eps,lisgo=lisgo,ps=ps,eta=eta,debug=debug
+
+	IF NOT keyword_set(nx) THEN nx=75
+	IF NOT keyword_set(ny) THEN ny=75
+	IF NOT keyword_set(n_ap) THEN n_ap=6
+	IF NOT keyword_set(n_det) THEN n_det=6
+	IF NOT keyword_set(eps) THEN eps=7.5e-8
+	IF NOT keyword_set(eta) THEN eta=1.0e-6
+	n=[nx,ny]
+	ninv=[25,25]
+	ro=[0.58,-0.46]
+	divgrid=genpos_grid(0.3,0.35,n,xo=ro[0],yo=ro[1])
+	divcent=genpos_grid(0.3,0.35,n,xo=ro[0],yo=ro[1],/center)
+
+	goodpts=genpos_grid_invessel(divcent,plot=ggi_plot,shot=990429019,del=0.001)
+	IF keyword_set(ggi_plot) THEN BEGIN
+		print, num2str(n(where(goodpts EQ 1))+1,1)+' of '+num2str(nx*ny)+' pixels are good'
+		stop
+	ENDIF
+	IF NOT keyword_set(load) THEN BEGIN
+		gpv=test_lydiv_gpv(divgrid,load=load,n_ap=n_ap,n_det=n_det,gpv_contour=gpv_contour,detector=detector,kdebug=kdebug) 
+		save, gpv, filename='/home/mlreinke/idl/genie/data/gpv/axuv/divtomo_fine.dat'
+	ENDIF ELSE restore, '/home/mlreinke/idl/genie/data/gpv/axuv/divtomo_fine.dat',/verb
+	pos=test_lydiv_pos()
+	num_det=n(pos[0,*])+1
+	ingrid=intarr(num_det)
+	FOR i=0,num_det-1 DO IF total(gpv[i,*] NE 0) THEN ingrid[i] = 1
+	tmp_gpv=gpv
+	tmp_gpv[*,where(goodpts EQ 0)]=0
+
+	data=read_lisgo_data(ves_cent=divcent)
+	line_path_plots,pos,/vessel,shot=990429019,ps=ps,/thick,/div
+	IF NOT keyword_set(lisgo) THEN data.em=max(data.em)*exp(-1000.0*((data.r-ro[0]+0.022)^2+(data.z+0.425)^2)) 
+
+	data.em[where(goodpts EQ 0)] = 0.0
+
+	
+	genpos_gpv2contour,data.em,divcent,shot=990429019,cct=27,win=21,ps=ps,/div
+	
+	br=fltarr(num_det)
+	FOR i=0,num_det-1 DO BEGIN
+		tmp=where(gpv[i,*] NE 0)
+		IF tmp[0] NE -1 THEN br[i]=total(gpv[i,tmp]*data.em[tmp])
+	ENDFOR
+
+
+	invgrid=genpos_grid(0.3,0.35,ninv,xo=ro[0],yo=ro[1])
+	invcent=genpos_grid(0.3,0.35,ninv,xo=ro[0],yo=ro[1],/center)
+	goodinv=genpos_grid_invessel(invcent,plot=ggi_plot,shot=990429019,del=0.001)
+	IF keyword_set(ggi_plot) THEN BEGIN
+		print, num2str(n(where(goodinv EQ 1))+1,1)+' of '+num2str(ninv[0]*ninv[1])+' pixels are good' 
+		stop
+	ENDIF
+	IF NOT keyword_set(load) THEN BEGIN
+		gpv_inv=test_lydiv_gpv(invgrid,n_ap=n_ap,n_det=n_det,gpv_contour=gpv_contour,detector=detector,kdebug=kdebug) 
+		save, gpv_inv, filename='/home/mlreinke/idl/genie/data/gpv/axuv/divtomo_inv.dat'
+	ENDIF ELSE restore, '/home/mlreinke/idl/genie/data/gpv/axuv/divtomo_inv.dat',/verb
+	tmp=where(goodinv EQ 0)
+;	gpv_inv[tmp]=0.0
+
+	;create a 2D regularization matrix
+	npts=ninv[0]*ninv[1]
+	ident = dblarr(npts,npts)
+	dr=dblarr(npts,npts)
+	for i = 0,npts-1 do ident(i,i)=1.		
+	
+	;create the second derivative matrix
+	dz = -2.*ident
+	for i = 1,npts-2 do begin
+		dz[i-1,i] = 1.
+		dz[i+1,i] = 1.
+	endfor
+	dz[0,1]=1.
+	dz[1,0]=1.
+	dz[npts-2,npts-1] = 1.
+	dz[npts-1,npts-2] = 1.
+	FOR i=1,ninv[0]-2 DO BEGIN
+		dz[ninv[0]*i,ninv[0]*i-1]=0.0
+		dz[ninv[0]*i-1,ninv[0]*i]=0.0
+	ENDFOR
+	 
+	dr[0,0]+=-2.0
+	FOR i=1,ninv[0]-1 DO BEGIN
+		pt=(i*ninv[0])
+		dr[pt,pt]+=-2.0
+		dr[pt-ninv[0],pt]+=1.0
+		dr[pt,pt-ninv[0]]+=1.0
+	ENDFOR	
+	
+	;create an edge boundary matrix
+	bc=fltarr(npts,npts)
+;	FOR i=0,ninv[0]-1 DO BEGIN
+;		bc[i,i]=+1.0
+;		bc[ninv[0]-1-i,ninv[0]-1-i]=+1.0
+;		bc[ninv[0]*i,ninv[0]*i]+=1.0
+;	ENDFOR
+
+	badpts=fltarr(n(goodinv)+1)
+	badpts[where(goodinv EQ 0)]=1.0
+	FOR i=0,npts-1 DO bc[i,i]=badpts[i]
+
+
+	em=la_invert(transpose(gpv_inv)#gpv_inv+eps*1.0e-20*(transpose(dr)#dr+transpose(dz)#dz)+eta*1.0e-20*transpose(bc)#bc,/double)$
+		#transpose(gpv_inv)#br	
+	genpos_gpv2contour,em,invcent,shot=990429019,cct=27,win=22,ps=ps,/div
+
+	IF NOT keyword_set(ps) THEN BEGIN
+		device,window_state=var
+		IF var[0] EQ 0 THEN window,0,xsize=800,ysize=375 ELSE wset,0
+	ENDIF ELSE BEGIN
+		d_old=!d
+		device, xsize=7.5, ysize=2.95189, /inches
+	ENDELSE
+
+	makesym,10
+	plot, br,psym=8,symsize=1.25,xtit='CH #',ytit='Brightness (AU)',chars=1.3;,tit='eps='+num2str(eps)+' eta='+num2str(eta)
+	br_inv=fltarr(n(br)+1)
+	FOR i=0,n(br) DO BEGIN
+		tmp=where(gpv_inv[i,*] NE 0)
+		IF tmp[0] NE -1 THEN br_inv[i]=total(gpv_inv[i,tmp]*em[tmp])
+	ENDFOR
+	oplot, br_inv,color=100,thick=2.0
+	prad=genpos_prad(data.em,divcent)
+	prad_inv=genpos_prad(em,invcent)
+	xyouts,30,0.8*max(br),'PRAD = '+num2str(prad,dp=2),chars=1.5
+	xyouts,30,0.65*max(br),'PRAD_INV = '+num2str(prad_inv,dp=3),color=100,chars=1.5
+;	IF keyword_set(debug) THEN stop
+
+	IF keyword_set(ps) THEN device, xsize=float(d_old.x_size)/d_old.x_px_cm,ysize=float(d_old.y_size)/d_old.y_px_cm
+
+	zcubed=reform((invcent.pnts[1,*]-invcent.pnts[1,0])^3/(max(invcent.pnts[1,*])-invcent.pnts[1,0])^3)
+	rcubed=reform((invcent.pnts[0,*]-invcent.pnts[0,0])^3/(max(invcent.pnts[0,*])-invcent.pnts[0,0])^3)
+	zlin=zcubed#dz/(invcent.pnts[1,1]-invcent.pnts[1,0])
+	rlin=rcubed#dr/(invcent.pnts[0,ninv[0]]-invcent.pnts[0,0])
+
+	IF NOT keyword_set(ps) THEN IF var[1] EQ 0 THEN window,1 ELSE wset,1
+	plot,zcubed[0:ninv[0]-1],tit='d^2/dz^2'
+	oplot,zlin[0:ninv[0]-1],color=100
+	IF NOT keyword_set(ps) THEN IF var[2] EQ 0 THEN window,2 ELSE wset,2
+	plot,rcubed[indgen(ninv[0])*ninv[0]],tit='d^2/dr^2'
+	oplot,rlin[indgen(ninv[0])*ninv[0]],color=100	
+	IF keyword_set(debug) THEN stop
+END
+
+

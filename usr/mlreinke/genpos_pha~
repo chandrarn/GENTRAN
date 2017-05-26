@@ -1,0 +1,6 @@
+PRO pha_pos
+	path='/home/mlreinke/GENIE/usr/mlreinke/pilatus_pha.info
+	info=genpos_planar_info(path)
+	pos=genpos_planar2pos(info,etendue=u)
+	stop
+END

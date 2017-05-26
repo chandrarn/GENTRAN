@@ -1,0 +1,1469 @@
+;+
+;NAME:
+;	GENPOS_CXRS_POS
+;
+;PURPOSE:
+;	This function loads hardcoded position information (some based on shot#) that allows
+;	calculation of the POS vectors for the edge CXRS system.
+;
+;CALLING SEQUENCE:
+;	result = GENPOS_CXRS_POS(array)
+;	
+;INPUTS:
+;	array:		STR	of the array name: 'tor', 'pol', 'back', 'iwpback', 'iwpsig'
+;	
+;OPTIONAL INPUTS:
+;	shot:		LONG	shot number to load shot specific data DEFAULT: -1 (current setup)
+;
+;KEYWORD PARAMETERS:
+;	debug:		/debug stops the code before the RETURN statement
+;
+;MODICATION HISTORY:
+;	Written by:	ML Reinke: 2/1/08
+;	8/18/09:	ML Reinke - added pos vectors for iwpback and iwpsig
+;-
+
+FUNCTION genpos_cxrs_pos,array,shot=shot,debug=debug
+	IF NOT keyword_set(array) THEN array='pol'
+	IF NOT keyword_set(shot) THEN shot=-1
+	pos=-1
+	IF array EQ 'pol' THEN BEGIN
+		r_lens=0.8746
+		z_lens=0.33665
+		IF shot NE -1 AND shot LT 1070900000 THEN pol_r=[84.71, 84.94, 85.17, 85.4, 85.6, 85.8, 86.03, 86.2, 86.56, 86.77,$
+				87.0, 87.27, 87.5, 87.76, 88.01, 88.27, 88.49, 88.77, 88.98, 89.21, 89.43,$
+				89.66, 89.8, 90.09, 90.3]/100.0
+		IF shot EQ -1 OR shot GT 1070900000 THEN pol_r=[84.58, 84.79, 85.00, 85.2, 85.4, 85.59, 85.79, 86.08,86.37, 86.58,$
+				86.79, 87.09, 87.33, 87.56, 87.81, 88.08, 88.31, 88.53,88.74, 88.96, 89.2,$
+				89.43, 89.64, 89.85, 90.05]/100.0
+		pol_z=0.0
+		n_ch=n(pol_r)+1
+		pos=fltarr(4,n_ch)
+		FOR i=0,n_ch-1 DO BEGIN
+			pos[0,i]=r_lens
+			pos[1,i]=z_lens
+			tok=genpos_cyl2tok([r_lens,z_lens],[pol_r[i],pol_z],1.0)
+			IF pol_r[i] GT r_lens THEN tok[1]=!pi-tok[1]
+			pos[2,i]=tok[0]
+			pos[3,i]=tok[1]
+		ENDFOR
+		pos=genpos_invert_pos(pos)
+	ENDIF
+	IF array EQ 'back' THEN BEGIN
+		r_lens=0.874
+		z_lens=0.34857
+		pol_r=[86.09, 86.34, 86.55, 86.77, 86.98, 87.2, 87.41, 87.63, 87.85,$
+			88.06, 88.28, 88.49, 88.71, 88.92, 89.14, 89.36, 89.57, 89.79, 89.99, 90.22]/100.0
+		pol_z=0.0
+		;mdsopen,'dnb',shot
+		;pol_r=mdsvalue('\DNB::TOP.MIT_CXRS.POSITION:R_POL_BCK')
+		;pol_r=pol_r[14:*]/100.0
+		;pol_z=0.0
+		;mdsclose,'dnb',shot
+
+		n_ch=n(pol_r)+1
+		pos=fltarr(4,n_ch)
+		FOR i=0,n_ch-1 DO BEGIN
+			pos[0,i]=r_lens
+			pos[1,i]=z_lens
+			tok=genpos_cyl2tok([r_lens,z_lens],[pol_r[i],pol_z],1.0)
+			IF pol_r[i] GT r_lens THEN tok[1]=!pi-tok[1]
+			pos[2,i]=tok[0]
+			pos[3,i]=tok[1]
+		ENDFOR
+		pos=genpos_invert_pos(pos)
+	ENDIF
+	IF array EQ 'tor' THEN BEGIN
+		r_lens=1.028
+		z_fp=-0.4*2.54/100.0
+		d_fp=52.037/100.0
+		psi=6.86*!pi/180.0
+		r_perp=0.882
+		d_perp=d_fp*cos(psi)
+		z_lens=-sin(psi)*d_fp+z_fp
+		r_i=[85.79, 86.01, 86.31, 86.57, 86.84, 87.13, 87.42, 87.7,  87.98, 88.23,$
+			88.51, 88.78, 89.06,89.35, 89.61, 89.88, 90.18, 90.4, 90.7, 90.96]/100.0
+		n_ch=n(r_i)+1
+		pos=fltarr(4,n_ch)
+		FOR i=0,n_ch-1 DO BEGIN
+			pos[0,i]=r_lens
+			pos[1,i]=z_lens
+			z=(r_lens^2-r_perp^2-d_perp^2)/(-2.0*d_perp)
+			x=sqrt(r_perp^2-z^2)
+			y=sqrt(r_i[i]^2-z^2)-x
+			c=sqrt(y^2+d_perp^2)
+			c2=(r_lens^2-r_i[i]^2-c^2)/(-2.0*c)
+			rt=sqrt(r_i[i]^2-c2^2)
+			pos[2,i]=rt
+			pos[3,i]=-psi
+		ENDFOR
+	ENDIF
+	IF array EQ 'iwpback' THEN BEGIN
+		r_lens=0.454
+		z_lens=-0.284
+		pol_r=[44.48,44.87,45.26,45.64,46.04,46.42,46.80,47.20,47.60]/100.0
+		pol_z=0.0
+		n_ch=n(pol_r)+1
+		pos=fltarr(4,n_ch)
+		FOR i=0,n_ch-1 DO BEGIN
+			pos[0,i]=r_lens
+			pos[1,i]=z_lens
+			tok=genpos_cyl2tok([r_lens,z_lens],[pol_r[i],pol_z],1.0)
+			IF pol_r[i] GT r_lens THEN tok[1]=-1.0*!pi/2-(!pi/2+tok[1])
+			pos[2,i]=tok[0]
+			pos[3,i]=tok[1]
+		ENDFOR
+		pos=genpos_invert_pos(pos,rzbnd=[0.4,1.0,0.5])
+	ENDIF
+	IF array EQ 'iwpsig' THEN BEGIN
+		r_lens=0.454
+		z_lens=-0.284
+		pol_r=[44.45,44.85,45.25,45.62,46.02,46.40,46.80,47.18,47.58]/100.0
+		pol_z=0.0
+		n_ch=n(pol_r)+1
+		pos=fltarr(4,n_ch)
+		FOR i=0,n_ch-1 DO BEGIN
+			pos[0,i]=r_lens
+			pos[1,i]=z_lens
+			tok=genpos_cyl2tok([r_lens,z_lens],[pol_r[i],pol_z],1.0)
+			IF pol_r[i] GT r_lens THEN tok[1]=-1.0*!pi/2-(!pi/2+tok[1])
+			pos[2,i]=tok[0]
+			pos[3,i]=tok[1]
+		ENDFOR
+		pos=genpos_invert_pos(pos,rzbnd=[0.4,1.0,0.5])
+	ENDIF
+	IF array EQ 'iwtback' THEN BEGIN
+		r_lens=1.05
+		z_lens=0.131
+		dphi=61.21*!pi/180.0
+		r=[44.62,45.01,45.39,45.78,46.17,46.56,46.94,47.31,47.71]/100.0
+		z=[3.33,3.33,3.33,3.32,3.33,3.33,3.34,3.35,3.36]/100.0
+		n_ch=n(r)+1
+		pos=fltarr(4,n_ch)
+		FOR i=0,n_ch-1 DO BEGIN
+			pos[0,i]=r_lens
+			pos[1,i]=z_lens
+			tok=genpos_cyl2tok([r_lens,z_lens],[r[i],z[i]],cos(dphi))
+			pos[2,i]=tok[0]
+			pos[3,i]=tok[1]
+		ENDFOR
+			
+	ENDIF
+
+	IF array EQ 'iwtsig' THEN BEGIN
+		r_lens=1.05
+		z_lens=0.131
+		dphi=61.21*!pi/180.0
+		r=[44.53,44.91,45.29,45.68,46.08,46.48,46.86,47.25,47.63]/100.0
+		z=-1.0*[0.488,0.501,0.493,0.496,0.487,0.481,0.484,0.467,0.459]/100.0
+		n_ch=n(r)+1
+		pos=fltarr(4,n_ch)
+		FOR i=0,n_ch-1 DO BEGIN
+			pos[0,i]=r_lens
+			pos[1,i]=z_lens
+			tok=genpos_cyl2tok([r_lens,z_lens],[r[i],z[i]],cos(dphi))
+			pos[2,i]=tok[0]
+			pos[3,i]=tok[1]
+		ENDFOR
+	ENDIF
+
+	IF keyword_set(debug) THEN stop
+	output=pos
+	RETURN,output
+
+
+END
+
+
+
+;+
+;NAME:
+;	GENPOS_CXRS_GPV
+;
+;PURPOSE:
+;	This function calculates or loads a set of GPV vectors for each of the edge charge exchange arrays
+;
+;CALLING SEQUENCE:
+;	result = GENPOS_CXRS_GPV(grid,array)
+;	
+;INPUTS:
+;	grid:		STRUC 	boundaries of rectangular pixels.  It's necessary to use the output of GENPOS_GRID (DO NOT use /center)
+;	array:		STR	indicator of array 'tor', 'pol' or 'back'
+;
+;OPTIONAL INPUTS:
+;	shot:		LONG	shot number passed to GENPOS_CXRS_POS
+;	
+;KEYWORD PARAMETERS:
+;	load:		/load will load the gpv data from ~/idl/genie/data/gpv/
+;
+;OUTPUTS:
+;	result:		FLTARR	[n_ch, n_grid] of the GENPOS volume coefficients for each channel.  See GENPOS_VOL_COEFS
+;				This file is saved to ~/idl/genie/data/gpv/ if /load is not invoked.  Each arrays has it's own save file.
+;
+;OPTIONAL OUTPUTS:
+;	ves_cent:	STRUC	of the grid centers for the input grid (saved and loaded as well)
+;
+;PROCEDURE:
+;	Single lines are used to generate the GPVs using an du=4.0*!pi.  This means the units are really "meters" and brightness data should
+;	be used instead of powers as is typical of GPVs.
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke - 2/12/08
+;
+;-
+
+FUNCTION genpos_cxrs_gpv,grid,array,shot=shot,load=load,ves_cent=ves_cent
+	path='/home/'+logname()+'/idl/genie/data/gpv/cxrs_'+array+'_gpv.dat'
+	IF NOT keyword_set(load) THEN BEGIN
+		pos=genpos_cxrs_pos(array,shot=shot)
+		n_ch=n(pos[0,*])+1
+		gpv=fltarr(n_ch,grid.n[0]*grid.n[1])
+		FOR i=0,n_ch-1 DO gpv[i,*]=genpos_vol_coefs(grid,pos[*,i],4.0*!pi)
+		ves_cent=genpos_grid2cent(grid)
+		save,gpv,ves_cent,filename=path
+	ENDIF ELSE restore, path
+	RETURN,gpv
+END
+
+PRO load_utcxrs_spectra,shot,array,br,lam,rt,t,debug=debug,interpo=interp
+	br=-1
+	lam=-1
+	ch=-1
+	mdsopen,'dnb',shot
+	raw_data=mdsvalue('\DNB::TOP.ROPER.ANALYSIS:RAW_SPECTRA')
+	wve=mdsvalue('\DNB::TOP.ROPER:CALIBRATION:WVE')
+	pmax=mdsvalue('\DNB::TOP.ROPER:SETUP:SU_PXMAX')
+	pmin=mdsvalue('\DNB::TOP.ROPER:SETUP:SU_PXMIN')
+	row=mdsvalue('\DNB::TOP.ROPER:SETUP:SU_ROW')
+	col=mdsvalue('\DNB::TOP.ROPER:SETUP:SU_COL')
+	ftch=mdsvalue('\DNB::TOP.ROPER:SETUP:SU_FTCH')
+	ft=mdsvalue('\DNB::TOP.ROPER:SETUP:SU_FT')
+	tf=mdsvalue('\DNB::TOP.ROPER:SETUP:SU_TF')
+	cal_ftch=mdsvalue('\DNB::TOP.ROPER:CALIBRATION:ABS_1070922:SU_FTCH')
+	cal_ft=mdsvalue('\DNB::TOP.ROPER:CALIBRATION:ABS_1070922:SU_FT')
+	cal_tf=mdsvalue('\DNB::TOP.ROPER:CALIBRATION:ABS_1070922:SU_TF')
+	nrm=mdsvalue('\DNB::TOP.ROPER:CALIBRATION:ABS_1070922:TRANS_NRM')
+	fcn=mdsvalue('\DNB::TOP.ROPER:CALIBRATION:ABS_1070922:TRANS_FCN')
+	rt=mdsvalue('\DNB::TOP.ROPER:SETUP:SU_RTAN')
+	mdsclose,'dnb',shot
+
+	;change ABC column notation to 0,1,2 for indexing
+	colnum=intarr(n(col)+1)
+	tmp=where(col EQ 'B')
+	IF tmp[0] NE -1 THEN colnum[tmp]=1
+	tmp=where(col EQ 'C')
+	IF tmp[0] NE -1 THEN colnum[tmp]=2
+	col=colnum
+
+	;find poloidal or toroidal channels
+	goodch=fltarr(n(pmax)+1)+1
+	CASE array OF
+		'pol' : BEGIN
+			goodch[where(ft NE 'P1')]=0
+			goodch[where(rt EQ 0.837700)]=0
+			goodch[where(rt EQ 0.771500)]=0
+		END
+		'tor' : BEGIN
+			goodch[where(ft EQ 'P1')]=0
+		END
+	ENDCASE
+	tmp=where(goodch EQ 1)
+	nch=int(total(goodch))
+	nlam=max(pmax-pmin)+1
+	ntime=n(raw_data[*,0,0])+1
+
+	lam=fltarr(nlam,nch)
+	br=fltarr(nlam,nch,ntime)
+	rt=rt[tmp]
+	order=sort(rt)
+	t=indgen(ntime)
+	
+	FOR k=0,nch-1 DO BEGIN
+		i=tmp[k]									;step through the chosen array as loaded from tree
+		ch=order[k]									;index to put channel into final array
+		calch=where(cal_ftch EQ ftch[i] AND cal_ft EQ ft[i] AND cal_tf EQ tf[i])	;index to the calibration data
+		npix=pmax[i]-pmin[i]+1
+		lam[0:npix-1,ch]=wve[pmin[i]:pmax[i],row[i]-1,col[i]]
+		tr=fcn[pmin[i]:pmax[i],calch]/float(nrm[calch[0]])
+		FOR j=0,ntime-1 DO br[0:npix-1,ch,j]=raw_data[j,pmin[i]:pmax[i],15-row[i]]/tr
+	ENDFOR
+
+	IF keyword_set(interp) THEN BEGIN
+		tmp=where(lam GT 0)
+		lmax=max(lam)
+		lmin=min(lam[tmp])
+		newlam=make(lmin,lmax,200)
+		newbr=fltarr(200,nch,ntime)
+		FOR i=0,nch-1 DO BEGIN
+			FOR j=0,ntime-1 DO BEGIN
+				tmp1=where(br[*,i,j] NE 0)	;find the non-zero brightness points
+				tmp2=where(newlam GE min(lam[tmp1,i]) AND newlam LE max(lam[tmp1,i])) ;find newlam inside the lam range
+				newbr[tmp2,i,j]=interpol(br[tmp1,i,j],lam[tmp1,i],newlam[tmp2])	;interpolate inside that  range
+			ENDFOR
+		ENDFOR
+		br=newbr
+		lam=newlam
+	ENDIF
+	rt=rt[order]
+	IF keyword_set(debug) THEN stop
+END
+
+PRO load_cxrs_spectra,shot,array,br,lam,ch,t,pos=pos,interp_lam=interp_lam,bad=bad,t1=t1
+	IF NOT keyword_set(bad) THEN bad = -1
+	br=-1
+	IF shot LT 1071201000 AND array EQ 'back' THEN RETURN		;no poloidal back on 
+	CASE array OF
+		'pol' 		: name='POL'
+		'tor' 		: name='TOR_SIG'
+		'back'		: name='POL_BCK'
+		'iwpback'	: name='IW_POL_BCK'
+		'iwpsig'	: name='IW_POL_SIG'
+		'iwtback'	: name='IW_BCK'
+		'iwtsig'	: name='IW_SIG'
+	ENDCASE
+	CASE array OF
+		'pol' 		: nch=25
+		'tor' 		: nch=20
+		'back'		: nch=20
+		'iwpback'	: nch=9
+		'iwpsig'	: nch=9
+		'iwtback'	: nch=9
+		'iwtsig'	: nch=9
+
+	ENDCASE
+	CASE array OF
+		'pol' : path='\DNB::TOP.MIT_CXRS.RESULTS.PASSIVE.POLOIDAL:'
+		'back': path='\DNB::TOP.MIT_CXRS.RESULTS.PASSIVE.POL_BCK:'
+		'tor' :path='\DNB::TOP.MIT_CXRS.RESULTS.PASSIVE.TOR_OUT:'
+		ELSE : path=''
+	ENDCASE
+
+	mdsopen,'dnb',shot
+	;photon 1
+	ph1_br=mdsvalue('\DNB::TOP.MIT_CXRS.PHOTON1.ANALYSIS:BRIGHT_DATA')
+	lam1=mdsvalue('dim_of(\DNB::TOP.MIT_CXRS.PHOTON1.ANALYSIS:BRIGHT_DATA,0)')
+	peri1=mdsvalue('\DNB::TOP.MIT_CXRS.PHOTON1.SETUP:PERISCOPE')
+	perif1=mdsvalue('\DNB::TOP.MIT_CXRS.PHOTON1.SETUP:PERI_FIBER')
+	t1=mdsvalue('dim_of(\DNB::TOP.MIT_CXRS.PHOTON1.ANALYSIS:BRIGHT_DATA,2)')
+	;photon2 (assume same time base)
+	ph2_br=mdsvalue('\DNB::TOP.MIT_CXRS.PHOTON2.ANALYSIS:BRIGHT_DATA')
+	lam2=mdsvalue('dim_of(\DNB::TOP.MIT_CXRS.PHOTON2.ANALYSIS:BRIGHT_DATA,0)')
+	peri2=mdsvalue('\DNB::TOP.MIT_CXRS.PHOTON2.SETUP:PERISCOPE')
+	perif2=mdsvalue('\DNB::TOP.MIT_CXRS.PHOTON2.SETUP:PERI_FIBER')
+	t=mdsvalue('dim_of(\DNB::TOP.MIT_CXRS.PHOTON2.ANALYSIS:BRIGHT_DATA,2)')
+	good=mdsvalue(path+'PERI_GOOD',/quiet,status=good_status)
+	IF good_status THEN good=int(good) ELSE good=intarr(nch)+1
+	mdsclose,'dnb',shot
+
+	x=size(ph1_br)
+	y=size(lam1)
+	ncolumns=y[3]
+	nlam=floor(x[1]/ncolumns)
+	nt=x[3]
+	
+	;see how many and where on each camera match requested array
+	ch_ph1=where(peri1 EQ name)
+	IF ch_ph1[0] EQ -1 THEN nch1=0 ELSE nch1=n(ch_ph1)+1
+	ch_ph2=where(peri2 EQ name)
+	IF ch_ph2[0] EQ -1 THEN nch2=0 ELSE nch2=n(ch_ph2)+1
+	
+	br=fltarr(nlam,nch,nt)
+	lam=fltarr(nlam,nch)
+	x=size(peri1)
+	FOR i=0,nch1-1 DO BEGIN
+		ch=perif1[ch_ph1[i]]-1
+		col=floor(ch_ph1[i]/x[1])
+		row=ch_ph1[i]-col*x[1]
+		br[*,ch,*]=ph1_br[nlam*col:nlam*(col+1)-1,row,*]
+		lam[*,ch]=lam1[nlam*col:nlam*(col+1)-1,row,col]
+	ENDFOR
+
+	x=size(peri2)
+	FOR i=0,nch2-1 DO BEGIN
+		ch=perif2[ch_ph2[i]]-1
+		col=floor(ch_ph2[i]/x[1])
+		row=ch_ph2[i]-col*x[1]
+		br[*,ch,*]=ph2_br[nlam*col:nlam*(col+1)-1,row,*]
+		lam[*,ch]=lam2[nlam*col:nlam*(col+1)-1,row,col]
+	ENDFOR	
+	pos=genpos_cxrs_pos(array,shot=shot)
+	IF NOT good_status THEN BEGIN
+		;tmp=where(finite(br[0,*,0]) EQ 0)
+		tmp=where(lam[0,*] EQ 0)
+		IF tmp[0] NE -1 THEN good[tmp]=0
+	ENDIF
+	
+	;truncate to the channels that are good
+	IF bad[0] NE -1 THEN good[bad-1]=0
+	tmp=where(good EQ 1)
+	IF tmp[0] NE -1 THEN BEGIN
+		br=br[*,tmp,*]
+		lam=lam[*,tmp]
+		pos=pos[*,tmp]
+		ch=indgen(n(tmp)+1)
+	ENDIF ELSE ch=indgen(nch)
+
+
+	lam_std=floor(nch/2.0)
+	IF keyword_set(interp_lam) THEN BEGIN	
+		FOR i=0,n(t) DO BEGIN
+			FOR j=0,n(ch) DO br[*,j,i]=interpol(br[*,j,i],lam[*,j],lam[*,lam_std])
+		ENDFOR
+		lam=lam[*,lam_std]
+	ENDIF
+	stop
+END
+		
+
+PRO load_cxrs_counts,shot,cam,abc,bin,cnts,lam,t,label=label
+
+
+	path='\DNB::TOP.MIT_CXRS.PHOTON'+num2str(cam,1)
+
+	;load raw data
+	mdsopen,'dnb',shot
+	cnts=mdsvalue(path+'.ANALYSIS:RAW_DATA')
+	lam=mdsvalue(path+'.CALIBRATION:WAVELENGTH')
+	t=mdsvalue('\DNB::TOP.MIT_CXRS.DATX:TIMES')
+	peri=mdsvalue(path+'.SETUP:PERISCOPE')
+	fiber=mdsvalue(path+'.SETUP:PERI_FIBER')
+	t=t[*,cam-1]
+	mdsclose,'dnb',shot
+
+	CASE abc OF 
+		'a' : col=0
+		'b' : col=1
+		'c' : col=2
+	ENDCASE
+
+	lam=lam[*,bin-1,col]
+	cnts=reform(cnts[*,bin-1,*])
+	label=peri[bin-1,col]+num2str(fiber[bin-1,col],1)
+	
+	npts=floor((n(lam)+1)/3.0)
+	lam=lam[col*npts:(col+1)*npts]
+	cnts=cnts[col*npts:(col+1)*npts,*]
+
+END
+
+PRO b2b5_gauss_fit,x,A,F
+	z1=(x-A[1])/A[2]
+	z2=(x-A[4])/A[5]
+	F=A[0]*exp(-z1^2/2)+A[3]*exp(-z2^2/2)
+END
+
+PRO fit_cxrs_b2b5_bright,int,lam,b2,b5,plot=plot
+
+
+	b5_rest=4944.67
+	b2_rest=4940.38
+	
+	dl=[4937.5,4948.81]
+	ilow=ipt(lam,dl[0])
+	ihigh=ipt(lam,dl[1])
+	xfit=lam[ilow:ihigh]
+	yfit=int[ilow:ihigh]*1.0e-15
+	yfit-=0.5*(yfit[0]+yfit[n(yfit)])	
+
+	w=1.2
+	seed=[yfit[ipt(xfit,b2_rest)]-yfit[0],b2_rest,w*0.8,yfit[ipt(xfit,b5_rest)]-yfit[0],b5_rest,w]
+	a=seed
+	out=curvefit(xfit,yfit,weights,a,/noder,function_name='b2b5_gauss_fit',iter=iter,tol=1.0e-30,status=status,/double)
+	
+	IF keyword_set(plot) THEN BEGIN
+		xplot=make(min(xfit),max(xfit),200)
+		plot, xfit,yfit,xtit='Wavelength [Ang]',ytit='Spectral Brightness',psym=8
+		b2b5_gauss_fit,xplot,a,yplot
+		oplot, xplot,yplot,color=100
+		oplot,xplot,a[0]*exp(-(xplot-a[1])^2/(2.0*a[2]^2)),color=200,linestyle=2.0
+		oplot,xplot,a[3]*exp(-(xplot-a[4])^2/(2.0*a[5]^2)),color=200,linestyle=2.0
+		stop
+	ENDIF
+
+END
+
+FUNCTION get_cxrs_good,shot,array,rad=rad
+
+	CASE array OF 
+		'pol' : path='\DNB::TOP.MIT_CXRS.POSITION:R_POL'
+		'back' : path='\DNB::TOP.MIT_CXRS.POSITION:R_POL_BCK'
+		'tor' : path='\DNB::TOP.MIT_CXRS.POSITION:R_TOR_SIG'
+		'iwpback' : path='\DNB::TOP.MIT_CXRS.POSITION:R_IW_POL_BCK'
+		'iwpsig' : path='\DNB::TOP.MIT_CXRS.POSITION:R_IW_POL_SIG'
+		'iwtback' : path='\DNB::TOP.MIT_CXRS.POSITION:R_IW_BCK'
+		'iwtsig' : path='\DNB::TOP.MIT_CXRS.POSITION:R_IW_SIG'	
+	ENDCASE
+	mdsopen,'dnb',shot
+	full_rad=mdsvalue(path,/quiet,status=status_full)
+
+	CASE array OF 
+		'pol' : path='\DNB::TOP.MIT_CXRS.RESULTS.PASSIVE.POLOIDAL:BV_BRIGHT
+		'back' : path='\DNB::TOP.MIT_CXRS.RESULTS.PASSIVE.POL_BCK:BV_BRIGHT
+		'tor' : path='\DNB::TOP.MIT_CXRS.RESULTS.PASSIVE.TOR_OUT:BV_BRIGHT
+		'iwpback' : path='\DNB::TOP.MIT_CXRS.RESULTS.PASSIVE.POL_BCK:BV_INT'
+		'iwpsig' : path='\DNB::TOP.MIT_CXRS.RESULTS.PASSIVE.POL_IN:BV_INT
+		'iwtback' : path='\DNB::TOP.MIT_CXRS.RESULTS.ACTIVE.TOR_IN:BCK_B5INT'
+		'iwtsig' : path='\DNB::TOP.MIT_CXRS.RESULTS.PASSIVE.TOR_IN:BV_INT
+	ENDCASE
+	rad=mdsvalue('dim_of('+path+',0)',/quiet,status=status_rad)
+	mdsclose,'dnb',shot
+	IF NOT status_full THEN RETURN,-1
+	IF NOT status_rad THEN RETURN,-2
+
+	n_ch=n(full_rad)+1
+	good=intarr(n_ch)
+	FOR i=0,n_ch-1 DO BEGIN
+		tmp=where(rad EQ full_rad[i])
+		IF tmp[0] NE -1 THEN good[i]=1
+	ENDFOR
+	RETURN,good
+END
+
+
+;+
+;NAME:
+;	LOAD_CXRS_BRIGHT_DATA
+;	
+;PURPOSE:
+;	This procedure loads B V brightness profiles from the edge charge exchange arrays
+;	
+;CALLING SEQUENCE:
+;	LOAD_CXRS_BRIGHT_DATA,shot,array,bright,ch,time
+;
+;INPUTS:
+;	shot:		LONG 	shot number
+;	array:		STR	indicator of arrays 'tor', 'pol' or 'back'
+;	
+;OPTIONAL INPUTS:
+;	del_i:		INT	number of points to average over in time DEFAULT: 1
+;	bad:		INTARR	of 0's and 1's describing which of the active channels are bad.  This
+;				reduces the size of the bright and rad outputs and sets 0's in the good output	
+;KEYWORD PARAMETERS:
+;	debug:		/debug 	stops the code before the end of the procedure
+;
+;OUTPUTS:
+;	bright:		FLTARR	[n_active,n_time] of the brightness of the H-like Boron 7-6 transition [ph/s/m^2/str]
+;	ch:		INTARR	[n_active] of the channel numbers 
+;	time:		FLTARR	[n_time] of the time points [sec]
+;
+;OPTIONAL OUTPUTS:
+;	good:		INTARR	of 1's and 0's describing which channels of the overal diagnostic are good.
+;				Any channels set using the bad optional input are set to zero as well.
+;	rad:		FLTARR	[n_active] of the midplane radii of the channels [m]
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke: 2/1/08
+;	2/4/08:		ML Reinke - added del_i and bad optional inputs
+;
+;-
+
+PRO load_cxrs_bright_data,shot,array,bright,ch,time,good=good,bad=bad,rad=rad,del_i=del_i,debug=debug
+	IF NOT keyword_set(del_i) THEN del_i=1
+	IF del_i MOD 2 EQ 0 THEN del_i-=1
+
+	path='none'
+	IF array EQ 'pol' THEN path='\DNB::TOP.MIT_CXRS.RESULTS.PASSIVE.POLOIDAL'
+	IF array EQ 'back' THEN path='\DNB::TOP.MIT_CXRS.RESULTS.PASSIVE.POL_BCK'
+	IF array EQ 'tor' THEN path='\DNB::TOP.MIT_CXRS.RESULTS.PASSIVE.TOR_OUT'
+	IF path EQ 'none' THEN RETURN
+
+	mdsopen,'dnb',shot
+	bright=mdsvalue(path+':BV_BRIGHT')
+	rad=mdsvalue('dim_of('+path+':BV_BRIGHT,0)')/100.0
+	time=mdsvalue('dim_of('+path+':BV_BRIGHT,1)')
+	good=mdsvalue(path+':PERI_GOOD',/quiet,status=status)
+	mdsclose,'dnb',shot
+	IF NOT status THEN good=get_cxrs_good(shot,array) ELSE good=int(good)
+
+	;define output data
+	num_ch=n(rad)+1
+	IF NOT keyword_set(bad) THEN bad=intarr(num_ch)
+	tmp=where(bad EQ 0)
+	bright=bright[tmp,*]
+	rad=rad[tmp]
+	tmp2=where(good EQ 1)
+	good*=0
+	good[tmp2[tmp]]=1
+	ch=indgen(n(good)+1)
+	ch=ch[where(good EQ 1)]
+	IF del_i NE 1 THEN BEGIN
+		i = long((del_i-1)/2)
+		cntr=0
+		time_new = fltarr(floor((n(time)+1)/del_i))
+		br_new = fltarr(num_ch, n(time_new)+1)
+		tmp = fltarr(num_ch)
+		FOR cntr=0L,n(time_new) DO BEGIN
+			time_new[cntr]=time[i]
+			FOR j=i-(del_i-1)/2,i+(del_i-1)/2 DO tmp+=bright[*,j]
+			br_new[*,cntr]=tmp/del_i
+			i+=del_i
+			tmp*=0.0
+		ENDFOR
+		time = time_new						;replace arrays				
+		bright=br_new
+	ENDIF 
+	IF keyword_set(debug) THEN stop
+END
+
+
+;+
+;NAME:
+;	LOAD_CXRS_BRVTI_DATA
+;	
+;PURPOSE:
+;	This procedure loads the passive brightness,velocity and ion temperature for
+;	the poloidal and background edge CXRS periscopes for the B V line or B II line
+;
+;CALLING SEQUENCE:
+;	LOAD_CXRS_BRVTI_DATA,shot,array,br,v,ti,rad,time
+;
+;INPUTS:
+;	shot:		LONG	shot number
+;	array:		STR	array indicator 'tor', 'pol' or 'back'
+;
+;OUTPUTS:
+;	br:		FLTARR	[n_rad,n_time] of the line-integrated brightness [10^15 ph/s/m^2/str]
+;	v		FLTARR	[n_rad,n_time] of the line-integrated velocity [km/s]
+;	ti		FLTARR	[n_rad,n_time] of the line-integrated temperature [eV]
+;	rad		FLTARR	[n_rad] of the miplane radii for the choords [m]
+;	time		FLTARR	[n_time] of the time points [sec]
+;
+;OPTIONAL OUTPUTS:
+;	good:		FLTARR	[n_total_ch] indicating (for POS) which channels are used.
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke - 2/08
+;	8/2/2013	M.L. Reinke - modified good loading to avoid error, returns -1 if node not filled
+;-
+
+PRO load_cxrs_brvti_data,shot,array,br,v,ti,rad,time,good=good,ii=ii,active=active
+	IF keyword_set(ii) THEN str='II' ELSE str='V'
+	IF NOT keyword_set(active) THEN nstr='PASSIVE' ELSE nstr='ACTIVE'
+	path='none'
+	IF array EQ 'pol' THEN path='\DNB::TOP.MIT_CXRS.RESULTS.'+nstr+'.POLOIDAL:'
+	IF array EQ 'back' THEN path='\DNB::TOP.MIT_CXRS.RESULTS.'+nstr+'.POL_BCK:'
+	IF array EQ 'tor' THEN path='\DNB::TOP.MIT_CXRS.RESULTS.'+nstr+'.TOR_OUT:'
+	IF path EQ 'none' THEN RETURN
+
+	mdsopen,'dnb',shot
+	IF keyword_set(active) THEN BEGIN
+		br=mdsvalue('_sig='+path+'BRIGHT')*1.0e-15
+		rad=mdsvalue('dim_of(_sig,0)')
+		time=mdsvalue('dim_of(_sig,1)')
+		v=mdsvalue(path+'VEL')
+		ti=mdsvalue(path+'TEMP')
+	ENDIF ELSE BEGIN
+		br=mdsvalue(path+'B'+str+'_BRIGHT')*1.0e-15
+		v=mdsvalue(path+'B'+str+'_VEL')
+		ti=mdsvalue(path+'B'+str+'_TEMP')
+		rad=mdsvalue('dim_of('+path+'B'+str+'_BRIGHT,0)')
+		time=mdsvalue('dim_of('+path+'B'+str+'_BRIGHT,1)')
+	ENDELSE
+	good=mdsvalue(path+'PERI_GOOD',/quiet,status=status)
+	IF status THEN good=int(good) ELSE good=-1
+	mdsclose,'dnb', shot
+END
+		
+ 
+;+
+;NAME:
+;	CXRS_LOAD_LAMINT
+;
+;PURPOSE:
+;	This procedure loads the line-integrated br,v and ti and forms fake spectra
+;	that are used to calculated the moments for GENSPEC
+;
+;CALLING SEQUENCE:
+;	CXRS_LOAD_LAMINT,shot,array,lam,int,time,lam_o
+;	
+;INPUTS:
+;	shot:		LONG 	shot number
+;	array:		STR	array indicator 'pol' or 'back'
+;
+;OPTIONAL INPUTS:
+;	n_lam:		INT	number of lambda points used DEFAULT: 100
+;	del_i:		INT	number of points to average over in time DEFAULT: 1 (must be odd)
+;
+;OUTPUTS:
+;	lam:		FLTARR	[n_lam] of the wavelengths [Ang] (+/- 5 Ang from lam_o)
+;	int:		FLTARR	[n_lam,n_ch,n_time] of the spectral intensities [10^15 ph/s/m^2/str/Ang
+;	time:		FLTARR	[n_time] of the time points [sec]
+;	lam_o		FLT	center wavelength [Ang] (hardcoded at 4944.67)
+;
+;OPTIONAL OUTPUTS:
+;	rad		FLTARR	[n_ch] of the midplane radii [m]
+;	good		FLTARR	[n_total_ch] to be used on the POS vector to select used channels
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke - 2/08
+;	2/22/08:	ML Reinke - added the del_i optional input
+;	7/16/08:	ML Reinke - changed data loading from tree to using LOAD_CXRS_BRVTI_DATA	
+;
+;-	
+
+PRO cxrs_load_lamint,shot,array,lam,int,time,lam_o,n_lam=n_lam,del_i=del_i,debug=debug,good=good,rad=rad
+	z=5		;hard code boron
+	lam_o=4944.67	;hard code n=7-6 transition
+
+	c=3.0e8 			;speed of light
+	e=1.60e-19			;conversion for eV -> J
+	mconv=1.66e-27			;conversion for amu -> kg
+	mass=read_atomic_mass(z)
+	conv_factor=(lam_o/c)^2*e/(mass*mconv)		;converts Ti [eV] to units of (lam_o)^2 
+
+	load_cxrs_brvti_data,shot,array,br,v,ti,rad,time,good=good
+	v*=1.0e3
+
+	n_ch=n(rad)+1
+	n_time=n(time)+1
+	IF NOT keyword_set(del_i) THEN del_i=1
+	IF del_i MOD 2 EQ 0 THEN del_i-=1
+	IF del_i NE 1 THEN BEGIN
+		i = long((del_i-1)/2)
+		cntr=0
+		time_new = fltarr(floor(n_time/del_i))
+		br_new = fltarr(n_ch, n_time)
+		v_new=fltarr(n_ch, n_time)
+		ti_new=fltarr(n_ch, n_time)
+		tmp = fltarr(n_ch)
+		FOR cntr=0L,n(time_new) DO BEGIN
+			time_new[cntr]=time[i]					;form average arrays
+			FOR j=i-(del_i-1)/2,i+(del_i-1)/2 DO tmp+=br[*,j]
+			br_new[*,cntr]=tmp/del_i
+			tmp*=0.0
+			FOR j=i-(del_i-1)/2,i+(del_i-1)/2 DO tmp+=v[*,j]
+			v_new[*,cntr]=tmp/del_i
+			tmp*=0.0
+			FOR j=i-(del_i-1)/2,i+(del_i-1)/2 DO tmp+=ti[*,j]
+			ti_new[*,cntr]=tmp/del_i
+			i+=del_i
+			tmp*=0.0
+		ENDFOR
+		time = time_new						;replace arrays				
+		br=br_new
+		v=v_new
+		ti=ti_new
+	ENDIF 
+
+	;create spectra
+	n_time=n(time)+1
+	IF NOT keyword_set(n_lam) THEN n_lam=100
+	lam=make(lam_o-5.0,lam_o+5.0,n_lam)
+	int=fltarr(n_lam,n_ch,n_time)	
+	w=ti*conv_factor
+	cent=lam_o*(1.0+v/c)
+	FOR i=0,n_ch-1 DO FOR j=0,n_time-1 DO int[*,i,j]=br[i,j]/(w[i,j]*sqrt(2.0*!pi))*exp(-(lam-cent[i,j])^2/(2.0*(w[i,j])^2))
+		
+	IF keyword_set(debug) THEN stop
+END
+
+;+
+;NAME:
+;	CALC_CXRS_EMISS_VOXEL
+;	
+;PURPOSE:
+;	This procedure calculates emissivity profiles from edge CXRS brightness data assuming flux surface symmetry of
+;	emission using a voxel matrix for GENPOS_EMISS_INVERT
+;	
+;CALLING SEQUENCE:
+;	CALC_CXRS_EMISS_VOXEL,shot,array,emiss,rho,time,brchk
+;
+;INPUTS:
+;	shot:		LONG	shot number
+;	array:		STR	array indicator (currently 'pol' and 'back')
+;	
+;OPTIONAL INPUTS:
+;	n_rho:		INT	number of rho points DEFAULT 20
+;	rho_vec:	FLTARR	[n_rho] rho points to use in the inversion DEFAULT: make((22.0-(90.5-min(rad)))/22.0,1.1,n_rho)
+;	eps:		FLT	smoothing weighting parameter DEFAULT: 1.0
+;	eta:		FLT	edge zero weighting parameter DEFAULT: 1.0
+;	tr:		FLTARR 	[t1,t2] of subset of EFIT time range to do inversions
+;	del_i:		INT	number of time points to average over before inverting (must be odd number) DEFAULT: 1
+;	bad:		INTARR	[n_ch] of the 0's or 1's indicating whether or not channels should be used in the inversion
+;
+;KEYWORD PARAMETERS:
+;	debug		/debug will stop the code before the end
+;	nofirst		/nofirst will supress the inversion to weight the inner-most point forceing a zero derivative
+;
+;OUTPUTS:
+;	emiss:		FLTARR	[n_rho,n_time] of the line emissivity [ph/s/m^3/str]
+;	rho:		FLTARR	[n_rho] of the rho values
+;	time:		FLTARR	[n_time] of the time points [sec]
+;	brchk:		FLTARR	[n_ch,n_time] of the brightness checks from the derived emissivity [ph/s/m^2/str]
+;
+;OPTIONAL OUTPUTS:
+;	bright:		FLTARR	[n_ch,n_time] of the brightness data (from LOAD_CXRS_BRIGHT_DATA) [ph/s/m^2/str]
+;	rad:		FLTARR	[n_ch] of the midplane radii of each choord
+;	rmaj:		FLTARR	[n_rho,n_time] of the outboard midplane radii of the rho values over time [m]
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke: 2/4/08
+;	2-11-08:	ML Reinke: added bad optional input
+;
+;-
+
+PRO calc_cxrs_emiss_voxel,shot,array,emiss,rho,time,brchk,rmaj=rmaj,n_rho=n_rho,rho_vec=rho_vec,eps=eps,eta=eta,tr=tr,del_i=del_i,debug=debug,$
+		bright=bright,rad=rad,nofirst=nofirst,good=good,active=active
+
+	;load brightness
+	;load_cxrs_bright_data,shot,array,bright,ch,time,good=good,rad=rad,del_i=del_i,bad=bad		
+	load_cxrs_brvti_data,shot,array,bright,v,ti,rad,time,active=active
+	IF NOT keyword_set(good) THEN good=intarr(n(rad)+1)+1
+	rad/=100.0
+	pos=genpos_cxrs_pos(array,shot=shot)
+	IF NOT keyword_set(tr) THEN tr=[min(time), max(time)]
+	rhotang=genpos_pos2rmidtang(pos,shot,time[where(time GE tr[0] AND time LE tr[1])],/rho)
+	IF NOT keyword_set(n_rho) THEN IF keyword_set(rho_vec) THEN n_rho=n(rho_vec)+1 ELSE n_rho=20
+	IF NOT keyword_set(rho_vec) THEN rho_vec=make(0.99*min(rhotang),1.01*max(rhotang),n_rho)
+	stop
+
+	;setup inversion data
+	IF NOT keyword_set(eta) THEN eta=1.0
+	IF NOT keyword_set(eps) THEN eps=1.0
+	IF eps EQ -1 THEN eps=0.0
+
+	;find good channels to remove from full POS (already removed from brightness)
+	goodpts=where(good EQ 1)
+	n_good=total(good)	
+	
+	;make sub array of EFIT time to generate voxel data
+	t_vox=line_gettimes(shot)
+	min_t=min(t_vox) > min(time) > tr[0]
+	max_t=max(t_vox) < max(time) < tr[1]
+	i_low=ipt(t_vox,min_t)
+	i_high=ipt(t_vox,max_t)
+	IF i_low EQ i_high THEN t_vox=t_vox[i_low] ELSE t_vox=t_vox[i_low+1:i_high-1]
+
+	;generate voxel data
+	pos=genpos_cxrs_pos(array,shot=shot)
+	pos=pos[*,goodpts]
+	u=fltarr(n_good)+4.0*!pi
+	voxel=genpos_pos2voxel_matrix(pos,u,shot,tpts=t_vox,rho_vec=rho_vec,/verb,rhopts=rhopts,n_s=n_s)
+	vox_inner_view=reform(voxel[*,0,*])	
+	voxel=voxel[*,1:n_rho-2,*]		;remove outer and inner voxel
+	voxel[*,0,*]+=vox_inner_view		;add old inner to new inner
+	rho=rho_vec[1:n_rho-2]			;remove outer and inner rho
+	n_rho=n(rho)+1				;resize rho
+
+	IF keyword_set(debug) THEN stop
+
+	;truncate brightness and time to be within voxel time range
+	i_low=ipt(time,min(t_vox))
+	i_high=ipt(time,max(t_vox))
+	IF i_low EQ i_high THEN BEGIN
+		time=time[i_low] 
+		bright=bright[*,i_low]
+	ENDIF ELSE BEGIN
+		time=time[i_low+1:i_high-1]
+		bright=bright[*,i_low+1:i_high-1]
+	ENDELSE
+	n_time=n(time)+1
+
+	;generate output data
+	rmaj=line_getrmaj(shot,rho,time)
+	emiss=fltarr(n_rho,n_time)
+	brchk=fltarr(n_good,n_time)
+	print, 'inverting profiles'
+	FOR i=0,n_time-1 DO BEGIN
+		;interpolate voxel matrix that was generated on EFIT time points
+		IF n_time NE 1 THEN BEGIN
+			ibnd=ibound(t_vox,time[i])
+			vox_i=voxel[*,*,ibnd[0]]+(voxel[*,*,ibnd[1]]-voxel[*,*,ibnd[0]])/(t_vox[ibnd[1]]-t_vox[ibnd[0]])*(time[i]-t_vox[ibnd[0]])
+		ENDIF ELSE vox_i=voxel
+		a=max(vox_i)
+		pow=bright[*,i]*u[goodpts]/(4.0*!pi)
+		IF total(vox_i) NE 0 THEN BEGIN
+			emiss[*,i]=genpos_profile_invert(pow,vox_i,double(eps*a^2),brchk=brchk_i,nofirst=nofirst,eta=double(eta*a^2))	
+			brchk[*,i]=brchk_i.mom*4.0*!pi/u
+		ENDIF
+	ENDFOR
+	print, 'inversions done'
+	IF keyword_set(debug) THEN stop
+END
+
+;+
+;NAME:
+;	CALC_CXRS_EMISS_SHELLINVERT
+;
+;PURPOSE:
+;	This procedure calculates the emissivity profile from the edge CXRS data using a shell inversion technqiue
+;
+;CALLING SEQUENCE:
+;	CALC_CXRS_EMISS_SHELLINVERT,shot,array,emiss,rmaj,t
+;
+;INPUTS:
+;	shot:		LONG	shot number
+;	array:		STR	array indicator (currently 'pol' and 'back')	
+;
+;OPTIONAL INPUTS:
+;	npts:		INT	number of radial points DEFAULT 30
+;	eps:		FLT	smoothing weighting parameter DEFAULT: 0.1
+;	redge:		FLT	edge radius DEFAULT: 1.01*max(rt) for 'tor' and unused otherwise
+;	tr:		FLTARR 	[t1,t2] of subset of EFIT time range to do inversions DEFAULT [0.3,1.5]
+;	del_i:		INT	number of time points to average over before inverting (must be odd number) DEFAULT: 1
+;	good:		INTARR	[n_ch] of the 1's or 0's indicating whether or not channels should be used in the inversion
+;
+;OUTPUTS:
+;	emiss:		FLTARR	[npts,n_time] of the line emissivity [ph/s/m^3/str]
+;	rmaj:		FLTARR	[npts,n_time] of the major radius values [m]	**rmaj is FLTARR [npts] for 'tor'**
+;	time:		FLTARR	[n_time] of the time points [sec]
+;
+;OPTIONAL OUTPUTS:
+;	brchk:		STRUC	that holds the brightness check data
+;				*.br 	FLTARR 	[n_good+1,n_time] of the brightness checks from the derived emissivity [ph/s/m^2/str]
+;				*.rad	FLTARR	[n_good+1,n_time] of the radial positions [m]
+;	bright:		FLTARR	[n_ch,n_time] of the brightness data (from LOAD_CXRS_BRIGHT_DATA) [ph/s/m^2/str]
+;	rtang:		FLTARR	[n_ch,n_time] of the tangency radii of each chord]	**rtang is FLTARR [n_ch] for 'tor'**	
+;	rout:		FLTARR	[n_time] of the center of the LCFS, assumed to be radial center of circular flux surfaces [m]	**NOT OUTPUT FOR 'tor'***
+;	zmag:		FLTARR	[n_time] height of the magnetic axis, assumed to be vertical center of circular flux surfaces [m]	**NOT OUTPUT FOR 'tor'***
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke - 2/20/08
+;	7/16/08:	ML Reinke - added the ability to use the 'tor' array assuming horizontal view.	
+;
+;-
+
+PRO calc_cxrs_emiss_shellinvert,shot,array,emiss,rmaj,t,eps=eps,npts=npts,redge=redge,del_i=del_i,good=good,tr=tr,bright=bright,rtang=rtang,brchk=brchk,$
+		rout=rout,zmag=zmag
+
+	IF NOT keyword_set(tr) THEN tr=[0.3,1.5]
+	IF NOT keyword_set(npts) THEN npts=30
+	IF NOT keyword_set(eps) THEN eps=0.1
+
+	pos=genpos_cxrs_pos(array)
+	load_cxrs_bright_data,shot,array,bright,ch,t,rad=rad,good=good_ch,del_i=del_i
+	IF tr[0] NE tr[1] THEN tmp=where(t GE tr[0] AND t LE tr[1]) ELSE tmp=ipt(t,tr[0])
+	bright=bright[*,tmp]*1.0e-20
+	t=t[tmp]
+	n_time=n(t)+1
+	n_ch=n(rad)+1
+	IF NOT keyword_set(good) THEN good=intarr(n(rad)+1)+1
+	n_good=total(good)
+
+	pos=pos[*,where(good_ch EQ 1)]
+	
+	IF strlowcase(array) EQ 'tor' THEN BEGIN
+		rtang=reform(pos[2,*])
+		IF NOT keyword_set(redge) THEN redge=1.01*max(rtang)
+		shellinvert,bright,rtang,emiss,rmaj,good=good,npts=npts,eps=eps,redge=redge,svdout=svdout,brchk=brchk,verb=verb,debug=debug
+		emiss*=1.0e20
+		brchk.br*=1.0e20
+	ENDIF ELSE BEGIN
+		genpos_poloidalpos2rt,shot,pos,rt,time,rout=rout,zmag=zmag
+		emiss=fltarr(npts,n_time)
+		rmaj=fltarr(npts,n_time)
+		brchk=fltarr(total(good)+1,n_time)
+		brchk_rad=fltarr(total(good)+1,n_time)
+		rtang=fltarr(n_ch,n_time)
+		r_plus=interpol(rout,time,t)
+		FOR i=0,n_time-1 DO BEGIN
+			bright_in=bright[*,i]
+			ipt=ipt(time,t[i])
+			rtang_in=rt[*,ipt]+(rt[*,ipt+1]-rt[*,ipt])/(time[ipt+1]-time[ipt])*(t[i]-time[ipt])
+			rtang[*,i]=rtang_in
+			redge=rtang_in[n_ch-1]+2.0*(rtang_in[n_ch-1]-rtang_in[n_ch-2])
+			shellinvert,bright_in,rtang_in,em,r,good=good,npts=npts,eps=eps,redge=redge,svdout=svdout,brchk=brchk_i,verb=verb,debug=debug
+			rmaj[*,i]=r+r_plus[i]
+			emiss[*,i]=em*1.0e20
+			brchk[*,i]=brchk_i.br*1.0e20
+			brchk_rad[*,i]=brchk_i.rad
+		ENDFOR
+		rout=interpol(rout,time,t)
+		zmag=interpol(zmag,time,t)
+		brchk={br:brchk,rad:brchk_rad}
+	ENDELSE
+	bright*=1.0e20
+END
+
+;+
+;NAME:
+;	PLOT_CXRS_EMISS
+;	
+;PURPOSE:
+;	This procedure inverts the edge CXRS brightness profiles and displays the brightness checks in order
+;	to test quality of fit for inversion parameters
+;
+;CALLING SEQUENCE:
+;	PLOT_CXRS_EMISS,shot,times
+;	
+;INPUTS:
+;	shot:		LONG	shot number
+;	times:		FLTARR	of time points [sec]
+;
+;OPTIONAL INPUTS:
+;	eps:		FLT	smoothing weighting factor DEFAULT: see CALC_CXRS_EMISS_DATA	
+;	eta:		FLT	edge zero weighting factor DEFAULT: see CALC_CXRS_EMISS_DATA
+;	n_rho:		INT	number of radial points DEFAULT: 20
+;	pbad:		INTARR	[n_pol] of 0's and 1's to turn on/off bad channels
+;	bbad:		INTARR	[n_back] of 0's and 1's to turn on/off bad channels 
+;	tbad:		INTARR	[n_tor] of 0's and 1's to turn on/off bad channels 
+;	del_i:		INT	number of time points to smooth over before inversion DEFAULT: 1
+;
+;KEYWORD PARAMETERS:
+;	noback:		/noback turns off the background view (automatically prior to FY08 campaign)
+;	nopol:		/nopol turns off the poloidal beam view
+;	notor:		/notor turns off the toroidal beam view
+;	nofirst		/nofirst will suppress the weighting for inner point to have zero first derivative
+;	debug		/debug will stop the code at the end
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke: 2-04-08
+;	7/16/08:	ML Reinke: Changed so that uses only shellinvert and included the toroidal array
+;	
+;-
+
+PRO plot_cxrs_emiss,shot,times,eps=eps,n_rho=n_rho,eta=eta,nofirst=nofirst,debug=debug,pbad=pbad,bbad=bbad,tbad=tbad,noback=noback,nopol=nopol,notor=notor,del_i=del_i
+	IF shot LT 1071201000 THEN noback=1 ELSE IF NOT keyword_set(noback) THEN  noback=0
+
+	mdsopen,'dnb', shot
+	path='\DNB::TOP.MIT_CXRS.RESULTS.PASSIVE.POLOIDAL:'
+	n_pol=total(int(mdsvalue(path+'PERI_GOOD')))
+	path='\DNB::TOP.MIT_CXRS.RESULTS.PASSIVE.POL_BCK:'
+	IF NOT keyword_set(noback) THEN n_back=total(int(mdsvalue(path+'PERI_GOOD')))
+	path='\DNB::TOP.MIT_CXRS.RESULTS.PASSIVE.TOR_OUT:'
+	n_tor=total(int(mdsvalue(path+'PERI_GOOD')))
+	mdsclose,'dnb',shot
+
+	IF NOT keyword_set(n_rho) THEN n_rho=25
+	n_time=n(times)+1
+	n_rho_orig=n_rho
+	FOR i=0,n_time-1 DO BEGIN
+		n_rho=n_rho_orig
+		IF NOT keyword_set(nopol) THEN BEGIN
+			IF NOT keyword_set(eps) THEN eps=0.01
+			IF keyword_set(pbad) THEN good=abs(pbad-1) ELSE good=intarr(n_pol)+1
+			calc_cxrs_emiss_shellinvert,shot,'pol',em_p,rmaj_p,t_p,eps=eps,npts=n_rho,good=good,tr=[times[i],times[i]],bright=bright_p,$
+				rtang=rad_p,brchk=brchk,rout=rout,del_i=del_i
+			brchk_p=brchk.br
+			rad_p+=rout	
+			rad_p_chk=brchk.rad+rout
+		ENDIF ELSE BEGIN
+			em_p=0
+			bright_p=0
+			rmaj_p=0.89
+			rad_p=0.89
+			rad_p_chk=0.89
+		ENDELSE
+
+		n_rho=n_rho_orig	
+		IF NOT keyword_set(noback) THEN BEGIN 
+			IF keyword_set(bbad) THEN good=abs(bbad-1) ELSE good=intarr(n_back)+1
+			calc_cxrs_emiss_shellinvert,shot,'back',em_b,rmaj_b,t_b,eps=eps,npts=n_rho,good=good,tr=[times[i],times[i]],bright=bright_b,$
+				rtang=rad_b,brchk=brchk,rout=rout,del_i=del_i
+			brchk_b=brchk.br
+			rad_b_chk=brchk.rad+rout
+			rad_b+=rout	
+		ENDIF ELSE BEGIN
+			em_b=0
+			bright_b=0
+			rmaj_b=0.89
+			rad_b=0.89
+			rad_b_chk=0.89
+		ENDELSE
+
+		n_rho=n_rho_orig	
+		IF NOT keyword_set(notor) THEN BEGIN 
+			IF keyword_set(tbad) THEN good=abs(tbad-1) ELSE good=intarr(n_tor)+1
+			calc_cxrs_emiss_shellinvert,shot,'tor',em_t,rmaj_t,t_t,eps=eps,npts=n_rho,good=good,tr=[times[i],times[i]],bright=bright_t,$
+				rtang=rad_t,brchk=brchk,rout=rout,del_i=del_i
+			brchk_t=brchk.br
+			rad_t_chk=brchk.rad
+		ENDIF ELSE BEGIN
+			em_t=0
+			bright_t=0
+			rmaj_t=0.89
+			rad_t=0.89
+			rad_t_chk=0.89
+		ENDELSE
+
+		openwin,0
+		min_x=min(rmaj_b) < min(rmaj_p) < min(rmaj_t)
+		max_x=max(rmaj_b) > max(rmaj_b) > max(rmaj_t)
+		maxpt=max(em_b) > max(em_p) > max(em_t)
+		minpt=min(em_b) < min(em_p) < min(em_t)
+		plot, [0],[0],xr=[min_x,max_x],/xsty,yr=[minpt*1.1,maxpt*1.1],/ysty,xtit='R [m]', ytit='Emissivity [ph/s/m!u3!n/str]',chars=1.2,$
+			tit='SHOT: '+num2str(shot,1)+' t= '+num2str(times[i],dp=3)
+		IF NOT keyword_set(nopol) THEN BEGIN
+			oplot, rmaj_p,em_p,color=100
+			xyouts,0.90,0.8*(maxpt-minpt)+minpt,'POL',chars=1.3,color=100
+		ENDIF
+		IF NOT keyword_set(noback) THEN BEGIN
+			oplot, rmaj_b,em_b,color=200
+			xyouts,0.90,0.9*(maxpt-minpt)+minpt,'BACK',chars=1.3,color=200
+		ENDIF
+		IF NOT keyword_set(notor) THEN BEGIN
+			oplot, rmaj_t,em_t,color=30
+			xyouts,0.90,0.7*(maxpt-minpt)+minpt,'TOR',chars=1.3,color=30
+		ENDIF
+		oplot,[min_x,max_x],[0,0],linestyle=2		
+
+		
+		openwin,1
+		min_x=min(rad_b) < min(rad_p) < min(rad_t)
+		max_x=max(rad_b_chk) > max(rad_p_chk) > max(rad_t_chk)
+		maxpt=max(bright_b) > max(bright_p) > max(bright_t)
+		minpt=min(bright_b) < min(bright_p) < min(bright_t)
+		plot, [0],[0],xr=[min_x,max_x],/xsty,yr=[0.0,maxpt*1.1],/ysty,xtit='RMID [m]', ytit='Brightness [ph/s/m!u2!n/str]',chars=1.2,$
+			tit='SHOT: '+num2str(shot,1)+' t= '+num2str(times[i],dp=3)	
+		makesym,10
+		IF NOT keyword_set(nopol) THEN BEGIN
+			oplot, rad_p,bright_p,color=100,psym=8
+			oplot, rad_p_chk,brchk_p,color=100
+			xyouts,0.895,0.8*maxpt,'POL',chars=1.3,color=100
+		ENDIF
+		IF NOT keyword_set(noback) THEN BEGIN
+			oplot, rad_b,bright_b,color=200,psym=8
+			oplot, rad_b_chk,brchk_b,color=200
+			xyouts,0.895,0.9*maxpt,'BACK',chars=1.3,color=200
+		ENDIF
+		IF NOT keyword_set(notor) THEN BEGIN
+			oplot, rad_t,bright_t,color=30,psym=8
+			oplot, rad_t_chk,brchk_t,color=30
+			xyouts,0.895,0.7*maxpt,'TOR',chars=1.3,color=30
+		ENDIF
+		IF i NE n_time-1 THEN stop
+	ENDFOR
+	IF keyword_set(debug) THEN stop
+END
+
+;+
+;NAME:
+;	CXRS_GENSPEC_PROFILES
+;	
+;PURPOSE:
+;	This pcocedure runs CXRS_GENSPEC_INVERT for one time point and displays the resulting profiles as well as the inversion checks
+;
+;CALLING SEQUENCE:
+;	CXRS_GENSPEC_PROFILES,shot,array,time
+;
+;INPUTS:
+;	shot:		LONG	shot number
+;	array:		STR	array indicator (currently 'pol' and 'back')
+;	time:		FLT	of the time point (finds nearest) to do inversion [sec]
+;
+;OPTIONAL INPUTS:
+;	eps_em:		FLT	emissivity profile smoothing factor DEFAULT see CXRS_GENSPEC_INVERT
+;	eps_u:		FLT	poloidal velocity profile smoothing factor DEFAULT: see CXRS_GENSPEC_INVERT
+;	eps_ti:		FLT	ion temperature profile smoothing factor DEFAULT: see CXRS_GENSPEC_INVERT
+;	epps:		FLT	use to set all three smoothing factors at once
+;	eta:		FLT	edge zero weighting (not used in /shellinvert)
+;	good:		FLTARR	[n_ch] 1's and 0's indicating which channels to use in the inversion
+;	n_rho:		INT	number of points in the emissivity profile (npts=n_rho in /shellinvert)
+;	rho_vec:	FLTARR	[n_rho] of the rho points to use in the inversion (not used in /shellinvert)
+;	
+;KEYWORD PARAMETERS:
+;	te:		/te will display the nearest thomson scatting Te profile over the Ti data
+;	gpc2:		/gpc2 (and /te) will display gpc2 Te data over the Ti data
+;	simple:		/simple	will display the line-integrated Br, V and Ti data over the inverted profiles
+;	novel:		/novel will supress the inversion of velocity (use if bad velocity fits are messing up Ti profile)
+;	nofirst:	/nofirst will supress the first derivate weighting on the innermost points (not used in /shellinvert)
+;	shellinvert:	/shellinvert will use GENSPEC_SHELLINVERT instead of GENSPEC_MATRIX_INVERT to analyze the data
+;	debug:		/debug will stop the code for debugging
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke - 2/08
+;
+;-
+PRO cxrs_genspec_profiles,shot,array,time,eps_em=eps_em,eps_u=eps_u,eps_ti=eps_ti,eta=eta,plotwin=plotwin,n_rho=n_rho,epps=eps,te=te,gpc2=gpc2,novel=novel,$
+		simple=simple,debug=debug,good=good,nofirst=nofirst,rho_vec=rho_vec,shellinvert=shellinvert,del_i=del_i
+	IF keyword_set(eps) THEN BEGIN
+		eps_em=eps
+		eps_u=eps
+		eps_ti=eps
+	ENDIF
+	cxrs_genspec_invert,shot,array,emiss,u,ti,rho,time,r_major=rmaj,brchk=brchk,n_rho=n_rho,tr=[time[0],time[0]],moments=moments,del_i=del_i,$
+		eps_em=eps_em,eps_u=eps_u,eps_ti=eps_ti,eta=eta,novel=novel,good=good,nofirst=nofirst,bfield=bfield,rho_vec=rho_vec,shellinvert=shellinvert
+
+	efit_time=line_gettimes(shot)
+	axis=line_getaxis(shot)
+	zo=interpol(axis[*,1],efit_time,time)
+	psi=efit_rz2psi(rmaj,fltarr(n(rmaj)+1)+zo,time,bz,br,shot=shot)
+	bp=sqrt(bz^2+br^2)
+
+	IF keyword_set(simple) THEN BEGIN
+		load_cxrs_brvti_data,shot,array,br_simp,v_simp,ti_simp,rad_simp,time_simp,good=good_ch
+		pos=genpos_cxrs_pos(array,shot=shot)
+		pos=pos[*,where(good_ch EQ 1)]
+		rad_simp=genpos_pos2rmidtang(pos,shot,time)*100.0
+	ENDIF
+	IF NOT keyword_set(plotwin) THEN plotwin=30
+	;setup profile plotting window
+	IF keyword_set(ps) THEN BEGIN
+		xsize=6.0
+		ysize=6.0*1000/850.0
+		ls=0.5
+	ENDIF ELSE BEGIN
+		xsize=700.0
+		ysize=950.0
+		ls=1.0
+	ENDELSE
+	IF NOT keyword_set(ps) THEN BEGIN
+		device, window_state=var
+		IF var[plotwin] EQ 0 THEN window,plotwin,xsize=xsize,ysize=ysize,xpos=1610,ypos=670,title='output profiles,'+num2str(plotwin) $
+			ELSE wset,plotwin
+	ENDIF ELSE BEGIN
+		d_old=!d
+		device, xsize=xsize, ysize=ysize, /inches
+	ENDELSE
+	!p.multi=[0,0,3]
+
+	;plot emiss profile
+	tmp=max(emiss)
+	em_max=max(emiss)
+	em_level=0.1
+	i_lev=ipt(emiss[maxloc(emiss):n(emiss)],em_level*em_max)+maxloc(emiss)
+	xr=[min(rmaj),max(rmaj)]
+	plot,rmaj,emiss,chars=3.0*ls,ytit='Line Emissivity [10!u15!n ph/s/m!u3!n/str]',$
+		thick=2.5,yr=[0.0,em_max],tit='CXRS Plotting Utility SHOT: '+num2str(shot,1)+' t='+num2str(time,dp=3),xr=xr,/xsty
+	IF keyword_set(simple) THEN BEGIN
+		makesym,9
+		oplot, rad_simp/100.0,br_simp[*,ipt(time_simp,time)]*10.0,psym=8,symsize=2.0*ls
+	ENDIF	
+	;plot v_pol profile
+	IF keyword_set(shellinvert) THEN vp=u/rmaj*1.0e-3 ELSE vp=u*bp*1.0e-3
+	max_vp=40 ;min(vp[0:i_lev])
+	min_vp=-40 ;max(vp[0:i_lev])
+	plot,rmaj,vp*(1.0),chars=3.0*ls,ytit='V!l'+n2g('theta')+'!n [km/s]',thick=2.5,xr=xr,/xsty,yr=1.1*[min_vp,max_vp],/ysty
+	IF keyword_set(simple) THEN BEGIN
+		makesym,9
+		oplot, rad_simp/100.0,v_simp[*,ipt(time_simp,time)],psym=8,symsize=2.0*ls
+	ENDIF
+
+	;plot ti profile
+	max_ti = max(ti[0:i_lev]) < 1.0e3
+	plot,rmaj,ti,chars=3.0*ls,xtit='Midplane Major Radius [m]',ytit='Ion Temp [eV]',thick=2.5,xr=xr,/xsty,yr=[0.0,max_ti*1.1],/ysty
+	IF keyword_set(te) THEN BEGIN
+		IF keyword_set(gpc2) THEN BEGIN
+			mdsopen, 'electrons', (shot)
+			gpc_te=mdsvalue('\ELECTRONS::TOP.GPC_2.RESULTS:GPC2_TE')
+			gpc_t=mdsvalue('dim_of(\ELECTRONS::TOP.GPC_2.RESULTS:GPC2_TE)')
+			gpc_r=mdsvalue('\ELECTRONS::TOP.GPC_2.RESULTS:RADII')
+			gpc_r_t=mdsvalue('dim_of(\ELECTRONS::TOP.GPC_2.RESULTS:RADII,0)')
+			mdsclose, 'electrons', (shot)
+			te=fltarr(n(gpc_r[0,*])+1)
+			te_r=fltarr(n(gpc_r[0,*])+1)
+			exp_time=0.005
+			FOR i=0,n(time) DO BEGIN
+				te_r=gpc_r[ipt(gpc_r_t,time),*]
+				ilow=ipt(gpc_t,time-exp_time/2.0)
+				ihigh=ipt(gpc_t,time+exp_time/2.0)				
+				te=sum_array(gpc_te[ilow:ihigh,*],/j)/(ihigh-ilow+1.0)
+			ENDFOR
+			te_str='GPC2'
+		ENDIF ELSE BEGIN
+			cmod_ts,shot,ts
+			te=fltarr(n(ts.r[0,*])+1)
+			te_r=fltarr(n(ts.r[0,*])+1)
+			FOR i=0,n(time) DO BEGIN
+				te_r[*,i]=ts.r[ipt(ts.time,time),*]
+				te[*,i]=ts.te[ipt(ts.time,time),*]
+			ENDFOR
+			te_str='THOM'
+		ENDELSE
+			
+		makesym,10
+		non_zero=where(te[*,0] NE 0)		
+		oplot, te_r[non_zero,0],te[non_zero,0]*1.0e3,psym=8,symsize=2.0*ls
+		oplot, [min(rmaj)+0.005],[0.1*max_ti],psym=8,symsize=1.5*ls
+		xyouts,min(rmaj)+0.0075,[0.08*max_ti],te_str,chars=1.5*ls
+	ENDIF
+	IF keyword_set(simple) THEN BEGIN
+		makesym,9
+		oplot, rad_simp/100.0,ti_simp[*,ipt(time_simp,time)],psym=8,symsize=2.0*ls
+		oplot, [min(rmaj)+0.005],[0.2*max_ti],psym=8,symsize=1.5*ls
+		xyouts,min(rmaj)+0.0075,[0.18*max_ti],'SIMP',chars=1.5*ls
+	ENDIF
+	!p.multi=0
+	IF keyword_set(debug) THEN stop	
+	!p.multi=[0,0,3]
+
+	;setup moment check plotting window
+	IF NOT keyword_set(nocheck) THEN BEGIN
+		IF keyword_set(ps) THEN BEGIN
+			xsize=6.0
+			ysize=6.0*1000/850.0
+			ls=0.5
+		ENDIF ELSE BEGIN
+			xsize=850.0
+			ysize=850.0
+			ls=1.0
+		ENDELSE
+		IF NOT keyword_set(ps) THEN BEGIN
+			device, window_state=var
+			IF var[plotwin+1] EQ 0 THEN window,plotwin+1,xsize=xsize,ysize=ysize,xpos=2340,ypos=670,$
+				title='moment checks,'+num2str(plotwin+1) ELSE wset,plotwin+1
+		ENDIF ELSE BEGIN
+			device, xsize=xsize, ysize=ysize, /inches
+		ENDELSE
+
+		makesym,10
+		yr=[0.0,max(moments[0,*])]
+		ch=indgen(n(good)+1)
+		chchk=brchk.ch
+		brchk=brchk.br
+		plot,chchk,brchk[0,*],ytit='0!uth!n Moment',tit='Moment Checks SHOT: '+num2str(shot,1)+' TIME: '+num2str(time,dp=3),$
+			xr=[0,n(ch)],/xsty,yr=yr*1.1,/ysty,chars=3.0*ls,thick=2.5
+		oplot,ch,moments[0,*],color=100,psym=8,symsize=2.0*ls
+		xyouts,n(ch)-3,0.75*yr[1],'EPS='+num2str(eps_em,dp=2),chars=1.5*ls
+		xyouts,n(ch)-3,0.9*yr[1],'ETA='+num2str(float(eta),dp=2),chars=1.5*ls
+		yr=[min(moments[1,*]),max(moments[1,*])]
+		plot,chchk,brchk[1,*],ytit='1!ust!n Moment',xr=[0,n(ch)],/xsty,yr=yr*1.1,/ysty,chars=3.0*ls,thick=2.5
+		oplot,ch,moments[1,*],color=100,psym=8,symsize=2.0*ls
+		xyouts,n(ch)-3,0.75*(yr[1]-yr[0])+yr[0],'EPS='+num2str(eps_u,dp=2),chars=1.5*ls
+		xyouts,n(ch)-3,0.9*(yr[1]-yr[0])+yr[0],'ETA='+num2str(float(eta),dp=2),chars=1.5*ls
+		yr=[0.0,max(moments[2,*])]
+		plot,chchk,brchk[2,*],ytit='2!und!n Moment',xtit='Channel #',xr=[0,n(ch)],/xsty,yr=yr*1.1,$
+			/ysty,chars=3.0*ls,thick=2.5
+		oplot,ch,moments[2,*],color=100,psym=8,symsize=2.0*ls
+		xyouts,n(ch)-3,0.75*yr[1],'EPS='+num2str(eps_ti,dp=2),chars=1.5*ls
+		xyouts,n(ch)-3,0.9*yr[1],'ETA='+num2str(float(eta),dp=2),chars=1.5*ls	
+	ENDIF
+	IF keyword_set(ps) THEN device, xsize=float(d_old.x_size)/d_old.x_px_cm,ysize=float(d_old.y_size)/d_old.y_px_cm
+	!p.multi=0
+END
+
+;+
+;NAME:
+;	CXRS_GENSPEC_INVERT
+;
+;PURPOSE:
+;	This pocedure will determine local emissivity, poloidal velocity and ion temperature from line-integrated B+4 spectra
+;	using spectral tomographic techniques.  Both GENSPEC_MATRIX_INVERT and GENSPEC_SHELLINVERT can be used.
+;
+;CALLING SEQUENCE:
+;	CXRS_GENSPEC_INVERT,shot,aray,emiss,u,ti,rho,time
+;
+;INPUTS:
+;	shot:		LONG	shot number
+;	array:		STR	array indicator (currently 'pol' and 'back')	
+;
+;OPTIONAL INPUTS:
+;	lr:		FLTARR 	[2] (lam_low, lam_high) of the inclusive wavelength region to truncate dataset.  DEFAULTS all lambda
+;	del_i:		INT	number of time points to average over prior to inversion DEFAULT: 1
+;	good:		INTARR 	[n_ch] with 1's (use) or 0's (do not use) indicating which channels to use during the inversion	
+;	eps_em:		FLT	emissivity profile smoothing factor (see GENSPEC_MATRIX_INVERT or SHELLINVERT for DEFAULT)
+;	eps_u:		FLT	poloidal velocity profile smoothing factor. (see GENSPEC_MATRIX_INVERT or SHELLINVERT for DEFAULT)
+;	eps_ti:		FLT	ion temperature profile smoothing factor. (see GENSPEC_MATRIX_INVERT  or SHELLINVERT for DEFAULT)
+;	eta:		FLT	weighting factor for the edge zero (see GENSPEC_MATRIX_INVERT for DEFAULT)
+;	n_rho:		INT 	number of radial points to use in inversion.  (For SHELLINVERT npts=n_rho) DEFAULT: 25 
+;	rho_vec:	FLTARR	[n_rho] of the rho points.  DEFAULT is created for each array depending on last channel
+;	rhopts:		FLTARR	[n_grid, n_time] of the rho values corresponding to the (R,Z) grid points.  This will be calculated
+;				by GENSPEC_MATRIX_INVERT but is an optional output that can be reused on different spectral lines to
+;				save computation time.
+;	bfield:		STRUC	see GENPOS_GRID_BFIELD for structure but like rhopts, this needs only be calculated once per shot	
+;	trange:		FLTARR  [2] time interval over which to perform inversion but must be inside EFIT
+;				If both values are equal than the time point nearest to that value will be run	
+;KEYWORD PARAMETERS:
+;	/backsub and /double carried over to GENSPEC_LI_MOMENTS
+;	novel:		/novel will zero out the first moment profile.  Necessary if getting large inversion errors that are affecting
+;			the ion temperature profile
+;	nofirst:	/nofirst supresses the first derivative weighting for the innermost point.
+;	shellinvert:	/shellinvert uses GENSPEC_SHELLINVERT instead of GENSPEC_MATRIX_INVERT for doing the analysis.  Valid only for
+;			certain equilibria that are up/down symmetric.  Use XXX to test accuracy of assumption.
+;
+;OUTPUTS:
+;	emiss: 		FLTARR 	[n_rho, n_time] of the line emissivities [photons/s/m^3/str]
+;	u:		FLTARR	[n_rho, n_time] of the u profile [m/s/T](for /shellinvert it is u*gradPsi [m^2/s])
+;	ti:		FLTARR  [n_rho, n_time] of the impurity ion temperature [eV]
+;	rho:		FLTARR 	[n_rho] of the rho values at which each profile has been calculated (for shellinvert=-1 and r_major has radial info)
+;	time:		FLTARR 	[n_time] of the time points, truncated to the interval where EFIT has been ran or by optional input trange
+;
+;OPTIONAL OUTPUTS:
+;	r_major:	FLTARR 	[n_rho, n_time] of the major radius points for the output profiles  [m]	
+;	brchk:		STRUCT	with brightness check data
+;   				*.br    FLTARR	[3, n_good, n_time] of the brightness check profiles [AU]
+;   				*.ch    INTARR	[n_good] of the good channel numbers used (first channel is channel 1 not 0)
+;	momoments:	FLTARR	[3,n_ch,n_time] of the spectral moments to be compared to brchk for inversion accuracy
+;	bfield:		STRUC 	see GENPOS_GRID_BFIELD for structure
+;	rhopts:		FLTARR	[n_grid, n_time] of the rho values corresponding to the (R,Z) grid points.
+;	ves_cent:	STRUC 	the vessel grid structure generated from GENPOS_GRID or GRID_VES using /center, consistent with gpv
+;
+;PROCEDURE:
+;	This procedure can calculate the profiles in one of two ways.  GENSPEC_MATRIX_INVERT uses GPV's based on a single line of sight.  So to get
+;	decent spatial resolution, a very fine grid must be generated, which slows things down.  Additionally, the LCFS can move substaintially
+;	within the field of view, making a fixed rho_min,rho_max hard to deal with.  Thus, if possible /shellinvert should be used since it can
+;	adjust the inversion grid along with the plasma at each time point.  The shellinvert math is much more robust as well, droping the noise.
+;
+;	OPTIONAL INPUTS/KEYWORDS/OUTPUTS UNSED BY SHELLINVERT: rhopts,ves_cent,bfield,eta,nofirst
+;
+;MODIFICATION HISTORY:
+;	Written by:	ML Reinke 2/18/08
+;	2/21/08:	ML Reinke - added ability to use /shellinvert
+;
+;-
+
+
+PRO cxrs_genspec_invert,shot,array,emiss,u,ti,rho,time,r_major=r_major,brchk=brchk,lr=lr,del_i=del_i,$
+		good=good,eps_em=eps_em,eps_u=eps_u,eps_ti=eps_ti,n_rho=n_rho,rho_vec=rho_vec,rhopts=rhopts,ves_cent=ves_cent,bfield=bfield,double=double,$
+		debug=debug,backsub=backsub,novel=novel,trange=trange,eta=eta,moments=moments,nofirst=nofirst,shellinvert=shellinvert
+
+	IF NOT keyword_set(lr) THEN lr=[0.0]
+	z=5
+
+	IF NOT keyword_set(data) THEN BEGIN
+		pos=genpos_cxrs_pos(array,shot=shot)
+		grid=genpos_grid(0.2,0.60,[200,300],xo=0.875,yo=0.0)
+		gpv=genpos_cxrs_gpv(grid,array,shot=shot,ves_cent=ves_cent)
+		cxrs_load_lamint,shot,array,lam,inten,time,lam_o,good=good_ch,rad=rad,del_i=del_i
+		tmp=where(good_ch EQ 1)	;here good indicates which channels are used from the full array
+		pos=pos[*,tmp]		
+		gpv=gpv[tmp,*]
+		posrev=intarr(n(pos[0,*])+1)
+		IF array EQ 'pol' OR array EQ 'back' THEN BEGIN
+			posrev[where(pos[3,*] LT 0)]=1
+			diff=1
+		ENDIF
+	ENDIF ELSE BEGIN
+		gpv=data.gpv
+		pos=data.pos
+		ves_cent=data.ves_cent
+		lam=data.lam
+		int=data.inten
+		time=data.times
+		lam_o=data.lam_o
+	ENDELSE
+	IF NOT keyword_set(good) THEN good=intarr(n(rad)+1)+1
+	IF keyword_set(rho_vec) THEN n_rho=n(rho_vec)+1
+	IF NOT keyword_set(n_rho) THEN  n_rho=22
+	IF NOT keyword_set(rho_vec) THEN rho_vec=make((22.0-(90.5-min(rad[where(good EQ 1)])))/22.0,(2.0+22.0-(90.5-max(rad[where(good EQ 1)])))/22.0,n_rho)
+
+	;truncate dataset to where EFIT has been run
+	efit_times=line_gettimes(shot)
+	IF NOT keyword_set(trange) THEN trange=[efit_times[0],efit_times[n(efit_times)]]
+	t_low=trange[0] > efit_times[0]
+	t_high=trange[1] <  efit_times[n(efit_times)]
+	IF t_low EQ t_high THEN tmp=ipt(time, t_low) ELSE tmp=where(time GE t_low AND time LE t_high)
+	int=inten[*,*,tmp]
+	time=time[tmp]
+	IF keyword_set(debug) THEN stop
+
+	moments=genspec_li_moments(lam,int,lam_o,lr=lr,backsub=backsub,double=double)
+	IF keyword_set(novel) THEN moments[1,*,*]=0.0
+	IF keyword_set(debug) THEN stop
+
+	IF keyword_set(shellinvert) THEN BEGIN
+		posrev=reform(pos[3,*]/abs(pos[3,*]))
+		out=genspec_shellinvert(moments,pos,shot,time,lam_o,z,good=good,eta=eta,eps_em=eps_em,eps_w=eps_w,eps_u=eps_u,eps_ti=eps_ti,$
+			npts=n_rho,redge=redge,/parallel,posrev=posrev)
+		;output={r:rmaj,time:time,emiss:emiss,w:w,u:u,ti:ti,brchk:brchk,rt:rt}
+		emiss=out.emiss
+		ti=out.ti*1.0e3
+		r_major=out.r
+		u=out.u
+		rho=-1
+		brchk={br:out.brchk,ch:out.ch}
+	ENDIF ELSE BEGIN
+		out=genspec_matrix_invert(moments,gpv,pos,shot,time,ves_cent,lam_o,z,bfield=bfield,good=good,rhopts=rhopts,$
+			eps_em=eps_em,eps_u=eps_u,eps_ti=eps_ti,n_rho=n_rho,rho_vec=rho_vec,/parallel,eta=eta,/rhosol,nofirst=nofirst,posrev=posrev,diff=diff)
+		emiss=out.emiss
+		ti=out.ti*1.0e3
+		u=out.u
+		rho=out.rho
+		time=out.time
+		brchk={br:out.brchk,ch:out.ch}
+		r_major=line_getrmaj(shot,rho,time)
+	ENDELSE
+
+	IF keyword_set(debug) THEN stop
+END
+
